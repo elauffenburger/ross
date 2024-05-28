@@ -1,0 +1,11 @@
+[build]
+target="thumbv7em-none-eabihf"
+
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-args=-e __start -static -nostartfiles"]
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
