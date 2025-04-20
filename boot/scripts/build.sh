@@ -49,21 +49,11 @@ ensure_dir() {
   [[ -d "$dir" ]] || mkdir -p "$dir"
 }
 
-OUT_DIR="$SCRIPT_DIR/../out"
+OUT_DIR="$SCRIPT_DIR/../../out"
 ensure_dir "$OUT_DIR"
 
 build_kernel() {
-  build_rust_kernel() {
-    pushd "$SCRIPT_DIR/../../"
-
-    local target=x86_64-ross
-    cargo build --target "$target.json"
-
-    local ross_obj_archive="target/$target/debug/libross.a"
-    local ross_obj_files=$(tar -tf "$ross_obj_archive" | rg '\.o$' | tr '\n' ' ')
-    tar -xf "$ross_obj_archive" -C "$OUT_DIR/obj" $ross_obj_files
-
-    popd
+  build_zig_kernel() {
   }
 
   build_loader() {
@@ -76,14 +66,20 @@ build_kernel() {
       -T "$SCRIPT_DIR/../link.ld" \
       -m elf_i386 \
       -o "$OUT_DIR/kernel.elf" \
+      -L "$OUT_DIR/obj" \
+      -lross \
       "$OUT_DIR"/obj/*.o
   }
 
   [[ -d "$OUT_DIR/obj" ]] && rm -rf "$OUT_DIR/obj"
   mkdir -p "$OUT_DIR/obj"
 
-  # build_rust_kernel
-  build_loader
+  pushd "$SCRIPT_DIR/../../"
+
+  zig build
+  cp "zig-out/lib/libross.a" "$OUT_DIR/obj"
+
+  popd
 }
 
 build_iso() {

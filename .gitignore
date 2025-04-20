@@ -1,2 +1,4 @@
 /target
-/boot/out
+/out
+.zig-cache
+zig-out
