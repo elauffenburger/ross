@@ -69,12 +69,12 @@ build_kernel() {
   build_loader() {
     local object_files="$SCRIPT_DIR/../asm/*.s"
     for obj_file in $object_files; do
-      nasm "$obj_file" -f elf64 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
+      nasm "$obj_file" -f elf32 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
     done
 
     x86_64-linux-gnu-ld \
       -T "$SCRIPT_DIR/../link.ld" \
-      -m elf_x86_64 \
+      -m elf_i386 \
       -o "$OUT_DIR/kernel.elf" \
       "$OUT_DIR"/obj/*.o
   }
