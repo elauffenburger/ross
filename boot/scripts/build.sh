@@ -55,13 +55,19 @@ ensure_dir "$OUT_DIR"
 build_kernel() {
   build_rust_kernel() {
     pushd "$SCRIPT_DIR/../../"
-    cargo build
+
+    local target=x86_64-ross
+    cargo build --target "$target.json"
+
+    local ross_obj_archive="target/$target/debug/libross.a"
+    local ross_obj_files=$(tar -tf "$ross_obj_archive" | rg '\.o$' | tr '\n' ' ')
+    echo "$ross_obj_files"
+    tar -xf "$ross_obj_archive" -C "$OUT_DIR/obj" $ross_obj_files
+
     popd
   }
 
   build_loader() {
-    ensure_dir "$OUT_DIR/obj"
-
     local object_files="$SCRIPT_DIR/../asm/*.s"
     for obj_file in $object_files; do
       nasm "$obj_file" -f elf32 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
@@ -73,6 +79,9 @@ build_kernel() {
       -o "$OUT_DIR/kernel.elf" \
       "$OUT_DIR"/obj/*.o
   }
+
+  [[ -d "$OUT_DIR/obj" ]] && rm -rf "$OUT_DIR/obj"
+  mkdir -p "$OUT_DIR/obj"
 
   build_rust_kernel
   build_loader
