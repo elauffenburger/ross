@@ -1,11 +1,14 @@
 [build]
-target="target.json"
+target = "x86_64-ross.json"
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-nostartfiles", "--emit=obj"]
+
+[target.'cfg(target_os = "windows")']
+rustflags = ["-C", "link-args=/ENTRY:_start /SUBSYSTEM:console", "--emit=obj"]
 
 [target.'cfg(target_os = "macos")']
-rustflags = ["-C", "link-args=-e __start -static -nostartfiles"]
-
-[target.'cfg(target_os = "none")']
-runner = "bootimage runner"
+rustflags = ["--emit=obj", "-C", "link-args=-e _kmain -static -nostartfiles"]
 
 [unstable]
 build-std-features = ["compiler-builtins-mem"]

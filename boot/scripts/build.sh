@@ -11,13 +11,22 @@ build.sh: builds bootloader
 FLAGS
   --run       if provided, qemu will be booted using the produced binary
 EOF
+
+  exit 1
 }
 
 BUILD_AND_RUN=
+OUTPUT_TYPE=elf
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
   --run)
     BUILD_AND_RUN=1
+    ;;
+
+  --output)
+    shift
+
+    OUTPUT_TYPE="$1"
     ;;
 
   *)
@@ -29,6 +38,11 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
+if [[ ! ("$OUTPUT_TYPE" == elf || "$OUTPUT_TYPE" == iso) ]]; then
+  echo "unexpected --output-type $OUTPUT_TYPE" >&2
+  usage
+fi
+
 ensure_dir() {
   local dir="$1"
 
@@ -38,19 +52,30 @@ ensure_dir() {
 OUT_DIR="$SCRIPT_DIR/../out"
 ensure_dir "$OUT_DIR"
 
-build_loader() {
-  ensure_dir "$OUT_DIR/obj"
+build_kernel() {
+  build_rust_kernel() {
+    pushd "$SCRIPT_DIR/../../"
+    cargo build
+    popd
+  }
 
-  local object_files="$SCRIPT_DIR/../asm/*.s"
-  for obj_file in $object_files; do
-    nasm "$obj_file" -f elf32 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
-  done
+  build_loader() {
+    ensure_dir "$OUT_DIR/obj"
 
-  x86_64-linux-gnu-ld \
-    -T "$SCRIPT_DIR/../link.ld" \
-    -m elf_i386 \
-    -o "$OUT_DIR/kernel.elf" \
-    "$OUT_DIR"/obj/*.o
+    local object_files="$SCRIPT_DIR/../asm/*.s"
+    for obj_file in $object_files; do
+      nasm "$obj_file" -f elf32 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
+    done
+
+    x86_64-linux-gnu-ld \
+      -T "$SCRIPT_DIR/../link.ld" \
+      -m elf_i386 \
+      -o "$OUT_DIR/kernel.elf" \
+      "$OUT_DIR"/obj/*.o
+  }
+
+  build_rust_kernel
+  build_loader
 }
 
 build_iso() {
@@ -86,15 +111,31 @@ EOF
 }
 
 main() {
-  echo 'building loader...'
-  build_loader
+  echo 'building kernel...'
+  build_kernel
 
-  echo 'building iso...'
-  build_iso
+  if [[ "$OUTPUT_TYPE" == iso ]]; then
+    echo 'building iso...'
+    build_iso
+  fi
 
   if [[ "$BUILD_AND_RUN" == 1 ]]; then
     echo 'running...'
-    qemu-system-x86_64 -cdrom "$OUT_DIR/os.iso"
+
+    case "$OUTPUT_TYPE" in
+    elf)
+      qemu-system-x86_64 -kernel "$OUT_DIR/kernel.elf" -monitor stdio
+      ;;
+
+    iso)
+      qemu-system-x86_64 -cdrom "$OUT_DIR/os.iso" -monitor stdio
+      ;;
+
+    *)
+      echo "unknown --output-type $OUTPUT_TYPE" >&2
+      usage
+      ;;
+    esac
   fi
 }
 
