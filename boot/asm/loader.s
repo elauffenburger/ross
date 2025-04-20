@@ -1,6 +1,6 @@
 global loader                   ; the entry symbol for ELF
 
-extern kmain
+; extern kmain
 
 KERNEL_STACK_SIZE equ 4096      ; size of stack in bytes
 
@@ -23,4 +23,4 @@ align 4                         ; the code must be 4 byte aligned
 loader:                         ; the loader label (defined as entry point in linker script)
   mov eax, 0xCAFEBABE           ; place the number 0xCAFEBABE in the register eax
 
-  call kmain
+  ; call kmain
