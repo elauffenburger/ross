@@ -38,5 +38,10 @@ pub export fn _kmain() callconv(.naked) noreturn {
 }
 
 pub fn main() void {
+    asm volatile (
+        \\ mov ax "H"
+        \\ int 10h
+    );
+
     while (true) {}
 }
