@@ -49,28 +49,10 @@ ensure_dir() {
   [[ -d "$dir" ]] || mkdir -p "$dir"
 }
 
-OUT_DIR="$SCRIPT_DIR/../../out"
+OUT_DIR="$SCRIPT_DIR/../out"
 ensure_dir "$OUT_DIR"
 
 build_kernel() {
-  build_zig_kernel() {
-  }
-
-  build_loader() {
-    local object_files="$SCRIPT_DIR/../asm/*.s"
-    for obj_file in $object_files; do
-      nasm "$obj_file" -f elf32 -o "$OUT_DIR/obj/$(rev <<<"$obj_file" | cut -d '/' -f 1 | cut -c 3- | rev).o"
-    done
-
-    x86_64-linux-gnu-ld \
-      -T "$SCRIPT_DIR/../link.ld" \
-      -m elf_i386 \
-      -o "$OUT_DIR/kernel.elf" \
-      -L "$OUT_DIR/obj" \
-      -lross \
-      "$OUT_DIR"/obj/*.o
-  }
-
   [[ -d "$OUT_DIR/obj" ]] && rm -rf "$OUT_DIR/obj"
   mkdir -p "$OUT_DIR/obj"
 
