@@ -11,7 +11,7 @@
       "target": "localhost:1234",
       "remote": true,
       "cwd": "${workspaceRoot}",
-      "valuesFormatting": "parseText",
+      "valuesFormatting": "prettyPrinters",
       "autorun": [
         "symbol-file ${workspaceFolder}/zig-out/bin/ross"
       ]

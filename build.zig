@@ -37,12 +37,13 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
         .optimize = b.standardOptimizeOption(.{}),
         .link_libc = false,
         .link_libcpp = false,
+        .dwarf_format = .@"32",
     });
 
     const exe = b.addExecutable(.{
         .name = "ross",
         .root_module = exe_mod,
-        .linkage = .static,
+        .code_model = .kernel,
     });
     exe.entry = .{ .symbol_name = "_kmain" };
     exe.setLinkerScript(b.path("boot/link.ld"));

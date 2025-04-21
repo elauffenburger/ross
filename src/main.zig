@@ -67,7 +67,7 @@ pub fn kmain() callconv(.c) void {
                 : [ret] "={eax}" (-> u32),
             );
 
-            var asm_res_str: [kstd.c.BUF_SIZ]u8 = undefined;
+            var asm_res_str: [16]u8 = undefined;
             @memset(&asm_res_str, 0);
             kstd.c.itoa(asm_res, &asm_res_str);
 
