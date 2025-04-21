@@ -43,7 +43,17 @@ main() {
 
   if [[ "$BUILD_AND_RUN" == 1 ]]; then
     echo 'running...'
-    qemu-system-x86_64 -cdrom "$SCRIPT_DIR/../zig-out/os.iso" -monitor stdio
+    qemu-system-x86_64 \
+      -accel tcg,thread=single \
+      -cpu core2duo \
+      -m 128 \
+      -smp 1 \
+      -usb \
+      -vga std \
+      -cdrom "$SCRIPT_DIR/../zig-out/os.iso" \
+      -monitor stdio \
+      -no-reboot \
+      -s
   fi
 }
 

@@ -15,11 +15,28 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .default_target = .{
                 .cpu_arch = .x86,
                 .os_tag = .freestanding,
-                .ofmt = .elf,
                 .abi = .none,
+                .cpu_features_add = blk: {
+                    var res = std.Target.Cpu.Feature.Set.empty;
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.soft_float));
+
+                    break :blk res;
+                },
+                .cpu_features_sub = blk: {
+                    var res = std.Target.Cpu.Feature.Set.empty;
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.mmx));
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.sse));
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.sse2));
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.avx));
+                    res.addFeature(@intFromEnum(std.Target.x86.Feature.avx2));
+
+                    break :blk res;
+                },
             },
         }),
         .optimize = b.standardOptimizeOption(.{}),
+        .link_libc = false,
+        .link_libcpp = false,
     });
 
     const exe = b.addExecutable(.{

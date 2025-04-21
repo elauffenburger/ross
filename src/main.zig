@@ -1,3 +1,4 @@
+const kstd = @import("kstd.zig");
 const vga = @import("vga.zig");
 
 const MultibootHeader = extern struct {
@@ -41,7 +42,7 @@ export var multiboot_header align(4) linksection(".multiboot") = blk: {
 };
 
 const STACK_SIZE = 16 * 1024;
-var stack_bytes: [STACK_SIZE]u8 align(16) linksection(".bss") = undefined;
+var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
 pub export fn _kmain() callconv(.naked) noreturn {
     asm volatile (
@@ -49,14 +50,29 @@ pub export fn _kmain() callconv(.naked) noreturn {
         \\ movl %%esp, %%ebp
         \\ call %[kmain:P]
         :
-        : [stack_top] "i" (@as([*]align(16) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
+        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
           [kmain] "X" (&kmain),
     );
 }
 
 pub fn kmain() callconv(.c) void {
-    vga.initialize();
-    vga.puts("hello, world!");
+    vga.init();
 
-    while (true) {}
+    while (true) {
+        vga.puts("hello, world!");
+
+        {
+            const asm_res = asm volatile (
+                \\ movl %%cr0, %%eax
+                : [ret] "={eax}" (-> u32),
+            );
+
+            var asm_res_str: [kstd.c.BUF_SIZ]u8 = undefined;
+            @memset(&asm_res_str, 0);
+            kstd.c.itoa(asm_res, &asm_res_str);
+
+            vga.puts(" cr0: ");
+            vga.puts(&asm_res_str);
+        }
+    }
 }

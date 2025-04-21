@@ -1,50 +1,27 @@
-// var width: u32 = undefined;
-// var height: u32 = undefined;
+const std = @import("std");
+const fmt = std.fmt;
 
-// var row: usize = 0;
-// var column: usize = 0;
-// var color = vgaEntryColor(ConsoleColors.LightGray, ConsoleColors.Black);
+var width: u32 = 80;
+var height: u32 = 30;
 
-// pub const Color = enum(u8) {
-//     Black = 0,
-//     Blue = 1,
-//     Green = 2,
-//     Cyan = 3,
-//     Red = 4,
-//     Magenta = 5,
-//     Brown = 6,
-//     LightGray = 7,
-//     DarkGray = 8,
-//     LightBlue = 9,
-//     LightGreen = 10,
-//     LightCyan = 11,
-//     LightRed = 12,
-//     LightMagenta = 13,
-//     LightBrown = 14,
-//     White = 15,
-// };
+var curr_y: usize = 0;
+var curr_x: usize = 0;
+var curr_colors = ColorPair{
+    .fg = Color.LightGray,
+    .bg = Color.Black,
+};
 
-// pub fn init(args: struct { width: u32, height: u32 }) void {
-//     width = args.width;
-//     height = args.height;
-// }
+const BUFFER_ADDR = 0x0b8000;
+var buffer = @as([*]volatile u16, @ptrFromInt(BUFFER_ADDR));
 
-// inline fn size() u32 {
-//     return width * height;
-// }
+pub const writer = std.io.Writer(void, error{}, writer_write){ .context = {} };
 
-// fn vgaEntryColor(fg: Color, bg: Color) u32 {
-//     return @intFromEnum(fg) | @intFromEnum(bg << 4);
-// }
+fn writer_write(_: void, string: []const u8) error{}!usize {
+    puts(string);
+    return string.len;
+}
 
-const fmt = @import("std").fmt;
-const Writer = @import("std").io.Writer;
-
-const VGA_WIDTH = 80;
-const VGA_HEIGHT = 25;
-const VGA_SIZE = VGA_WIDTH * VGA_HEIGHT;
-
-pub const ConsoleColors = enum(u8) {
+pub const Color = enum(u8) {
     Black = 0,
     Blue = 1,
     Green = 2,
@@ -63,61 +40,66 @@ pub const ConsoleColors = enum(u8) {
     White = 15,
 };
 
-var row: usize = 0;
-var column: usize = 0;
-var color = vgaEntryColor(ConsoleColors.LightGray, ConsoleColors.Black);
-var buffer = @as([*]volatile u16, @ptrFromInt(0xB8000));
+const ColorPair = extern struct {
+    bg: Color,
+    fg: Color,
 
-fn vgaEntryColor(fg: ConsoleColors, bg: ConsoleColors) u8 {
-    return @intFromEnum(fg) | (@intFromEnum(bg) << 4);
-}
+    pub fn code(self: @This()) u8 {
+        return (@intFromEnum(self.bg) << 4) | @intFromEnum(self.fg);
+    }
+};
 
-fn vgaEntry(uc: u8, new_color: u8) u16 {
-    const c: u16 = new_color;
+const Char = extern struct {
+    colors: ColorPair,
+    ch: u8,
 
-    return uc | (c << 8);
-}
+    pub fn code(self: @This()) u16 {
+        var res: u16 = @intCast(self.colors.code());
+        res <<= 8;
+        res |= self.ch;
 
-pub fn initialize() void {
+        return res;
+    }
+};
+
+pub fn init() void {
     clear();
 }
 
-pub fn setColor(new_color: u8) void {
-    color = new_color;
-}
-
 pub fn clear() void {
-    @memset(buffer[0..VGA_SIZE], vgaEntry(' ', color));
+    @memset(buffer[0..size()], Char.code(.{ .colors = curr_colors, .ch = ' ' }));
 }
 
-pub fn putCharAt(c: u8, new_color: u8, x: usize, y: usize) void {
-    const index = y * VGA_WIDTH + x;
-    buffer[index] = vgaEntry(c, new_color);
+pub fn putCharAt(ch: Char, x: usize, y: usize) void {
+    const index = y * width + x;
+
+    var code: u16 = @intCast(ch.colors.code());
+    code <<= 8;
+    code |= ch.ch;
+
+    buffer[index] = code;
 }
 
-pub fn putChar(c: u8) void {
-    putCharAt(c, color, column, row);
-    column += 1;
-    if (column == VGA_WIDTH) {
-        column = 0;
-        row += 1;
-        if (row == VGA_HEIGHT)
-            row = 0;
+pub fn putChar(ch: u8) void {
+    putCharAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
+
+    curr_x += 1;
+    if (curr_x == width) {
+        curr_x = 0;
+
+        curr_y += 1;
+        if (curr_y == height) {
+            curr_y = 0;
+        }
     }
 }
 
 pub fn puts(data: []const u8) void {
-    for (data) |c|
+    for (data) |c| {
         putChar(c);
+    }
 }
 
-pub const writer = Writer(void, error{}, callback){ .context = {} };
-
-fn callback(_: void, string: []const u8) error{}!usize {
-    puts(string);
-    return string.len;
-}
-
-pub fn printf(comptime format: []const u8, args: anytype) void {
-    fmt.format(writer, format, args) catch unreachable;
+inline fn size() u32 {
+    return width * height;
 }
