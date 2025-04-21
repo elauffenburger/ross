@@ -11,3 +11,5 @@ I had to install cross-compiling toolchains to target i386; https://github.com/m
 - [BIOS Interrupts Overview](https://en.wikipedia.org/wiki/BIOS_interrupt_call#Interrupt_table)
 - [BIOS Interrups List](https://www.ctyme.com/rbrown.htm)
 - [Art of ASM Ch. 17 (ISRs)](https://flint.cs.yale.edu/cs422/doc/art-of-asm/pdf/CH17.PDF)
+- [Zig baremetal](https://austinhanson.com/bare-metal-ziglang/)
+- [inline asm constraints](https://gcc.gnu.org/onlinedocs/gcc/Simple-Constraints.html)
