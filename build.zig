@@ -2,12 +2,8 @@ const std = @import("std");
 const fs = std.fs;
 
 pub fn build(b: *std.Build) !void {
-    const build_iso = b.option(bool, "build-iso", "build a bootable iso") orelse false;
-
     const exe = addExe(b);
-    if (build_iso) {
-        addBuildIso(b, exe);
-    }
+    addBuildIso(b, exe);
 
     addTests(b, exe.root_module);
 }
@@ -55,6 +51,7 @@ fn addBuildIso(b: *std.Build, exe: *std.Build.Step.Compile) void {
     const copy_files = b.addWriteFiles();
     const mkisofs = std.Build.Step.Run.create(b, "mkisofs");
 
+    b.getInstallStep().dependOn(step);
     step.dependOn(&mkisofs.step);
     mkisofs.step.dependOn(&copy_files.step);
     copy_files.step.dependOn(&exe.step);
