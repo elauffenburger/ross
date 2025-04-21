@@ -35,7 +35,8 @@ pub export fn _kmain() callconv(.naked) noreturn {
         :
         : [func] "X" (&main),
     );
-    while (true) {}
 }
 
-pub fn main() void {}
+pub fn main() void {
+    while (true) {}
+}

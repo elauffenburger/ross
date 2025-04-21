@@ -16,17 +16,10 @@ EOF
 }
 
 BUILD_AND_RUN=
-OUTPUT_TYPE=iso
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
   --run)
     BUILD_AND_RUN=1
-    ;;
-
-  --output)
-    shift
-
-    OUTPUT_TYPE="$1"
     ;;
 
   *)
@@ -38,90 +31,19 @@ while [[ "$#" -gt 0 ]]; do
   shift
 done
 
-if [[ ! ("$OUTPUT_TYPE" == elf || "$OUTPUT_TYPE" == iso) ]]; then
-  echo "unexpected --output-type $OUTPUT_TYPE" >&2
-  usage
-fi
-
-ensure_dir() {
-  local dir="$1"
-
-  [[ -d "$dir" ]] || mkdir -p "$dir"
-}
-
-OUT_DIR="$SCRIPT_DIR/../out"
-ensure_dir "$OUT_DIR"
-
 build_kernel() {
-  [[ -d "$OUT_DIR/obj" ]] && rm -rf "$OUT_DIR/obj"
-  mkdir -p "$OUT_DIR/obj"
-
-  pushd "$SCRIPT_DIR/../../"
-
-  zig build
-  cp "zig-out/lib/libross.a" "$OUT_DIR/obj"
-
-  popd
-}
-
-build_iso() {
-  ensure_dir "$OUT_DIR/iso"
-  ensure_dir "$OUT_DIR/iso/boot"
-  ensure_dir "$OUT_DIR/iso/boot/grub"
-
-  if [[ ! -f "$OUT_DIR/iso/boot/grub/stage2_eltorito" ]]; then
-    set -x
-    echo 'downloading GRUB stage2_eltorito...'
-    wget https://littleosbook.github.io/files/stage2_eltorito -O "$OUT_DIR/iso/boot/grub/stage2_eltorito"
-  fi
-
-  cp "$OUT_DIR/kernel.elf" "$OUT_DIR/iso/boot"
-  cat <<EOF >"$OUT_DIR/iso/boot/grub/menu.lst"
-default=0
-timeout=0
-
-title os
-kernel /boot/kernel.elf
-EOF
-
-  mkisofs -quiet \
-    -input-charset utf8 \
-    -eltorito-boot boot/grub/stage2_eltorito \
-    -boot-info-table \
-    -boot-load-size 4 \
-    -rock \
-    -no-emul-boot \
-    -o "$OUT_DIR/os.iso" \
-    -A os \
-    "$OUT_DIR/iso"
+  pushd "$SCRIPT_DIR/.." >/dev/null
+  zig build build-iso --summary all
+  popd >/dev/null
 }
 
 main() {
   echo 'building kernel...'
   build_kernel
 
-  if [[ "$OUTPUT_TYPE" == iso ]]; then
-    echo 'building iso...'
-    build_iso
-  fi
-
   if [[ "$BUILD_AND_RUN" == 1 ]]; then
     echo 'running...'
-
-    case "$OUTPUT_TYPE" in
-    elf)
-      qemu-system-x86_64 -kernel "$OUT_DIR/kernel.elf" -monitor stdio
-      ;;
-
-    iso)
-      qemu-system-x86_64 -cdrom "$OUT_DIR/os.iso" -monitor stdio
-      ;;
-
-    *)
-      echo "unknown --output-type $OUTPUT_TYPE" >&2
-      usage
-      ;;
-    esac
+    qemu-system-x86_64 -cdrom "$SCRIPT_DIR/../zig-out/os.iso" -monitor stdio
   fi
 }
 
