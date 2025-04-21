@@ -14,12 +14,18 @@ var curr_colors = ColorPair{
 const BUFFER_ADDR = 0x0b8000;
 var buffer = @as([*]volatile u16, @ptrFromInt(BUFFER_ADDR));
 
-pub const writer = std.io.Writer(void, error{}, writer_write){ .context = {} };
-
-fn writer_write(_: void, string: []const u8) error{}!usize {
-    puts(string);
-    return string.len;
-}
+pub const writer = std.io.Writer(
+    void,
+    error{},
+    struct {
+        pub fn write(_: void, string: []const u8) error{}!usize {
+            writeStr(string);
+            return string.len;
+        }
+    }.write,
+){
+    .context = {},
+};
 
 pub const Color = enum(u8) {
     Black = 0,
@@ -70,7 +76,7 @@ pub fn clear() void {
     @memset(buffer[0..size()], Char.code(.{ .colors = curr_colors, .ch = ' ' }));
 }
 
-pub fn putCharAt(ch: Char, x: usize, y: usize) void {
+pub fn writeChAt(ch: Char, x: usize, y: usize) void {
     const index = y * width + x;
 
     var code: u16 = @intCast(ch.colors.code());
@@ -80,23 +86,27 @@ pub fn putCharAt(ch: Char, x: usize, y: usize) void {
     buffer[index] = code;
 }
 
-pub fn putChar(ch: u8) void {
-    putCharAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
+pub fn writeCh(ch: u8) void {
+    if (ch == '\n') {
+        newline();
+        return;
+    }
+
+    writeChAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
 
     curr_x += 1;
     if (curr_x == width) {
-        curr_x = 0;
-
-        curr_y += 1;
-        if (curr_y == height) {
-            curr_y = 0;
-        }
+        newline();
     }
 }
 
-pub fn puts(data: []const u8) void {
+pub fn writeStr(data: []const u8) void {
     for (data) |c| {
-        putChar(c);
+        if (c == 0) {
+            return;
+        }
+
+        writeCh(c);
     }
 }
 
@@ -106,9 +116,18 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
         return;
     };
 
-    puts(fmtd);
+    writeStr(fmtd);
 }
 
 inline fn size() u32 {
     return width * height;
+}
+
+inline fn newline() void {
+    curr_x = 0;
+
+    curr_y += 1;
+    if (curr_y == height) {
+        curr_y = 0;
+    }
 }

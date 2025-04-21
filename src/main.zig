@@ -58,7 +58,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
 pub fn kmain() callconv(.c) void {
     vga.init();
 
-    vga.puts("hello, world!\n");
+    vga.writeStr("hello, world!\n");
 
     {
         const asm_res = asm volatile (
@@ -70,7 +70,7 @@ pub fn kmain() callconv(.c) void {
         @memset(&asm_res_str, 0);
         kstd.c.itoa(asm_res, &asm_res_str);
 
-        vga.print("vga mode: {}", .{asm_res_str});
+        vga.printf("vga mode: {s}", .{asm_res_str});
     }
 
     while (true) {}
