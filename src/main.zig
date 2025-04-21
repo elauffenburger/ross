@@ -58,21 +58,23 @@ pub export fn _kmain() callconv(.naked) noreturn {
 pub fn kmain() callconv(.c) void {
     vga.init();
 
-    while (true) {
-        vga.puts("hello, world!");
+    vga.puts("hello, world!");
 
-        {
-            const asm_res = asm volatile (
-                \\ movl %%cr0, %%eax
-                : [ret] "={eax}" (-> u32),
-            );
+    {
+        const asm_res = asm volatile (
+            \\ movl %%cr0, %%eax
+            : [ret] "={eax}" (-> u32),
+        );
 
-            var asm_res_str: [16]u8 = undefined;
-            @memset(&asm_res_str, 0);
-            kstd.c.itoa(asm_res, &asm_res_str);
+        var asm_res_str: [16]u8 = undefined;
+        @memset(&asm_res_str, 0);
+        kstd.c.itoa(17, &asm_res_str);
 
-            vga.puts(" cr0: ");
-            vga.puts(&asm_res_str);
-        }
+        vga.printf("woah: {d}", .{asm_res});
+
+        vga.puts(" cr0: ");
+        vga.puts(&asm_res_str);
     }
+
+    while (true) {}
 }

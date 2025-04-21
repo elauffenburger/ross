@@ -100,6 +100,15 @@ pub fn puts(data: []const u8) void {
     }
 }
 
+pub fn printf(comptime format: []const u8, args: anytype) void {
+    var buf = std.mem.zeroes([256]u8);
+    const fmtd = fmt.bufPrint(&buf, format, args) catch {
+        return;
+    };
+
+    puts(fmtd);
+}
+
 inline fn size() u32 {
     return width * height;
 }
