@@ -84,5 +84,5 @@ fn addBuildIso(b: *std.Build, exe: *std.Build.Step.Compile) void {
 
     mkisofs.addDirectoryArg(iso_dir);
 
-    _ = b.addInstallFile(iso_file, "os.iso");
+    b.getInstallStep().dependOn(&b.addInstallFile(iso_file, "os.iso").step);
 }
