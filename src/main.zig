@@ -26,7 +26,7 @@ const MultibootHeader = extern struct {
     video: VideoMode = undefined,
 };
 
-// Write multiboot header.
+// Write multiboot header before we do anything.
 export var multiboot_header align(4) linksection(".multiboot") = blk: {
     const flags = MultibootHeader.Flags.Align | MultibootHeader.Flags.MemInfo | MultibootHeader.Flags.VideoMode;
 
@@ -41,6 +41,7 @@ export var multiboot_header align(4) linksection(".multiboot") = blk: {
     };
 };
 
+// Reserve 16K for the stack in the .bss section.
 const STACK_SIZE = 16 * 1024;
 var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
@@ -59,6 +60,27 @@ pub fn kmain() callconv(.c) void {
     vga.init();
 
     vga.writeStr("hello, world!\n");
+
+    {
+        const old_eflags: u32 = asm volatile (
+            \\ pushf
+            \\ pop %%eax
+            : [ret] "={eax}" (-> u32),
+        );
+
+        vga.printf("flags: {b}\n", .{old_eflags});
+
+        const new_eflags: u32 = asm volatile (
+            \\ pushf
+            \\ pop %%eax
+            \\ orl $0x0400, %%eax
+            \\ push %%eax
+            \\ popf
+            : [ret] "={eax}" (-> u32),
+        );
+
+        vga.printf("new flags: {b}\n", .{new_eflags});
+    }
 
     {
         const asm_res = asm volatile (
