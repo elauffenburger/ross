@@ -80,6 +80,12 @@ pub fn kmain() callconv(.c) void {
         );
 
         vga.printf("new flags: {b}\n", .{new_eflags});
+
+        asm volatile (
+            \\ movb $0x00, %%ah
+            \\ movb $0x11, %%al
+            \\ int $0x10
+        );
     }
 
     {

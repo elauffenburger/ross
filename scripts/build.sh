@@ -53,7 +53,7 @@ main() {
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso" \
       -monitor stdio \
       -no-reboot \
-      -s
+      -s -S
   fi
 }
 

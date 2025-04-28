@@ -9,48 +9,49 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn addInstall(b: *std.Build) *std.Build.Step.Compile {
-    const exe_mod = b.createModule(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = b.standardTargetOptions(.{
-            .default_target = .{
-                .cpu_arch = .x86,
-                .os_tag = .freestanding,
-                .abi = .none,
-                .cpu_features_add = blk: {
-                    var res = std.Target.Cpu.Feature.Set.empty;
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.soft_float));
+    const build_loader = std.Build.Step.Run.create(b, "Build bootloader");
+    build_loader.addArg()
 
-                    break :blk res;
-                },
-                .cpu_features_sub = blk: {
-                    var res = std.Target.Cpu.Feature.Set.empty;
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.mmx));
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.sse));
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.sse2));
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.avx));
-                    res.addFeature(@intFromEnum(std.Target.x86.Feature.avx2));
-
-                    break :blk res;
-                },
-            },
-        }),
-        .optimize = b.standardOptimizeOption(.{}),
-        .link_libc = false,
-        .link_libcpp = false,
-        .dwarf_format = .@"32",
-    });
-
-    const exe = b.addExecutable(.{
+    const kernel = b.addExecutable(.{
         .name = "ross",
-        .root_module = exe_mod,
         .code_model = .kernel,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/main.zig"),
+            .target = b.standardTargetOptions(.{
+                .default_target = .{
+                    .cpu_arch = .x86,
+                    .os_tag = .freestanding,
+                    .abi = .none,
+                    .cpu_features_add = blk: {
+                        var res = std.Target.Cpu.Feature.Set.empty;
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.soft_float));
+
+                        break :blk res;
+                    },
+                    .cpu_features_sub = blk: {
+                        var res = std.Target.Cpu.Feature.Set.empty;
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.mmx));
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.sse));
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.sse2));
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.avx));
+                        res.addFeature(@intFromEnum(std.Target.x86.Feature.avx2));
+
+                        break :blk res;
+                    },
+                },
+            }),
+            .optimize = b.standardOptimizeOption(.{}),
+            .link_libc = false,
+            .link_libcpp = false,
+            .dwarf_format = .@"32",
+        }),
     });
-    exe.entry = .{ .symbol_name = "_kmain" };
-    exe.setLinkerScript(b.path("boot/link.ld"));
+    kernel.entry = .{ .symbol_name = "_kstart" };
+    kernel.setLinkerScript(b.path("boot/link.ld"));
 
-    b.installArtifact(exe);
+    b.installArtifact(kernel);
 
-    return exe;
+    return kernel;
 }
 
 fn addTests(b: *std.Build, exe_mod: *std.Build.Module) void {
