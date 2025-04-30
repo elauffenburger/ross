@@ -9,9 +9,6 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn addInstall(b: *std.Build) *std.Build.Step.Compile {
-    const build_loader = std.Build.Step.Run.create(b, "Build bootloader");
-    build_loader.addArg()
-
     const kernel = b.addExecutable(.{
         .name = "ross",
         .code_model = .kernel,
@@ -46,8 +43,24 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .dwarf_format = .@"32",
         }),
     });
-    kernel.entry = .{ .symbol_name = "_kstart" };
+    kernel.entry = .{ .symbol_name = "_kmain" };
     kernel.setLinkerScript(b.path("boot/link.ld"));
+
+    const build_asm_lib, const asm_lib_obj = blk: {
+        const build_loader = std.Build.Step.Run.create(b, "Build asm lib");
+        build_loader.addArgs(&.{
+            "nasm",
+            "-f",
+            "elf32",
+            "-o",
+        });
+        const loader_obj = build_loader.addOutputFileArg("asm_fns.o");
+        build_loader.addFileArg(b.path("src/asm/asm_fns.s"));
+
+        break :blk .{ build_loader, loader_obj };
+    };
+    kernel.step.dependOn(&build_asm_lib.step);
+    kernel.root_module.addObjectFile(asm_lib_obj);
 
     b.installArtifact(kernel);
 

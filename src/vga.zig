@@ -46,7 +46,7 @@ pub const Color = enum(u8) {
     White = 15,
 };
 
-const ColorPair = extern struct {
+const ColorPair = packed struct {
     bg: Color,
     fg: Color,
 
@@ -55,7 +55,7 @@ const ColorPair = extern struct {
     }
 };
 
-const Char = extern struct {
+const Char = packed struct {
     colors: ColorPair,
     ch: u8,
 

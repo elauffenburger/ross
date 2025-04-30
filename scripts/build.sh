@@ -16,10 +16,20 @@ EOF
 }
 
 BUILD_AND_RUN=
+MONITOR=
+START_GDB=
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
   --run)
     BUILD_AND_RUN=1
+    ;;
+
+  --monitor)
+    MONITOR=1
+    ;;
+
+  --gdb)
+    START_GDB=1
     ;;
 
   *)
@@ -43,17 +53,27 @@ main() {
 
   if [[ "$BUILD_AND_RUN" == 1 ]]; then
     echo 'running...'
-    qemu-system-x86_64 \
-      -accel tcg,thread=single \
-      -cpu core2duo \
-      -m 128 \
-      -smp 1 \
-      -usb \
-      -vga std \
-      -cdrom "$SCRIPT_DIR/../zig-out/os.iso" \
-      -monitor stdio \
-      -no-reboot \
-      -s -S
+
+    QEMU_ARGS=(
+      -accel 'tcg,thread=single'
+      -cpu core2duo
+      -m 128
+      -smp 1
+      -usb
+      -vga std
+      -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
+      -no-reboot
+    )
+
+    if [[ "$START_GDB" == 1 ]]; then
+      QEMU_ARGS+=(-s -S)
+    fi
+
+    if [[ "$MONITOR" == 1 ]]; then
+      QEMU_ARGS+=(-monitor stdio)
+    fi
+
+    qemu-system-x86_64 "${QEMU_ARGS[@]}"
   fi
 }
 
