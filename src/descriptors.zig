@@ -108,7 +108,7 @@ pub const SegmentDescriptor = packed struct(u64) {
         pub const DataSegment = @FieldType(Self, "data");
     };
 
-    pub const Flags = packed struct {
+    pub const Flags = packed struct(u4) {
         // Reserved.
         _: bool,
 
@@ -135,65 +135,7 @@ pub const SegmentDescriptor = packed struct(u64) {
     };
 };
 
-// 0x0000	Null Descriptor	Base = 0
-// Limit = 0x00000000
-// Access Byte = 0x00
-// Flags = 0x0
-
-// 0x0008	Kernel Mode Code Segment	Base = 0
-// Limit = 0xFFFFF
-// Access Byte = 0x9A
-// Flags = 0xC
-
-// 0x0010	Kernel Mode Data Segment	Base = 0
-// Limit = 0xFFFFF
-// Access Byte = 0x92
-// Flags = 0xC
-
-// 0x0018	User Mode Code Segment	Base = 0
-// Limit = 0xFFFFF
-// Access Byte = 0xFA
-// Flags = 0xC
-
-// 0x0020	User Mode Data Segment	Base = 0
-// Limit = 0xFFFFF
-// Access Byte = 0xF2
-// Flags = 0xC
-
-// 0x0028	Task State Segment	Base = &TSS
-// Limit = sizeof(TSS)-1
-// Access Byte = 0x89
-// Flags = 0x0
-
-pub const Gdt = packed struct {
-    const Self = @This();
-
-    var segmentDescriptors = [_]SegmentDescriptor{
-        // Mandatory null entry.
-        @bitCast(0),
-
-        // Kernel Mode Code Segment.
-        SegmentDescriptor.new(.{
-            .base = 0,
-            .limit = 0xf_ffff
-            .access = .{
-
-            },
-            .flags = .{
-
-            }
-        }),
-    };
-
-    pub fn gdtDescriptor(self: *Self) GdtDescriptor {
-        return .{
-            .size = @sizeOf(Self) - 1,
-            .addr = self,
-        };
-    }
-};
-
-pub const GdtDescriptor = packed struct(48) {
-    size: u16,
+pub const GdtDescriptor = packed struct(u48) {
+    limit: u16,
     addr: u32,
 };

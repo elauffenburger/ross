@@ -5,7 +5,6 @@ SECTIONS {
 
     .text : ALIGN(4K) {
         KEEP(*(.multiboot))
-        KEEP(*(.asm_fns))
         *(.text)
     }
 

@@ -63,6 +63,7 @@ main() {
       -vga std
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
       -no-reboot
+      -d 'cpu_reset,int,guest_errors,page,in_asm,pcall'
     )
 
     if [[ "$START_GDB" == 1 ]]; then
