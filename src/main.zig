@@ -77,31 +77,26 @@ var gdtr: [*]descriptors.GdtDescriptor = undefined;
 const STACK_SIZE = 16 * 1024;
 var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
-inline fn loadGdtr() void {
-    asm volatile (
-        \\ push %[limit]
-        \\ push %[addr]
-        \\ call load_gdtr
-        :
-        : [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
-          [addr] "X" (@as(u32, @intFromPtr(&gdt))),
-    );
-}
-
-inline fn initStack() void {
-    asm volatile (
-        \\ movl     %[stack_top], %%esp
-        \\ movl     %%esp, %%ebp
-        :
-        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
-    );
-}
-
 pub export fn _kmain() callconv(.naked) noreturn {
-    initStack();
+    // asm volatile (
+    //     \\ push %[limit]
+    //     \\ push %[addr]
+    //     \\ call load_gdtr
+    //     \\ mov %eax, %[gdtr_addr]
+    //     : [gdtr_addr] "={eax}" (gdtr),
+    //     : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
+    //       [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
+    // );
+
+    // asm volatile (
+    //     \\ movl %[stack_top], %%esp
+    //     \\ movl %%esp, %%ebp
+    //     :
+    //     : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
+    // );
 
     asm volatile (
-        \\ call     %[kmain:P]
+        \\ call %[kmain:P]
         :
         : [kmain] "X" (&kmain),
     );
@@ -109,9 +104,50 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
 fn kmain() callconv(.c) void {
     vga.init();
-    loadGdtr();
 
     vga.writeStr("hello, zig!\n");
+
+    vga.printf(
+        \\ gdtr:
+        \\   asm:
+        \\     addr:  {d}
+        \\     limit: {d}
+        \\   zig:
+        \\     addr:  {d}
+        \\     limit: {d}
+        \\
+    , .{
+        gdtr[0].addr,
+        gdtr[0].limit,
+        @intFromPtr(&gdt),
+        @as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1),
+    });
+
+    asm volatile (
+        \\ push %[limit]
+        \\ push %[addr]
+        \\ call load_gdtr
+        \\ mov %eax, %[gdtr_addr]
+        : [gdtr_addr] "={eax}" (gdtr),
+        : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
+          [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
+    );
+
+    vga.printf(
+        \\ gdtr:
+        \\   asm:
+        \\     addr:  {d}
+        \\     limit: {d}
+        \\   zig:
+        \\     addr:  {d}
+        \\     limit: {d}
+        \\
+    , .{
+        gdtr[0].addr,
+        gdtr[0].limit,
+        @intFromPtr(&gdt),
+        @as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1),
+    });
 
     while (true) {}
 }

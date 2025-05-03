@@ -13,23 +13,28 @@ section .text
 
 ; load_gdtr(addr, limit)
 load_gdtr:
-  ; clear interrupts
   cli
 
+  push ebp
+  mov ebp, esp
+
   ; write base addr
-  pop eax
-  mov [gdtr], eax
+  mov eax, [ebp + 16]
+  mov [gdtr + 2], eax
 
   ; write limit
-  mov eax, [esp + 8]
+  mov ax, [ebp + 16 + 4]
   mov [gdtr], ax
 
   ; load gdtr
   lgdt [gdtr]
 
-  ; re-enable interrupts
-  sti
+  mov eax, gdtr
 
-  hlt
+  mov esp, ebp
+  pop ebp
+
+  ; sti
+  ; nop
 
   ret
