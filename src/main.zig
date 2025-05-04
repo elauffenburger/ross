@@ -34,13 +34,13 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
         .flags = @bitCast(@as(u4, 0xc)),
     }),
 
-    // User Mode Data Segment.
+    // Kernel Mode Data Segment.
     descriptors.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
         .access = .{
-            .data = @bitCast(@as(u8, 0xfa)),
+            .data = @bitCast(@as(u8, 0x92)),
         },
         .flags = @bitCast(@as(u4, 0xc)),
     }),
@@ -51,18 +51,18 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
         .access = .{
-            .code = @bitCast(@as(u8, 0xf2)),
+            .code = @bitCast(@as(u8, 0xfa)),
         },
         .flags = @bitCast(@as(u4, 0xc)),
     }),
 
-    // Kernel Mode Data Segment.
+    // User Mode Data Segment.
     descriptors.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
         .access = .{
-            .data = @bitCast(@as(u8, 0x92)),
+            .data = @bitCast(@as(u8, 0xf2)),
         },
         .flags = @bitCast(@as(u4, 0xc)),
     }),
@@ -78,34 +78,14 @@ const STACK_SIZE = 16 * 1024;
 var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
 pub export fn _kmain() callconv(.naked) noreturn {
-    // asm volatile (
-    //     \\ push %[limit]
-    //     \\ push %[addr]
-    //     \\ call load_gdtr
-    //     \\ mov %eax, %[gdtr_addr]
-    //     : [gdtr_addr] "={eax}" (gdtr),
-    //     : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
-    //       [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
-    // );
-
-    // asm volatile (
-    //     \\ movl %[stack_top], %%esp
-    //     \\ movl %%esp, %%ebp
-    //     :
-    //     : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
-    // );
+    @setRuntimeSafety(false);
 
     asm volatile (
-        \\ call %[kmain:P]
+        \\ movl %[stack_top], %%esp
+        \\ movl %%esp, %%ebp
         :
-        : [kmain] "X" (&kmain),
+        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
     );
-}
-
-fn kmain() callconv(.c) void {
-    vga.init();
-
-    vga.writeStr("hello, zig!\n");
 
     const gdtr_pointer = asm volatile (
         \\ push %[limit]
@@ -117,8 +97,21 @@ fn kmain() callconv(.c) void {
     );
     gdtr = @ptrFromInt(gdtr_pointer);
 
+    asm volatile (
+        \\ call %[kmain:P]
+        :
+        : [kmain] "X" (&kmain),
+    );
+}
+
+fn kmain() callconv(.c) void {
+    @setRuntimeSafety(true);
+
+    vga.init();
+
+    vga.writeStr("hello, zig!\n");
+
     vga.printf(
-        \\ gdtr_pointer: {x}
         \\ &gdtr: {*}
         \\ gdtr:
         \\   asm:
@@ -129,7 +122,6 @@ fn kmain() callconv(.c) void {
         \\     limit: {x}
         \\
     , .{
-        gdtr_pointer,
         gdtr,
         gdtr.addr,
         gdtr.limit,

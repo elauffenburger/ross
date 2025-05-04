@@ -55,9 +55,12 @@ load_gdtr:
   jmp 8:.after_lgdtr
 
 .after_lgdtr:
+  ; update DS register
   mov ax, 16
   mov ds, ax
+  mov ss, ax
 
+  ; return gdtr addr
   mov eax, gdtr
 
   mov esp, ebp
