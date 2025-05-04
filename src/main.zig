@@ -71,7 +71,7 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
     @bitCast(@as(u64, 0xc)),
 };
 
-var gdtr: [*]descriptors.GdtDescriptor = undefined;
+var gdtr: *descriptors.GdtDescriptor align(4) = undefined;
 
 // Reserve 16K for the stack in the .bss section.
 const STACK_SIZE = 16 * 1024;
@@ -107,45 +107,33 @@ fn kmain() callconv(.c) void {
 
     vga.writeStr("hello, zig!\n");
 
-    vga.printf(
-        \\ gdtr:
-        \\   asm:
-        \\     addr:  {d}
-        \\     limit: {d}
-        \\   zig:
-        \\     addr:  {d}
-        \\     limit: {d}
-        \\
-    , .{
-        gdtr[0].addr,
-        gdtr[0].limit,
-        @intFromPtr(&gdt),
-        @as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1),
-    });
-
-    asm volatile (
+    const gdtr_pointer = asm volatile (
         \\ push %[limit]
         \\ push %[addr]
         \\ call load_gdtr
-        \\ mov %eax, %[gdtr_addr]
-        : [gdtr_addr] "={eax}" (gdtr),
+        : [gdtr_addr] "={eax}" (-> usize),
         : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
           [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
     );
+    gdtr = @ptrFromInt(gdtr_pointer);
 
     vga.printf(
+        \\ gdtr_pointer: {x}
+        \\ &gdtr: {*}
         \\ gdtr:
         \\   asm:
-        \\     addr:  {d}
-        \\     limit: {d}
+        \\     addr:  {x}
+        \\     limit: {x}
         \\   zig:
-        \\     addr:  {d}
-        \\     limit: {d}
+        \\     addr:  {*}
+        \\     limit: {x}
         \\
     , .{
-        gdtr[0].addr,
-        gdtr[0].limit,
-        @intFromPtr(&gdt),
+        gdtr_pointer,
+        gdtr,
+        gdtr.addr,
+        gdtr.limit,
+        &gdt,
         @as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1),
     });
 

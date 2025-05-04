@@ -72,6 +72,8 @@ main() {
 
     if [[ "$MONITOR" == 1 ]]; then
       QEMU_ARGS+=(-monitor stdio)
+    else
+      QEMU_ARGS+=()
     fi
 
     qemu-system-x86_64 "${QEMU_ARGS[@]}"
