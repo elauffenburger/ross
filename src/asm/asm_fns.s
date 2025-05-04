@@ -45,7 +45,7 @@ load_gdtr:
 
   ; turn on Protected Mode (...though it should already be on!)
   mov eax, cr0
-  or eax, 0x1
+  or eax, 1
   mov cr0, eax
 
   ; load the gdt!
@@ -55,14 +55,12 @@ load_gdtr:
   jmp 8:.after_lgdtr
 
 .after_lgdtr:
-
+  mov ax, 16
+  mov ds, ax
 
   mov eax, gdtr
 
   mov esp, ebp
   pop ebp
-
-  ; sti
-  ; nop
 
   ret
