@@ -80,13 +80,7 @@ var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
-    asm volatile (
-        \\ movl %[stack_top], %%esp
-        \\ movl %%esp, %%ebp
-        :
-        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
-    );
-
+    // Setup GDT.
     const gdtr_pointer = asm volatile (
         \\ push %[limit]
         \\ push %[addr]
@@ -96,6 +90,14 @@ pub export fn _kmain() callconv(.naked) noreturn {
           [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
     );
     gdtr = @ptrFromInt(gdtr_pointer);
+
+    // Setup stack.
+    asm volatile (
+        \\ movl %[stack_top], %%esp
+        \\ movl %%esp, %%ebp
+        :
+        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
+    );
 
     asm volatile (
         \\ call %[kmain:P]
