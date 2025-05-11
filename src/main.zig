@@ -1,19 +1,19 @@
-const kstd = @import("kstd.zig");
-const vga = @import("vga.zig");
-const multiboot = @import("multiboot.zig");
 const gdt = @import("gdt.zig");
+const kstd = @import("kstd.zig");
+const multiboot = @import("multiboot.zig");
+const vga = @import("vga.zig");
 
 // Write multiboot header before we do anything.
-export var multiboot_header align(4) linksection(".multiboot") = blk: {
-    const flags = multiboot.MultibootHeader.Flags.Align | multiboot.MultibootHeader.Flags.MemInfo | multiboot.MultibootHeader.Flags.VideoMode;
+pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
+    const flags = multiboot.Header.Flags.Align | multiboot.Header.Flags.MemInfo | multiboot.Header.Flags.VideoMode;
 
-    break :blk multiboot.MultibootHeader{
+    break :blk multiboot.Header{
         .flags = flags,
         .checksum = chk: {
-            const checksum_magic: i64 = @intCast(multiboot.MultibootHeader.Magic);
-            const checksum_flags: i64 = @intCast(flags);
+            const checksum_magic: i32 = @intCast(multiboot.Header.Magic);
+            const checksum_flags: i32 = @intCast(flags);
 
-            break :chk -(checksum_magic + checksum_flags);
+            break :chk @bitCast(-(checksum_magic + checksum_flags));
         },
     };
 };

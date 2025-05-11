@@ -1,24 +1,32 @@
-pub const MultibootHeader = extern struct {
+pub const Header = extern struct {
     const Self = @This();
 
     pub const Magic = 0x1BADB002;
 
     pub const Flags = struct {
-        pub const Align: u32 = 1 << 0;
-        pub const MemInfo: u32 = 1 << 1;
-        pub const VideoMode: u32 = 1 << 2;
+        pub const Align: u32 = 1;
+        pub const MemInfo: u32 = 2;
+        pub const VideoMode: u32 = 4;
     };
 
-    pub const VideoMode = packed struct(u128) {
+    pub const Addresses = extern struct {
+        header: u32,
+        load: u32,
+        loadEnd: u32,
+        bssEnd: u32,
+        entry: u32,
+    };
+
+    pub const VideoMode = extern struct {
         modeType: u32,
         width: u32,
         height: u32,
         depth: u32,
     };
 
-    magicNumber: i32 = Self.Magic,
-    flags: i32,
-    checksum: i32,
-    rawAddrInfo: [4]u32 = undefined,
-    video: VideoMode = undefined,
+    magicNumber: u32 = Self.Magic,
+    flags: u32,
+    checksum: u32,
+    addresses: Addresses = @bitCast(@as(u160, 0)),
+    video: VideoMode = @bitCast(@as(u128, 0)),
 };
