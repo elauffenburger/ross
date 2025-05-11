@@ -1,7 +1,7 @@
 const kstd = @import("kstd.zig");
 const vga = @import("vga.zig");
 const multiboot = @import("multiboot.zig");
-const descriptors = @import("descriptors.zig");
+const gdt = @import("gdt.zig");
 
 // Write multiboot header before we do anything.
 export var multiboot_header align(4) linksection(".multiboot") = blk: {
@@ -19,12 +19,12 @@ export var multiboot_header align(4) linksection(".multiboot") = blk: {
 };
 
 // Create the GDT.
-var gdt align(4) = [_]descriptors.SegmentDescriptor{
+var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
     // Mandatory null entry.
     @bitCast(@as(u64, 0)),
 
     // Kernel Mode Code Segment.
-    descriptors.SegmentDescriptor.new(.{
+    gdt.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -35,7 +35,7 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
     }),
 
     // Kernel Mode Data Segment.
-    descriptors.SegmentDescriptor.new(.{
+    gdt.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -46,7 +46,7 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
     }),
 
     // User Mode Code Segment.
-    descriptors.SegmentDescriptor.new(.{
+    gdt.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -57,7 +57,7 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
     }),
 
     // User Mode Data Segment.
-    descriptors.SegmentDescriptor.new(.{
+    gdt.SegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -67,31 +67,75 @@ var gdt align(4) = [_]descriptors.SegmentDescriptor{
         .flags = @bitCast(@as(u4, 0xc)),
     }),
 
-    // TODO: Task State Segment.
-    @bitCast(@as(u64, 0xc)),
+    // Task State Segment
+    // NOTE: this will be created for real when we init the GDT.
+    @bitCast(@as(u64, 0)),
 };
 
-var gdtr: *descriptors.GdtDescriptor align(4) = undefined;
+var task_state_segment: gdt.TaskStateSegment = @bitCast(0);
 
-// Reserve 16K for the stack in the .bss section.
+var gdtr: *gdt.GdtDescriptor align(4) = undefined;
+
+// Reserve 16K for the general stack in the .bss section.
 const STACK_SIZE = 16 * 1024;
 var stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
+
+// Reserve 16K for the dedicated kernel stack in the .bss section.
+const KERNEL_STACK_SIZE = 16 * 1024;
+var kernel_stack_bytes: [KERNEL_STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
 pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
-    // Setup GDT.
-    const gdtr_pointer = asm volatile (
-        \\ push %[limit]
-        \\ push %[addr]
-        \\ call load_gdtr
-        : [gdtr_addr] "={eax}" (-> usize),
-        : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
-          [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
-    );
-    gdtr = @ptrFromInt(gdtr_pointer);
+    // Set up GDT.
+    {
+        // Create the TSS.
+        global_descriptor_table[global_descriptor_table.len - 1] = gdt.SegmentDescriptor.new(.{
+            .base = @intFromPtr(&task_state_segment),
+            .limit = @bitSizeOf(gdt.TaskStateSegment),
+            // TODO: convert these to structured values.
+            .access = .{
+                .system = @bitCast(@as(u8, 0x89)),
+            },
+            .flags = .{
+                .size = .bits32,
+                .granularity = .page,
+            },
+        });
 
-    // Setup stack.
+        const gdtr_pointer = asm volatile (
+            \\ push %[limit]
+            \\ push %[addr]
+            \\ call load_gdtr
+            : [gdtr_addr] "={eax}" (-> usize),
+            : [addr] "X" (@as(u32, @intFromPtr(&global_descriptor_table))),
+              [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(global_descriptor_table))) - 1)),
+        );
+        gdtr = @ptrFromInt(gdtr_pointer);
+    }
+
+    // Set up TSS.
+    {
+        // Mark what the kernel data segment offset is.
+        task_state_segment.ss0 = @bitSizeOf(gdt.SegmentDescriptor) * 2;
+
+        // Set the size of the TSS struct.
+        task_state_segment.iopb = @bitSizeOf(gdt.TaskStateSegment);
+
+        // NOTE: we're sharing a single TSS right now, so we need to disable multitasking
+        // during a syscall or else the same stack pointer could end up being used for both stacks
+        // (which would be bad).
+        task_state_segment.esp0 = @intFromPtr(&kernel_stack_bytes);
+
+        asm volatile (
+            \\ mov %[tss_gdt_offset], %ax
+            \\ ltr %ax
+            :
+            : [tss_gdt_offset] "X" (8 * (global_descriptor_table.len - 1)),
+        );
+    }
+
+    // Set up stack.
     asm volatile (
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
@@ -99,6 +143,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
         : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&stack_bytes)) + @sizeOf(@TypeOf(stack_bytes))),
     );
 
+    // Transfer to kmain.
     asm volatile (
         \\ call %[kmain:P]
         :
@@ -127,8 +172,8 @@ fn kmain() callconv(.c) void {
         gdtr,
         gdtr.addr,
         gdtr.limit,
-        &gdt,
-        @as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1),
+        &global_descriptor_table,
+        @as(u16, @as(i16, @sizeOf(@TypeOf(global_descriptor_table))) - 1),
     });
 
     while (true) {}

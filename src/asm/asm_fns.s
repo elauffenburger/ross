@@ -58,6 +58,9 @@ load_gdtr:
   ; update DS register
   mov ax, 16
   mov ds, ax
+  mov es, ax
+  mov fs, ax
+  mov gs, ax
   mov ss, ax
 
   ; return gdtr addr
