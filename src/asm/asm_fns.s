@@ -51,11 +51,11 @@ load_gdtr:
   ; load the gdt!
   lgdt [gdtr]
 
-  ; tell the processor we're in segment 1
+  ; set cs to 8d (segment 1) by using a linear address offset to a local label.
   jmp 8:.after_lgdtr
 
 .after_lgdtr:
-  ; update DS register
+  ; set data segment registers to 16d (segment 2)
   mov ax, 16
   mov ds, ax
   mov es, ax

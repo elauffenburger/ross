@@ -8,14 +8,14 @@ pub const SegmentDescriptor = packed struct(u64) {
     flags: Flags,
     baseHigh: u8,
 
-    pub fn new(args: struct { base: u32, limit: u20, access: Access, flags: Flags }) Self {
+    pub inline fn new(args: struct { base: u32, limit: u20, access: Access, flags: Flags }) Self {
         return .{
-            .limitLow = args.limit & 0x0000_ffff,
-            .baseLow = args.base & 0x00ff_ffff,
+            .limitLow = @intCast(args.limit & 0x0000_ffff),
+            .baseLow = @intCast(args.base & 0x00ff_ffff),
             .access = args.access,
-            .limitHigh = args.limit & 0x000f_0000 >> 16,
+            .limitHigh = @intCast(args.limit & 0x000f_0000 >> 16),
             .flags = args.flags,
-            .baseHigh = args.base & 0xff00_0000 >> 24,
+            .baseHigh = @intCast(args.base & 0xff00_0000 >> 24),
         };
     }
 
@@ -140,6 +140,7 @@ pub const GdtDescriptor = packed struct(u48) {
     addr: u32,
 };
 
+// See [the docs](https://wiki.osdev.org/Task_State_Segment) for more details.
 pub const TaskStateSegment = packed struct(u864) {
     link: u16,
     _r1: u16,

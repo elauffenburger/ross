@@ -43,7 +43,7 @@ done
 
 build_kernel() {
   pushd "$SCRIPT_DIR/.." >/dev/null
-  zig build build-iso --summary all
+  zig build build-iso --summary all --color on
   popd >/dev/null
 }
 
