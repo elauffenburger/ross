@@ -1,6 +1,7 @@
-const gdt = @import("gdt.zig");
+const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
+const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 
 // Write multiboot header before we do anything.
@@ -30,12 +31,12 @@ const GdtSegment = enum(u4) {
 
 // Create the GDT.
 // NOTE: if you rearrange the entries in the GDT, make sure to update GdtSegment!
-var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
+var global_descriptor_table align(4) = [_]tables.GdtSegmentDescriptor{
     // Mandatory null entry.
     @bitCast(@as(u64, 0)),
 
     // Kernel Mode Code Segment.
-    gdt.SegmentDescriptor.new(.{
+    tables.GdtSegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -46,7 +47,7 @@ var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
     }),
 
     // Kernel Mode Data Segment.
-    gdt.SegmentDescriptor.new(.{
+    tables.GdtSegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -61,7 +62,7 @@ var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
     @bitCast(@as(u64, 0)),
 
     // User Mode Code Segment.
-    gdt.SegmentDescriptor.new(.{
+    tables.GdtSegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -72,7 +73,7 @@ var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
     }),
 
     // User Mode Data Segment.
-    gdt.SegmentDescriptor.new(.{
+    tables.GdtSegmentDescriptor.new(.{
         .base = 0,
         .limit = 0xf_ffff,
         // TODO: convert these to structured values.
@@ -84,9 +85,12 @@ var global_descriptor_table align(4) = [_]gdt.SegmentDescriptor{
 };
 
 // Allocate a pointer to the memory location we pass to lgdt.
-var gdtr: *gdt.GdtDescriptor align(4) = undefined;
+var gdtr: *tables.GdtDescriptor align(4) = undefined;
 
-var tss: gdt.TaskStateSegment = @bitCast(@as(u864, 0));
+var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
+
+// Allocate space for the IDT.
+var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u32, 0))} ** 256;
 
 // Reserve 16K for the kernel stack in the .bss section.
 const KERNEL_STACK_SIZE = 16 * 1024;
@@ -102,9 +106,9 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Set up GDT.
     {
         // Add TSS entry to GDT.
-        global_descriptor_table[@intFromEnum(GdtSegment.tss)] = gdt.SegmentDescriptor.new(.{
+        global_descriptor_table[@intFromEnum(GdtSegment.tss)] = tables.GdtSegmentDescriptor.new(.{
             .base = @intFromPtr(&tss),
-            .limit = @bitSizeOf(gdt.TaskStateSegment),
+            .limit = @bitSizeOf(tables.TaskStateSegment),
             // TODO: convert these to structured values.
             .access = .{
                 .system = @bitCast(@as(u8, 0x89)),
@@ -128,15 +132,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
     }
 
     // Load kernel TSS.
-    loadTss(GdtSegment.tss, &kernel_stack_bytes);
-
-    // Set up stack.
-    asm volatile (
-        \\ movl %[stack_top], %%esp
-        \\ movl %%esp, %%ebp
-        :
-        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(&user_stack_bytes)) + @sizeOf(@TypeOf(user_stack_bytes))),
-    );
+    reloadTss(GdtSegment.tss, &kernel_stack_bytes);
 
     // Transfer to kmain.
     asm volatile (
@@ -148,6 +144,8 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
 fn kmain() callconv(.c) void {
     @setRuntimeSafety(true);
+
+    createIdt();
 
     vga.init();
 
@@ -174,21 +172,77 @@ fn kmain() callconv(.c) void {
     while (true) {}
 }
 
-inline fn loadTss(tssSegment: GdtSegment, stack: [*]u8) void {
-    // Mark what the kernel data segment offset is.
+inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
+    // Mark what the data segment offset is.
     tss.ss0 = @intFromEnum(tssSegment);
 
     // NOTE: we're sharing a single TSS right now, so we need to disable multitasking
     // or else we could end up granting access to the kernel stack in userspace (which would be bad)!
-    tss.esp0 = @intFromPtr(stack);
+    tss.esp0 = @intFromPtr(stack.ptr);
 
     // Note how large the TSS is (...which is always going to be 104 bytes).
-    tss.iopb = @bitSizeOf(gdt.TaskStateSegment) / 8;
+    tss.iopb = @bitSizeOf(tables.TaskStateSegment) / 8;
 
+    // Load tss.
     asm volatile (
         \\ mov %[tss_gdt_offset], %ax
         \\ ltr %ax
         :
         : [tss_gdt_offset] "X" (8 * @as(u32, @intCast(@intFromEnum(tssSegment)))),
+    );
+
+    // Change stack.
+    asm volatile (
+        \\ movl %[stack_top], %%esp
+        \\ movl %%esp, %%ebp
+        :
+        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(stack.ptr)) + stack.len * @bitSizeOf(u8)),
+    );
+}
+
+fn createIdt() void {
+    addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .trap32bits, .kernel, &handleInt3);
+}
+
+fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *fn () callconv(.naked) void) void {
+    const handler_addr = @intFromPtr(handler);
+
+    idt[index] = tables.InterruptDescriptor{
+        .offset1 = @truncate(handler_addr),
+        .offset2 = @truncate(handler_addr >> 16),
+        .selector = .{
+            .index = GdtSegment.kernelCode,
+            .rpl = .kernel,
+            .ti = .gdt,
+        },
+        .gateType = gateType,
+        .dpl = privilegeLevel,
+    };
+}
+
+fn handleInt3() callconv(.naked) void {
+    intPrologue();
+
+    intReturn();
+}
+
+inline fn intPrologue() void {
+    asm volatile (
+        \\ pushad
+        \\ cld
+    );
+}
+
+inline fn intReturn() void {
+    asm volatile (
+        \\ popad
+        \\ iret
+    );
+}
+
+inline fn intPopErrCode() u32 {
+    return asm volatile (
+        \\ pop %%eax
+        : [eax] "={eax}" (-> u32),
     );
 }

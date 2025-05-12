@@ -1,4 +1,6 @@
-pub const SegmentDescriptor = packed struct(u64) {
+const cpu = @import("cpu.zig");
+
+pub const GdtSegmentDescriptor = packed struct(u64) {
     const Self = @This();
 
     limitLow: u16,
@@ -38,7 +40,7 @@ pub const SegmentDescriptor = packed struct(u64) {
             typ: SegmentType = .system,
 
             // The privilege level of the segment.
-            privilegeLevel: PrivilegeLevel,
+            privilegeLevel: cpu.PrivilegeLevel,
 
             // True if this is a valid segment.
             present: bool = true,
@@ -56,7 +58,7 @@ pub const SegmentDescriptor = packed struct(u64) {
             exe: bool = true,
 
             typ: u1 = 1,
-            privilegeLevel: PrivilegeLevel,
+            privilegeLevel: cpu.PrivilegeLevel,
             present: bool = true,
         },
         data: packed struct(u8) {
@@ -70,20 +72,13 @@ pub const SegmentDescriptor = packed struct(u64) {
 
             exe: bool = false,
             typ: u1 = 1,
-            privilegeLevel: PrivilegeLevel,
+            privilegeLevel: cpu.PrivilegeLevel,
             present: bool = true,
         },
 
         pub const SegmentType = enum(u1) {
             system = 0,
             codeOrData = 1,
-        };
-
-        pub const PrivilegeLevel = enum(u2) {
-            kernel = 0,
-            ring1 = 1,
-            ring2 = 2,
-            userspace = 3,
         };
 
         pub const SystemSegmentType = enum(u4) {
@@ -197,4 +192,76 @@ pub const TaskStateSegment = packed struct(u864) {
     iopb: u16,
 
     ssp: u32,
+};
+
+pub const SegmentSelector = packed struct(u16) {
+    rpl: cpu.PrivilegeLevel,
+    ti: TableSelector,
+    index: u13,
+
+    const TableSelector = enum(u1) {
+        gdt = 0,
+        ldt = 1,
+    };
+};
+
+pub const InterruptDescriptor = packed struct(u64) {
+    offset1: u16,
+    selector: SegmentSelector,
+    _r1: u8 = undefined,
+    gateType: GateType,
+    dpl: cpu.PrivilegeLevel,
+    present: bool = true,
+    offset2: u16,
+
+    pub const GateType = enum(u4) {
+        task = 5,
+        interrupt16bits = 6,
+        trap16bits = 7,
+        interrupt32bits = 15,
+        trap32bits = 16,
+    };
+};
+
+pub const IdtEntry = enum(u8) {
+    // Divide Error DIV and IDIV instructions.
+    de = 0,
+    // Debug Exception Instruction, data, and I/O breakpoints; single-step; and others.
+    db = 1,
+    // NMI Interrupt Nonmaskable external interrupt.
+    nmi = 2,
+    // Breakpoint INT3 instruction.
+    bp = 3,
+    // Overflow INTO instruction.
+    of = 4,
+    // BOUND Range Exceeded BOUND instruction.
+    br = 5,
+    // Invalid Opcode (Undefined Opcode) UD instruction or reserved opcode.
+    ud = 6,
+    // Device Not Available (No Math Coprocessor) Floating-point or WAIT/FWAIT instruction.
+    nm = 7,
+    // (zero) Double Fault Any instruction that can generate an exception, an NMI, or an INTR.
+    df = 8,
+    // Invalid TSS Task switch or TSS access.
+    ts = 10,
+    // Segment Not Present Loading segment registers or accessing system segments.
+    np = 11,
+    // Stack-Segment Fault Stack operations and SS register loads.
+    ss = 12,
+    // General Protection Any memory reference and other protection checks.
+    gp = 13,
+    // Page Fault Any memory reference.
+    pf = 14,
+    // x87 FPU Floating-Point Error (Math Fault) x87 FPU floating-point or WAIT/FWAIT instruction.
+    mf = 16,
+    // (zero) Alignment Check Any data reference in memory.
+    ac = 17,
+    // Machine Check Error codes (if any) and source are model dependent.
+    mc = 18,
+    // SIMD Floating-Point Exception SSE/SSE2/SSE3 floating-point instructions
+    xm = 19,
+    // Virtualization Exception EPT violations
+    ve = 20,
+    // Control Protection Exception RET, IRET, RSTORSSP, and SETSSBSY instructions can generate this exception. When CET indirect branch tracking is enabled, this exception can be generated due to a missing ENDBRANCH instruction at target of an indirect call or jump.
+    cp = 21,
 };

@@ -5,14 +5,18 @@ section .data
   align 4
 
 gdtr:
-  dw 0x00 ; gdt limit
+  dw 0x00 ; gdt size
   dd 0x00 ; gdt address
+
+idtr:
+  dw 0x00 ; idt size
+  dd 0x00 ; idt address
 
 section .text
   align 4
 
 ; ---------
-; load_gdtr(addr: u32, limit: u16) u32
+; load_gdtr(addr: u32, size: u16) u32
 ; ---------
 ;
 ; This is pretty weird, so an explanation is warranted!
@@ -34,7 +38,7 @@ load_gdtr:
   mov eax, [ebp + 8]
   mov [gdtr + 2], eax
 
-  ; write limit
+  ; write size
   xor eax, eax
   mov ax, [ebp + 12]
   mov [gdtr], ax
@@ -69,4 +73,45 @@ load_gdtr:
   mov esp, ebp
   pop ebp
 
+  ; TODO: restore interrupts? Does this need to wait until after we load the IDTR?
+
   ret
+
+; ---------
+; load_idtr(address: u32, size: u16) u32
+; ---------
+load_idtr:
+  cli
+
+  push ebp
+  mov ebp, esp
+
+  ; load address
+  mov eax, [esp + 12]
+  mov [idtr + 2], eax
+
+  ; load size
+  mov eax, [esp + 14]
+  mov [idtr], eax
+
+  ; load idtr!
+  lidt [idtr]
+
+  ; return idtr address
+  mov eax, idtr
+
+  mov esp, ebp
+  pop ebp
+
+  ret
+
+; ---------
+; call_int_handler(handler: &fn) void
+; ---------
+call_int_handler:
+  pushad
+  cld ; the sysv abi requires us to clear out the df register
+  call [esp + 256 + 4] ; we need to skip the registers we just pushed (256 bytes)
+                       ; and the return addr (4 bytes) to get to the callback handler addr
+  popad
+  iret
