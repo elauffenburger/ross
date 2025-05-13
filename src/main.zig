@@ -31,7 +31,7 @@ const GdtSegment = enum(u4) {
 
 // Create the GDT.
 // NOTE: if you rearrange the entries in the GDT, make sure to update GdtSegment!
-var global_descriptor_table align(4) = [_]tables.GdtSegmentDescriptor{
+var gdt align(4) = [_]tables.GdtSegmentDescriptor{
     // Mandatory null entry.
     @bitCast(@as(u64, 0)),
 
@@ -106,7 +106,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Set up GDT.
     {
         // Add TSS entry to GDT.
-        global_descriptor_table[@intFromEnum(GdtSegment.tss)] = tables.GdtSegmentDescriptor.new(.{
+        gdt[@intFromEnum(GdtSegment.tss)] = tables.GdtSegmentDescriptor.new(.{
             .base = @intFromPtr(&tss),
             .limit = @bitSizeOf(tables.TaskStateSegment),
             // TODO: convert these to structured values.
@@ -125,8 +125,8 @@ pub export fn _kmain() callconv(.naked) noreturn {
             \\ push %[addr]
             \\ call load_gdtr
             : [gdtr_addr] "={eax}" (-> usize),
-            : [addr] "X" (@as(u32, @intFromPtr(&global_descriptor_table))),
-              [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(global_descriptor_table))) - 1)),
+            : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
+              [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
         );
         gdtr = @ptrFromInt(gdtr_pointer);
     }
@@ -148,22 +148,21 @@ pub export fn _kmain() callconv(.naked) noreturn {
 fn kmain() callconv(.c) void {
     @setRuntimeSafety(true);
 
-    // vga.init();
+    vga.init();
 
-    // vga.writeStr("hello, zig!\n");
+    vga.writeStr("hello, zig!\n");
 
-    // vga.printf(
-    //     \\ intTest addr: {x}, {*}
-    //     \\ intTest addr (ptr): {x} {d}
-    // , .{
-    //     &intTest,
-    //     &intTest,
-    //     @intFromPtr(&intTest),
-    //     @intFromPtr(&intTest),
-    // });
+    vga.printf(
+        \\ gdt addr: {x}
+        \\ idt addr: {x}
+        \\ intTest addr: {x}
+    , .{
+        @intFromPtr(&gdt),
+        @intFromPtr(&idt),
+        @intFromPtr(&intTest),
+    });
 
     asm volatile (
-        \\ hlt
         \\ int $49
     );
 
