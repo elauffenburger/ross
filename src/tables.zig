@@ -210,6 +210,7 @@ pub const InterruptDescriptor = packed struct(u64) {
     selector: SegmentSelector,
     _r1: u8 = undefined,
     gateType: GateType,
+    _r2: u1 = 0,
     dpl: cpu.PrivilegeLevel,
     present: bool = true,
     offset2: u16,
@@ -218,8 +219,8 @@ pub const InterruptDescriptor = packed struct(u64) {
         task = 5,
         interrupt16bits = 6,
         trap16bits = 7,
-        interrupt32bits = 15,
-        trap32bits = 16,
+        interrupt32bits = 14,
+        trap32bits = 15,
     };
 };
 

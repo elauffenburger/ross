@@ -1,5 +1,6 @@
 global gdtr
 global load_gdtr
+global load_idtr
 
 section .data
   align 4
@@ -87,11 +88,11 @@ load_idtr:
   mov ebp, esp
 
   ; load address
-  mov eax, [esp + 12]
+  mov eax, [esp + 8]
   mov [idtr + 2], eax
 
   ; load size
-  mov eax, [esp + 14]
+  mov eax, [esp + 12]
   mov [idtr], eax
 
   ; load idtr!
@@ -104,14 +105,3 @@ load_idtr:
   pop ebp
 
   ret
-
-; ---------
-; call_int_handler(handler: &fn) void
-; ---------
-call_int_handler:
-  pushad
-  cld ; the sysv abi requires us to clear out the df register
-  call [esp + 256 + 4] ; we need to skip the registers we just pushed (256 bytes)
-                       ; and the return addr (4 bytes) to get to the callback handler addr
-  popad
-  iret

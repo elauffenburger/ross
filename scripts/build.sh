@@ -64,6 +64,7 @@ main() {
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
       -no-reboot
       -d 'cpu_reset,int,guest_errors,page,in_asm,pcall'
+      -D /tmp/qemu-monitor
     )
 
     if [[ "$START_GDB" == 1 ]]; then
@@ -73,7 +74,7 @@ main() {
     if [[ "$MONITOR" == 1 ]]; then
       QEMU_ARGS+=(-monitor stdio)
     else
-      QEMU_ARGS+=()
+      QEMU_ARGS+=(-serial stdio)
     fi
 
     qemu-system-x86_64 "${QEMU_ARGS[@]}"

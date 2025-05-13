@@ -90,7 +90,7 @@ var gdtr: *tables.GdtDescriptor align(4) = undefined;
 var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
 
 // Allocate space for the IDT.
-var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u32, 0))} ** 256;
+var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 
 // Reserve 16K for the kernel stack in the .bss section.
 const KERNEL_STACK_SIZE = 16 * 1024;
@@ -134,6 +134,9 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Load kernel TSS.
     reloadTss(GdtSegment.tss, &kernel_stack_bytes);
 
+    // Load the IDT.
+    loadIdt();
+
     // Transfer to kmain.
     asm volatile (
         \\ call %[kmain:P]
@@ -144,8 +147,6 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
 fn kmain() callconv(.c) void {
     @setRuntimeSafety(true);
-
-    createIdt();
 
     vga.init();
 
@@ -168,6 +169,10 @@ fn kmain() callconv(.c) void {
         &global_descriptor_table,
         @as(u16, @as(i16, @sizeOf(@TypeOf(global_descriptor_table))) - 1),
     });
+
+    // asm volatile (
+    //     \\ int $03
+    // );
 
     while (true) {}
 }
@@ -200,18 +205,28 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
     );
 }
 
-fn createIdt() void {
-    addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .trap32bits, .kernel, &handleInt3);
+inline fn loadIdt() void {
+    // addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .trap32bits, .kernel, &handleInt3);
+
+    // Load the IDT.
+    asm volatile (
+        \\ push %[idt_size]
+        \\ push %[idt_addr]
+        \\ call load_idtr
+        :
+        : [idt_addr] "X" (@intFromPtr(&idt)),
+          [idt_size] "X" ((idt.len * @sizeOf(tables.InterruptDescriptor)) - 1),
+    );
 }
 
-fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *fn () callconv(.naked) void) void {
+inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
     idt[index] = tables.InterruptDescriptor{
         .offset1 = @truncate(handler_addr),
         .offset2 = @truncate(handler_addr >> 16),
         .selector = .{
-            .index = GdtSegment.kernelCode,
+            .index = @intFromEnum(GdtSegment.kernelCode),
             .rpl = .kernel,
             .ti = .gdt,
         },
@@ -228,14 +243,14 @@ fn handleInt3() callconv(.naked) void {
 
 inline fn intPrologue() void {
     asm volatile (
-        \\ pushad
+        \\ pusha
         \\ cld
     );
 }
 
 inline fn intReturn() void {
     asm volatile (
-        \\ popad
+        \\ popa
         \\ iret
     );
 }
