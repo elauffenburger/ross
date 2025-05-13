@@ -92,8 +92,8 @@ load_idtr:
   mov [idtr + 2], eax
 
   ; load size
-  mov eax, [esp + 12]
-  mov [idtr], eax
+  mov ax, [esp + 12]
+  mov [idtr], ax
 
   ; load idtr!
   lidt [idtr]

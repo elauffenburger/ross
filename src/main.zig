@@ -148,31 +148,24 @@ pub export fn _kmain() callconv(.naked) noreturn {
 fn kmain() callconv(.c) void {
     @setRuntimeSafety(true);
 
-    vga.init();
+    // vga.init();
 
-    vga.writeStr("hello, zig!\n");
+    // vga.writeStr("hello, zig!\n");
 
-    vga.printf(
-        \\ &gdtr: {*}
-        \\ gdtr:
-        \\   asm:
-        \\     addr:  {x}
-        \\     limit: {x}
-        \\   zig:
-        \\     addr:  {*}
-        \\     limit: {x}
-        \\
-    , .{
-        gdtr,
-        gdtr.addr,
-        gdtr.limit,
-        &global_descriptor_table,
-        @as(u16, @as(i16, @sizeOf(@TypeOf(global_descriptor_table))) - 1),
-    });
+    // vga.printf(
+    //     \\ intTest addr: {x}, {*}
+    //     \\ intTest addr (ptr): {x} {d}
+    // , .{
+    //     &intTest,
+    //     &intTest,
+    //     @intFromPtr(&intTest),
+    //     @intFromPtr(&intTest),
+    // });
 
-    // asm volatile (
-    //     \\ int $03
-    // );
+    asm volatile (
+        \\ hlt
+        \\ int $49
+    );
 
     while (true) {}
 }
@@ -207,6 +200,7 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
 
 inline fn loadIdt() void {
     // addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .trap32bits, .kernel, &handleInt3);
+    addIdtEntry(49, .interrupt32bits, .kernel, &intTest);
 
     // Load the IDT.
     asm volatile (
@@ -260,4 +254,9 @@ inline fn intPopErrCode() u32 {
         \\ pop %%eax
         : [eax] "={eax}" (-> u32),
     );
+}
+
+fn intTest() callconv(.naked) void {
+    intPrologue();
+    intReturn();
 }

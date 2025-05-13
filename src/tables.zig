@@ -208,7 +208,7 @@ pub const SegmentSelector = packed struct(u16) {
 pub const InterruptDescriptor = packed struct(u64) {
     offset1: u16,
     selector: SegmentSelector,
-    _r1: u8 = undefined,
+    _r1: u8 = 0,
     gateType: GateType,
     _r2: u1 = 0,
     dpl: cpu.PrivilegeLevel,
