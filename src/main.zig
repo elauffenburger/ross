@@ -157,8 +157,8 @@ fn kmain() callconv(.c) void {
     vga.writeStr("hello, zig!\n");
 
     vga.printf(
-        \\gdtr: {{ addr: {x}, limit: {x} }}
-        \\idtr: {{ addr: {x}, limit: {x} }}
+        \\ gdtr: {{ addr: {x}, limit: {x} }}
+        \\ idtr: {{ addr: {x}, limit: {x} }}
         \\
     ,
         .{

@@ -50,5 +50,3 @@ pub const ProcessPageDirectory = extern struct {
         pageTable: [1024]PageTableEntry = [_]PageTableEntry{@bitCast(@as(u32, 0))} ** 1024,
     };
 };
-
-pub inline fn setup() void {}
