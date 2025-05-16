@@ -149,22 +149,7 @@ fn kmain() callconv(.c) void {
     @setRuntimeSafety(true);
 
     vga.init();
-
     vga.writeStr("hello, zig!\n");
-
-    vga.printf(
-        \\ gdt addr: {x}
-        \\ idt addr: {x}
-        \\ intTest addr: {x}
-    , .{
-        @intFromPtr(&gdt),
-        @intFromPtr(&idt),
-        @intFromPtr(&intTest),
-    });
-
-    asm volatile (
-        \\ int $49
-    );
 
     while (true) {}
 }
@@ -198,8 +183,7 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
 }
 
 inline fn loadIdt() void {
-    // addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .trap32bits, .kernel, &handleInt3);
-    addIdtEntry(49, .interrupt32bits, .kernel, &intTest);
+    addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
     // Load the IDT.
     asm volatile (
@@ -230,7 +214,6 @@ inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, 
 
 fn handleInt3() callconv(.naked) void {
     intPrologue();
-
     intReturn();
 }
 
