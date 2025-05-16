@@ -1,6 +1,7 @@
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
+const paging = @import("paging.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 
@@ -140,6 +141,9 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Load the IDT.
     loadIdt();
 
+    // Set up paging.
+    paging.setup();
+
     // Transfer to kmain.
     asm volatile (
         \\ call %[kmain:P]
@@ -155,6 +159,7 @@ fn kmain() callconv(.c) void {
     vga.printf(
         \\gdtr: {{ addr: {x}, limit: {x} }}
         \\idtr: {{ addr: {x}, limit: {x} }}
+        \\
     ,
         .{
             gdtr.addr,
@@ -163,6 +168,8 @@ fn kmain() callconv(.c) void {
             idtr.limit,
         },
     );
+
+    vga.printf("how is this working: {s}", .{@typeName(paging.ProcessPageDirectory)});
 
     while (true) {}
 }
