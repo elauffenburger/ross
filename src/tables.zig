@@ -266,3 +266,8 @@ pub const IdtEntry = enum(u8) {
     // Control Protection Exception RET, IRET, RSTORSSP, and SETSSBSY instructions can generate this exception. When CET indirect branch tracking is enabled, this exception can be generated due to a missing ENDBRANCH instruction at target of an indirect call or jump.
     cp = 21,
 };
+
+pub const IdtDescriptor = packed struct(u48) {
+    limit: u16,
+    addr: u32,
+};

@@ -1,4 +1,5 @@
 global gdtr
+global idtr
 global load_gdtr
 global load_idtr
 
@@ -6,18 +7,18 @@ section .data
   align 4
 
 gdtr:
-  dw 0x00 ; gdt size
+  dw 0x00 ; gdt limit
   dd 0x00 ; gdt address
 
 idtr:
-  dw 0x00 ; idt size
+  dw 0x00 ; idt limit
   dd 0x00 ; idt address
 
 section .text
   align 4
 
 ; ---------
-; load_gdtr(addr: u32, size: u16) u32
+; load_gdtr(addr: u32, limit: u16) u32
 ; ---------
 ;
 ; This is pretty weird, so an explanation is warranted!
@@ -39,7 +40,7 @@ load_gdtr:
   mov eax, [ebp + 8]
   mov [gdtr + 2], eax
 
-  ; write size
+  ; write limit
   xor eax, eax
   mov ax, [ebp + 12]
   mov [gdtr], ax
@@ -79,7 +80,7 @@ load_gdtr:
   ret
 
 ; ---------
-; load_idtr(address: u32, size: u16) u32
+; load_idtr(address: u32, limit: u16) u32
 ; ---------
 load_idtr:
   cli
@@ -91,7 +92,7 @@ load_idtr:
   mov eax, [esp + 8]
   mov [idtr + 2], eax
 
-  ; load size
+  ; load limit
   mov ax, [esp + 12]
   mov [idtr], ax
 

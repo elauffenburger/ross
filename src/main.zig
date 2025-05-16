@@ -85,12 +85,15 @@ var gdt align(4) = [_]tables.GdtSegmentDescriptor{
 };
 
 // Allocate a pointer to the memory location we pass to lgdt.
-var gdtr: *tables.GdtDescriptor align(4) = undefined;
+var gdtr: *tables.GdtDescriptor = undefined;
 
 var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
 
 // Allocate space for the IDT.
 var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
+
+// Allocate a pointer to the memory location we pass to lidt.
+var idtr: *tables.IdtDescriptor = undefined;
 
 // Reserve 16K for the kernel stack in the .bss section.
 const KERNEL_STACK_SIZE = 16 * 1024;
@@ -146,10 +149,20 @@ pub export fn _kmain() callconv(.naked) noreturn {
 }
 
 fn kmain() callconv(.c) void {
-    @setRuntimeSafety(true);
-
     vga.init();
     vga.writeStr("hello, zig!\n");
+
+    vga.printf(
+        \\gdtr: {{ addr: {x}, limit: {x} }}
+        \\idtr: {{ addr: {x}, limit: {x} }}
+    ,
+        .{
+            gdtr.addr,
+            gdtr.limit,
+            idtr.addr,
+            idtr.limit,
+        },
+    );
 
     while (true) {}
 }
@@ -183,17 +196,21 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
 }
 
 inline fn loadIdt() void {
+    @setRuntimeSafety(false);
+
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
     // Load the IDT.
-    asm volatile (
+    const idtr_addr = asm volatile (
         \\ push %[idt_size]
         \\ push %[idt_addr]
         \\ call load_idtr
-        :
+        : [idtr_addr] "={eax}" (-> u32),
         : [idt_addr] "X" (@intFromPtr(&idt)),
           [idt_size] "X" ((idt.len * @sizeOf(tables.InterruptDescriptor)) - 1),
     );
+
+    idtr = @ptrFromInt(idtr_addr);
 }
 
 inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
