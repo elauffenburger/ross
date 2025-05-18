@@ -79,16 +79,16 @@ var __pagerProcFromInit: Process = .{
 };
 
 pub inline fn init() void {
-    comptime {
-        // Identity Map the first 1MiB.
-        mapKernelPage(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
+    // Identity Map the first 1MiB.
+    mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
-        // Map the Kernel into the higher half of memory.
-    }
+    // Map the Kernel into the higher half of memory.
+    const num_pages_for_kernel = @ceil(__kernel_size / PageTableEntry.NumBytesManaged);
+    mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
 }
 
-inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
-    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages / PageTableEntry.NumBytesManaged) };
+inline fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
+    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
 
     for (start_virt_addr.pageDir()..end_virt_addr.pageDir()) |top_level_table_index| {
         const page_table = &vm.pageTables[top_level_table_index];
