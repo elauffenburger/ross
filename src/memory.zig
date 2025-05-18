@@ -69,7 +69,11 @@ const MaxAddress: u32 = 0xffffffff;
 const NumPageDirEntries = @typeInfo(@FieldType(Process.VirtualMemory, "pageDirectory")).array.len;
 const NumPageTableEntries = @typeInfo(@FieldType(Process.VirtualMemory.PageTable, "pages")).array.len;
 
-extern const __kernel_size: c_char;
+extern const __kernel_size: u8;
+
+inline fn kernelSize() u32 {
+    return @as(u32, @intFromPtr(&__kernel_size));
+}
 
 // HACK: this just exists so we can set up paging during kernel boostrapping; once we enter protected mode and get all wired up, this
 // be moved into the Processes map and be undefined (so you almost certainly don't care about this).
@@ -80,13 +84,13 @@ var __pagerProcFromInit: Process = .{
     .vm = .{},
 };
 
-pub inline fn init() void {
+pub fn init() void {
     // Identity Map the first 1MiB.
     mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
     // Map the Kernel into the higher half of memory.
     {
-        const kernel_size: f32 = @floatFromInt(@as(u32, @intFromPtr(&__kernel_size)));
+        const kernel_size: f32 = @floatFromInt(kernelSize());
         const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
 
         const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
@@ -100,13 +104,13 @@ pub inline fn init() void {
             num_pages_for_kernel,
         });
 
-        asm volatile ("hlt");
-
         mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+
+        asm volatile ("hlt");
     }
 }
 
-inline fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
+fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
     const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
 
     for (start_virt_addr.pageDir()..end_virt_addr.pageDir()) |top_level_table_index| {

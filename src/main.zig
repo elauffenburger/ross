@@ -108,24 +108,14 @@ pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
     // Set up kernel stack.
-    const stack_addr: u32 = @intFromPtr(&kernel_stack_bytes) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
-    asm volatile (
-        \\ movl %[stack_top], %%esp
-        \\ movl %%esp, %%ebp
-        :
-        : [stack_top] "X" (stack_addr),
-    );
-
-    // Transfer to kmain.
-    asm volatile (
-        \\ call %[kmain:P]
-        :
-        : [kmain] "X" (&kmain),
-    );
-}
-
-fn kmain() callconv(.c) void {
-    vga.init();
+    {
+        asm volatile (
+            \\ movl %[stack_top], %%esp
+            \\ movl %%esp, %%ebp
+            :
+            : [stack_top] "X" (stackTop(&kernel_stack_bytes)),
+        );
+    }
 
     // Set up GDT.
     {
@@ -155,11 +145,38 @@ fn kmain() callconv(.c) void {
         gdtr = @ptrFromInt(gdtr_pointer);
     }
 
-    // Load kernel TSS.
-    reloadTss(GdtSegment.tss, &kernel_stack_bytes);
-
     // Load the IDT.
     loadIdt();
+
+    // Load kernel TSS.
+    reloadTss(
+        GdtSegment.tss,
+        .{
+            .segment = GdtSegment.kernelData,
+            .handle = &kernel_stack_bytes,
+        },
+    );
+
+    // Reset kernel stack.
+    {
+        asm volatile (
+            \\ movl %[stack_top], %%esp
+            \\ movl %%esp, %%ebp
+            :
+            : [stack_top] "X" (stackTop(&kernel_stack_bytes)),
+        );
+    }
+
+    // Transfer to kmain.
+    asm volatile (
+        \\ call %[kmain:P]
+        :
+        : [kmain] "X" (&kmain),
+    );
+}
+
+fn kmain() callconv(.c) void {
+    vga.init();
 
     // Set up paging.
     memory.init();
@@ -190,23 +207,24 @@ fn kmain() callconv(.c) void {
     while (true) {}
 }
 
-inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
-    // Mark what the data segment offset is.
-    tss.ss0 = @intFromEnum(tssSegment);
+inline fn reloadTss(tssSegment: GdtSegment, stack: struct { segment: GdtSegment, handle: []align(4) u8 }) void {
+    tss.ss0 = 8 * @as(u32, @intFromEnum(stack.segment));
 
     // NOTE: we're sharing a single TSS right now, so we need to disable multitasking
     // or else we could end up granting access to the kernel stack in userspace (which would be bad)!
-    tss.esp0 = @intFromPtr(stack.ptr);
+    tss.esp0 = stackTop(stack.handle);
 
-    // Note how large the TSS is (...which is always going to be 104 bytes).
-    tss.iopb = @bitSizeOf(tables.TaskStateSegment) / 8;
+    // Set the offset from the base of the TSS to the IO permission bit map.
+    // HACK: I really have no idea _why_ this is even necessary (or when it wouldn't be 104);
+    //       we should take a look at this later!
+    tss.iopb = 104;
 
     // Load tss.
     asm volatile (
         \\ mov %[tss_gdt_offset], %ax
         \\ ltr %ax
         :
-        : [tss_gdt_offset] "X" (8 * @as(u32, @intCast(@intFromEnum(tssSegment)))),
+        : [tss_gdt_offset] "X" (8 * @as(u32, @intFromEnum(tssSegment))),
     );
 
     // TODO: handle switching stacks.
@@ -288,4 +306,8 @@ fn handleInt42() callconv(.naked) void {
     asm volatile (
         \\ hlt
     );
+}
+
+inline fn stackTop(stack: []align(4) u8) u32 {
+    return @as(u32, @intFromPtr(stack.ptr)) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
 }
