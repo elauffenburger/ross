@@ -107,6 +107,15 @@ var user_stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
+    // Transfer to kmain.
+    asm volatile (
+        \\ call %[kmain:P]
+        :
+        : [kmain] "X" (&kmain),
+    );
+}
+
+fn kmain() callconv(.c) void {
     // Set up GDT.
     {
         // Add TSS entry to GDT.
@@ -144,15 +153,6 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Set up paging.
     memory.init();
 
-    // Transfer to kmain.
-    asm volatile (
-        \\ call %[kmain:P]
-        :
-        : [kmain] "X" (&kmain),
-    );
-}
-
-fn kmain() callconv(.c) void {
     vga.init();
     vga.writeStr("hello, zig!\n");
 
@@ -168,6 +168,8 @@ fn kmain() callconv(.c) void {
             idtr.limit,
         },
     );
+
+    asm volatile ("int $3");
 
     vga.printf("how is this working: {s}", .{@typeName(memory.Process)});
 
