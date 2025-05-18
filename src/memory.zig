@@ -66,8 +66,8 @@ pub const Process = struct {
 
 const MaxAddress: u32 = 0xffffffff;
 
-const NumPageDirEntries = @typeInfo(@FieldType(Process.VirtualMemory, "pageDirectories")).array.len;
-const NumPagesPerTable = @typeInfo(@FieldType(Process.VirtualMemory.PageTable, "pages")).array.len;
+const NumPageDirEntries = @typeInfo(@FieldType(Process.VirtualMemory, "pageDirectory")).array.len;
+const NumPageTableEntries = @typeInfo(@FieldType(Process.VirtualMemory.PageTable, "pages")).array.len;
 
 extern var __kernel_size: u32;
 
@@ -82,58 +82,60 @@ pub inline fn init() void {
         .id = 0,
         .vm = .{},
     };
+
+    comptime {
+        // Identity Map the first 1MiB.
+        mapKernelPage(&__pagerProcFromInit, 0, 0, 0x400);
+
+        // Map the Kernel into the higher half of memory.
+    }
 }
 
-inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: u32) void {
-    const topLevelTableIndex = topLevelTableIndexForVirtAddr(start_virt_addr);
+inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: u32, num_pages: u32) void {
+    const end_virt_addr = start_virt_addr + (num_pages / PageTableEntry.NumBytesManaged);
 
-    const pageTable = &vm.pageTables[topLevelTableIndex];
+    for (topLevelTableIndexForVirtAddr(start_virt_addr)..topLevelTableIndexForVirtAddr(end_virt_addr)) |top_level_table_index| {
+        const page_table = &vm.pageTables[top_level_table_index];
 
-    const dirEntry = &vm.pageDirectory[topLevelTableIndex];
-    dirEntry.* = .{
-        .present = true,
-        .rw = true,
-        .userAccessible = false,
-        .pwt = .writeThrough,
-        .cacheDisable = false,
-        .accessed = false,
-        .pageSize = .size4KiB,
-        .addr = @intFromPtr(pageTable),
-    };
-
-    // Fill in all entries in the page table.
-    for (0..NumPagesPerTable) |i| {
-        pageTable.pages[i] = PageTableEntry{
+        const dir_entry = &vm.pageDirectory[top_level_table_index];
+        dir_entry.* = .{
             .present = true,
             .rw = true,
-            .userAccessible = true,
+            .userAccessible = false,
             .pwt = .writeThrough,
             .cacheDisable = false,
             .accessed = false,
-            .dirty = false,
-            .pat = false,
-            .addr = start_phys_addr + (i * PageTableEntry.NumBytesManaged),
+            .pageSize = .size4KiB,
+            .addr = @intFromPtr(page_table),
         };
+
+        // Figure out how many pages we need to write for this table based on how many we've written already.
+        const num_pages_written = top_level_table_index * NumPageTableEntries;
+        const num_pages_for_table = num_pages - num_pages_written;
+
+        for (0..num_pages_for_table) |i| {
+            const addr = start_phys_addr + ((i + num_pages_written) * PageTableEntry.NumBytesManaged);
+
+            page_table.pages[i] = PageTableEntry{
+                .present = true,
+                .rw = true,
+                .userAccessible = true,
+                .pwt = .writeThrough,
+                .cacheDisable = false,
+                .accessed = false,
+                .dirty = false,
+                .pat = false,
+                .addr = addr,
+            };
+        }
     }
 }
 
 inline fn topLevelTableIndexForVirtAddr(virt_addr: u32) u32 {
-    return @ceil((virt_addr / MaxAddress) * NumPageDirEntries) - 1;
+    const page_dir_index = virt_addr >> 22;
+    _ = page_dir_index; // autofix
 }
 
-// 10 units (0-9)
-// 3 pages
-// 3.33 units per page
-// i want unit 0
-//   -> (1 / 10) * num_pages -> .1 * 3 -> 0.3 -> 0
-//
-// i want unit 2
-//   -> (3 / 10) * num_pages -> .3 * 3 -> 0.9 -> 0
-//
-// i want unit 3
-//   -> (4 / 10) * num_pages -> .4 * 3 -> 1.3 -> 1
-//
-// i want unit 9
-//   -> (10 / 10) * num_pages -> 1 * 3 -> 3 -> 2
-//
-// so, ceil((unit / num_units) * numPages) - 1
+test "topLevelIndexForVirtAddr should map 0x100000 to 768" {
+    try std.testing.expect(topLevelTableIndexForVirtAddr(0x100000) == 768);
+}
