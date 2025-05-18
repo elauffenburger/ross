@@ -3,7 +3,7 @@ ENTRY(_kmain)
 SECTIONS {
     . = 1M; /* Load code after 1MiB barrier to prevent vm86 from doing weird stuff apparently. */
 
-    __kernel_start = .
+    __kernel_start = .;
 
     .text : ALIGN(4K) {
         KEEP(*(.multiboot))
@@ -15,6 +15,6 @@ SECTIONS {
     .data : ALIGN(4K) { *(.data); *(.data.*) }
     .bss : ALIGN (4K) { *(.bss); *(.bss.*) }
 
-    __kernel_end = .
-    __kernel_size = __kernel_end - __kernel_start
+    __kernel_end = .;
+    __kernel_size = __kernel_end - __kernel_start;
 }

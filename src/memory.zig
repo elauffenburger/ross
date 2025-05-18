@@ -51,10 +51,8 @@ pub const Process = struct {
     vm: VirtualMemory,
 
     pub const VirtualMemory = struct {
-        // Each process gets its own page directory.
+        // Each process gets its own page directory and each page dir entry has an associated page table.
         pageDirectory: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
-
-        // Each entry in the directory maps to a page table.
         pageTables: [1024]PageTable = [_]PageTable{.{}} ** 1024,
 
         pub const PageTable = struct {
@@ -75,26 +73,24 @@ extern var __kernel_size: u32;
 // be moved into the Processes map and be undefined (so you almost certainly don't care about this).
 //
 // TODO: this really should be a pointer, but we need to set up a heap first...
-var __pagerProcFromInit: Process = undefined;
+var __pagerProcFromInit: Process = .{
+    .id = 0,
+    .vm = .{},
+};
 
 pub inline fn init() void {
-    __pagerProcFromInit = .{
-        .id = 0,
-        .vm = .{},
-    };
-
     comptime {
         // Identity Map the first 1MiB.
-        mapKernelPage(&__pagerProcFromInit, 0, 0, 0x400);
+        mapKernelPage(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
         // Map the Kernel into the higher half of memory.
     }
 }
 
-inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: u32, num_pages: u32) void {
-    const end_virt_addr = start_virt_addr + (num_pages / PageTableEntry.NumBytesManaged);
+inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
+    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages / PageTableEntry.NumBytesManaged) };
 
-    for (topLevelTableIndexForVirtAddr(start_virt_addr)..topLevelTableIndexForVirtAddr(end_virt_addr)) |top_level_table_index| {
+    for (start_virt_addr.pageDir()..end_virt_addr.pageDir()) |top_level_table_index| {
         const page_table = &vm.pageTables[top_level_table_index];
 
         const dir_entry = &vm.pageDirectory[top_level_table_index];
@@ -131,11 +127,28 @@ inline fn mapKernelPage(vm: *Process.VirtualMemory, start_phys_addr: u32, start_
     }
 }
 
-inline fn topLevelTableIndexForVirtAddr(virt_addr: u32) u32 {
-    const page_dir_index = virt_addr >> 22;
-    _ = page_dir_index; // autofix
-}
+pub const VirtualAddress = packed struct(u32) {
+    const Self = @This();
 
-test "topLevelIndexForVirtAddr should map 0x100000 to 768" {
-    try std.testing.expect(topLevelTableIndexForVirtAddr(0x100000) == 768);
+    addr: u32,
+
+    pub inline fn pageDir(self: Self) u10 {
+        return self.addr >> 22;
+    }
+
+    pub inline fn pageTableEntry(self: Self) u10 {
+        return (self.addr >> 12) & 0x03FF;
+    }
+
+    pub inline fn offset(self: Self) u12 {
+        return self.addr & 0x0000_07ff;
+    }
+};
+
+test "0xC0011222" {
+    const addr = VirtualAddress{ .addr = 0xC0011222 };
+
+    try std.testing.expect(addr.pageDir() == 768);
+    try std.testing.expect(addr.pageTableEntry() == 17);
+    try std.testing.expect(addr.offset() == 546);
 }

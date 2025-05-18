@@ -169,7 +169,7 @@ fn kmain() callconv(.c) void {
         },
     );
 
-    vga.printf("how is this working: {s}", .{@typeName(memory.ProcessVirtualMemory)});
+    vga.printf("how is this working: {s}", .{@typeName(memory.Process)});
 
     while (true) {}
 }
