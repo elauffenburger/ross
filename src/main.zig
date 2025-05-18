@@ -157,8 +157,9 @@ fn kmain() callconv(.c) void {
     vga.writeStr("hello, zig!\n");
 
     vga.printf(
-        \\ gdtr: {{ addr: {x}, limit: {x} }}
-        \\ idtr: {{ addr: {x}, limit: {x} }}
+        \\ gdtr:  {{ addr: 0x{x}, limit: 0x{x} }}
+        \\ idtr:  {{ addr: 0x{x}, limit: 0x{x} }}
+        \\ stack: {{ addr: {*} }}
         \\
     ,
         .{
@@ -166,6 +167,7 @@ fn kmain() callconv(.c) void {
             gdtr.limit,
             idtr.addr,
             idtr.limit,
+            &kernel_stack_bytes,
         },
     );
 
@@ -173,10 +175,12 @@ fn kmain() callconv(.c) void {
 
     vga.printf("how is this working: {s}", .{@typeName(memory.Process)});
 
+    asm volatile ("int $42");
+
     while (true) {}
 }
 
-fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
+inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
     // Mark what the data segment offset is.
     tss.ss0 = @intFromEnum(tssSegment);
 
@@ -196,18 +200,22 @@ fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
     );
 
     // Change stack.
+    const stack_addr: u32 = @intFromPtr(stack.ptr) + (stack.len * @bitSizeOf(u8));
     asm volatile (
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
         :
-        : [stack_top] "i" (@as([*]align(4) u8, @ptrCast(stack.ptr)) + stack.len * @bitSizeOf(u8)),
+        : [stack_top] "X" (stack_addr),
     );
 }
 
-fn loadIdt() void {
+inline fn loadIdt() void {
     @setRuntimeSafety(false);
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
+
+    // HACK: just for testings stuff!
+    addIdtEntry(42, .interrupt32bits, .kernel, &handleInt42);
 
     // Load the IDT.
     const idtr_addr = asm volatile (
@@ -222,7 +230,7 @@ fn loadIdt() void {
     idtr = @ptrFromInt(idtr_addr);
 }
 
-fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
+inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
     idt[index] = tables.InterruptDescriptor{
@@ -236,11 +244,6 @@ fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privile
         .gateType = gateType,
         .dpl = privilegeLevel,
     };
-}
-
-fn handleInt3() callconv(.naked) void {
-    intPrologue();
-    intReturn();
 }
 
 inline fn intPrologue() void {
@@ -264,7 +267,15 @@ inline fn intPopErrCode() u32 {
     );
 }
 
-fn intTest() callconv(.naked) void {
+fn handleInt3() callconv(.naked) void {
     intPrologue();
     intReturn();
+}
+
+fn handleInt42() callconv(.naked) void {
+    intPrologue();
+
+    asm volatile (
+        \\ hlt
+    );
 }

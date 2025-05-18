@@ -1,5 +1,6 @@
 global gdtr
 global idtr
+
 global load_gdtr
 global load_idtr
 
