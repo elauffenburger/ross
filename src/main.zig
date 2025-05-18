@@ -107,6 +107,15 @@ var user_stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
+    // Set up kernel stack.
+    const stack_addr: u32 = @intFromPtr(&kernel_stack_bytes) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
+    asm volatile (
+        \\ movl %[stack_top], %%esp
+        \\ movl %%esp, %%ebp
+        :
+        : [stack_top] "X" (stack_addr),
+    );
+
     // Transfer to kmain.
     asm volatile (
         \\ call %[kmain:P]
@@ -116,6 +125,8 @@ pub export fn _kmain() callconv(.naked) noreturn {
 }
 
 fn kmain() callconv(.c) void {
+    vga.init();
+
     // Set up GDT.
     {
         // Add TSS entry to GDT.
@@ -153,7 +164,6 @@ fn kmain() callconv(.c) void {
     // Set up paging.
     memory.init();
 
-    vga.init();
     vga.writeStr("hello, zig!\n");
 
     vga.printf(
@@ -199,14 +209,14 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
         : [tss_gdt_offset] "X" (8 * @as(u32, @intCast(@intFromEnum(tssSegment)))),
     );
 
-    // Change stack.
-    const stack_addr: u32 = @intFromPtr(stack.ptr) + (stack.len * @bitSizeOf(u8));
-    asm volatile (
-        \\ movl %[stack_top], %%esp
-        \\ movl %%esp, %%ebp
-        :
-        : [stack_top] "X" (stack_addr),
-    );
+    // TODO: handle switching stacks.
+    //
+    // I'm guessing this will look something like:
+    //   - if already in the requested stack, is that an error?
+    //   - if switching to kernel space, _is_ there a stack?
+    //   - if swtiching back to userspace, restore previous stack pointers
+    //     - is that just esp and ebp?
+    //     - does ltr handle segmentation registers?
 }
 
 inline fn loadIdt() void {

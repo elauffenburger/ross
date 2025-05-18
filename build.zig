@@ -45,6 +45,7 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
     });
     kernel.entry = .{ .symbol_name = "_kmain" };
     kernel.setLinkerScript(b.path("boot/link.ld"));
+    kernel.link_gc_sections = false;
 
     const build_asm_lib, const asm_lib_obj = blk: {
         const build_loader = std.Build.Step.Run.create(b, "Build asm lib");

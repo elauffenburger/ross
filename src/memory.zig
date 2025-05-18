@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const vga = @import("vga.zig");
+
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
 pub const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).
@@ -67,7 +69,7 @@ const MaxAddress: u32 = 0xffffffff;
 const NumPageDirEntries = @typeInfo(@FieldType(Process.VirtualMemory, "pageDirectory")).array.len;
 const NumPageTableEntries = @typeInfo(@FieldType(Process.VirtualMemory.PageTable, "pages")).array.len;
 
-extern var __kernel_size: u32;
+extern const __kernel_size: c_char;
 
 // HACK: this just exists so we can set up paging during kernel boostrapping; once we enter protected mode and get all wired up, this
 // be moved into the Processes map and be undefined (so you almost certainly don't care about this).
@@ -84,10 +86,22 @@ pub inline fn init() void {
 
     // Map the Kernel into the higher half of memory.
     {
-        const kernel_size: f32 = @floatFromInt(__kernel_size);
+        const kernel_size: f32 = @floatFromInt(@as(u32, @intFromPtr(&__kernel_size)));
         const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
 
         const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
+        vga.printf(
+            \\ kernel_size: {x}
+            \\ bytes_per_page: {x}
+            \\ num_pages_for_kernel: {d}
+        , .{
+            @as(u32, @intFromFloat(kernel_size)),
+            @as(u32, @intFromFloat(bytes_per_page)),
+            num_pages_for_kernel,
+        });
+
+        asm volatile ("hlt");
+
         mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
     }
 }
