@@ -18,6 +18,7 @@ EOF
 BUILD_AND_RUN=
 MONITOR=
 START_GDB=
+VERBOSE=
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
   --run)
@@ -32,6 +33,10 @@ while [[ "$#" -gt 0 ]]; do
     START_GDB=1
     ;;
 
+  --verbose)
+    VERBOSE=1
+    ;;
+
   *)
     echo "unknown flag $1" >&2
     usage
@@ -43,7 +48,27 @@ done
 
 build_kernel() {
   pushd "$SCRIPT_DIR/.." >/dev/null
-  zig build build-iso --summary all --color on
+
+  ZIG_ARGS=(
+    --summary all
+    --color on
+  )
+  if [[ "$VERBOSE" == 1 ]]; then
+    ZIG_ARGS+=(
+      --verbose-link
+    )
+
+    # --verbose-link               Enable compiler debug output for linking
+    # --verbose-air                Enable compiler debug output for Zig AIR
+    # --verbose-llvm-ir[=file]     Enable compiler debug output for LLVM IR
+    # --verbose-llvm-bc=[file]     Enable compiler debug output for LLVM BC
+    # --verbose-cimport            Enable compiler debug output for C imports
+    # --verbose-cc                 Enable compiler debug output for C compilation
+    # --verbose-llvm-cpu-features  Enable compiler debug output for LLVM CPU features
+  fi
+
+  zig build build-iso "${ZIG_ARGS[@]}"
+
   popd >/dev/null
 }
 

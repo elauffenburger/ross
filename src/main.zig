@@ -176,7 +176,7 @@ fn kmain() callconv(.c) void {
     while (true) {}
 }
 
-inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
+fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
     // Mark what the data segment offset is.
     tss.ss0 = @intFromEnum(tssSegment);
 
@@ -204,7 +204,7 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: []align(4) u8) void {
     );
 }
 
-inline fn loadIdt() void {
+fn loadIdt() void {
     @setRuntimeSafety(false);
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
@@ -222,7 +222,7 @@ inline fn loadIdt() void {
     idtr = @ptrFromInt(idtr_addr);
 }
 
-inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
+fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
     idt[index] = tables.InterruptDescriptor{

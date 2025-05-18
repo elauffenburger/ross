@@ -14,9 +14,9 @@ pub const PageDirectoryEntry = packed struct(u32) {
     },
     cacheDisable: bool,
     accessed: bool,
-    _r1: u1,
+    _r1: u1 = undefined,
     pageSize: PageSize = .size4KiB,
-    meta: u4,
+    meta: u4 = undefined,
     addr: u20,
 
     // NOTE: Technically this could be a 4KiB or 4MiB entry, but we're just going to support 4KiB for now so we have a page table.
@@ -42,7 +42,7 @@ pub const PageTableEntry = packed struct(u32) {
     dirty: bool,
     pat: bool,
     global: bool,
-    meta: u3,
+    meta: u3 = undefined,
     addr: u20,
 };
 
@@ -83,8 +83,13 @@ pub inline fn init() void {
     mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
     // Map the Kernel into the higher half of memory.
-    const num_pages_for_kernel = @ceil(__kernel_size / PageTableEntry.NumBytesManaged);
-    mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+    {
+        const kernel_size: f32 = @floatFromInt(__kernel_size);
+        const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
+
+        const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
+        mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+    }
 }
 
 inline fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
@@ -102,7 +107,7 @@ inline fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start
             .cacheDisable = false,
             .accessed = false,
             .pageSize = .size4KiB,
-            .addr = @intFromPtr(page_table),
+            .addr = @truncate(@intFromPtr(page_table) >> 12),
         };
 
         // Figure out how many pages we need to write for this table based on how many we've written already.
@@ -121,7 +126,8 @@ inline fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start
                 .accessed = false,
                 .dirty = false,
                 .pat = false,
-                .addr = addr,
+                .global = false,
+                .addr = @truncate(addr >> 12),
             };
         }
     }
@@ -133,15 +139,15 @@ pub const VirtualAddress = packed struct(u32) {
     addr: u32,
 
     pub inline fn pageDir(self: Self) u10 {
-        return self.addr >> 22;
+        return @truncate(self.addr >> 22);
     }
 
     pub inline fn pageTableEntry(self: Self) u10 {
-        return (self.addr >> 12) & 0x03FF;
+        return @truncate((self.addr >> 12) & 0x03FF);
     }
 
     pub inline fn offset(self: Self) u12 {
-        return self.addr & 0x0000_07ff;
+        return @truncate(self.addr & 0x0000_07ff);
     }
 };
 
