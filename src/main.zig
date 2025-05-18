@@ -1,7 +1,7 @@
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
+const memory = @import("memory.zig");
 const multiboot = @import("multiboot.zig");
-const paging = @import("paging.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 
@@ -142,7 +142,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
     loadIdt();
 
     // Set up paging.
-    paging.setup();
+    memory.init();
 
     // Transfer to kmain.
     asm volatile (
@@ -169,7 +169,7 @@ fn kmain() callconv(.c) void {
         },
     );
 
-    vga.printf("how is this working: {s}", .{@typeName(paging.ProcessPageDirectory)});
+    vga.printf("how is this working: {s}", .{@typeName(memory.ProcessVirtualMemory)});
 
     while (true) {}
 }
