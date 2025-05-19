@@ -1,9 +1,9 @@
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
-const memory = @import("memory.zig");
 const multiboot = @import("multiboot.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
+const vmem = @import("vmem.zig");
 
 // Write multiboot header before we do anything.
 pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
@@ -104,6 +104,12 @@ var kernel_stack_bytes: [KERNEL_STACK_SIZE]u8 align(4) linksection(".bss") = und
 const STACK_SIZE = 16 * 1024;
 var user_stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
+extern const __kernel_size: u8;
+
+inline fn kernelSize() u32 {
+    return @as(u32, @intFromPtr(&__kernel_size));
+}
+
 pub export fn _kmain() callconv(.naked) noreturn {
     @setRuntimeSafety(false);
 
@@ -175,11 +181,32 @@ pub export fn _kmain() callconv(.naked) noreturn {
     );
 }
 
+// HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
+var pagerProc: Process = .{
+    .id = 0,
+    .vm = .{},
+};
+
+pub const Process = struct {
+    id: u32,
+    vm: vmem.ProcessVirtualMemory,
+};
+
 pub fn kmain() void {
     vga.init();
 
-    // Set up paging.
-    memory.init();
+    // Set up pager.
+    {
+        // Identity Map the first 1MiB.
+        vmem.mapKernelPages(&pagerProc.vm, 0, .{ .addr = 0 }, 0x400);
+
+        // Map the Kernel into the higher half of memory.
+        const kernel_size: f32 = @floatFromInt(kernelSize());
+        const bytes_per_page: f32 = @floatFromInt(vmem.PageTableEntry.NumBytesManaged);
+        const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
+
+        vmem.mapKernelPages(&pagerProc.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+    }
 
     vga.writeStr("hello, zig!\n");
 
@@ -201,7 +228,7 @@ pub fn kmain() void {
 
     asm volatile ("int $3");
 
-    vga.printf("how is this working: {s}", .{@typeName(memory.Process)});
+    vga.printf("after int3!\n", .{});
 
     asm volatile ("int $42");
 

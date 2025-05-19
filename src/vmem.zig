@@ -5,7 +5,7 @@ const vga = @import("vga.zig");
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
 pub const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).
-    const NumBytesManaged: u32 = 0x400000;
+    pub const NumBytesManaged: u32 = 0x400000;
 
     present: bool,
     rw: bool,
@@ -30,7 +30,7 @@ pub const PageDirectoryEntry = packed struct(u32) {
 
 pub const PageTableEntry = packed struct(u32) {
     // Each page in the page table manages 4KiB (since there are 1024 entries to cover a 4MiB page dir entry).
-    const NumBytesManaged: u32 = 0x1000;
+    pub const NumBytesManaged: u32 = 0x1000;
 
     present: bool,
     rw: bool,
@@ -48,57 +48,23 @@ pub const PageTableEntry = packed struct(u32) {
     addr: u20,
 };
 
-pub const Process = struct {
-    id: u32,
-    vm: VirtualMemory,
+pub const ProcessVirtualMemory = struct {
+    // Each process gets its own page directory and each page dir entry has an associated page table.
+    pageDirectory: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
+    pageTables: [1024]PageTable = [_]PageTable{.{}} ** 1024,
 
-    pub const VirtualMemory = struct {
-        // Each process gets its own page directory and each page dir entry has an associated page table.
-        pageDirectory: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
-        pageTables: [1024]PageTable = [_]PageTable{.{}} ** 1024,
-
-        pub const PageTable = struct {
-            // Each entry in a page table is initially marked not present.
-            pages: [1024]PageTableEntry = [_]PageTableEntry{@bitCast(@as(u32, 0))} ** 1024,
-        };
+    pub const PageTable = struct {
+        // Each entry in a page table is initially marked not present.
+        pages: [1024]PageTableEntry = [_]PageTableEntry{@bitCast(@as(u32, 0))} ** 1024,
     };
 };
 
 const MaxAddress: u32 = 0xffffffff;
 
-const NumPageDirEntries = @typeInfo(@FieldType(Process.VirtualMemory, "pageDirectory")).array.len;
-const NumPageTableEntries = @typeInfo(@FieldType(Process.VirtualMemory.PageTable, "pages")).array.len;
+const NumPageDirEntries = @typeInfo(@FieldType(ProcessVirtualMemory, "pageDirectory")).array.len;
+const NumPageTableEntries = @typeInfo(@FieldType(ProcessVirtualMemory.PageTable, "pages")).array.len;
 
-extern const __kernel_size: u8;
-
-inline fn kernelSize() u32 {
-    return @as(u32, @intFromPtr(&__kernel_size));
-}
-
-// HACK: this just exists so we can set up paging during kernel boostrapping; once we enter protected mode and get all wired up, this
-// be moved into the Processes map and be undefined (so you almost certainly don't care about this).
-//
-// TODO: this really should be a pointer, but we need to set up a heap first...
-var __pagerProcFromInit: Process = .{
-    .id = 0,
-    .vm = .{},
-};
-
-pub fn init() void {
-    // Identity Map the first 1MiB.
-    mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
-
-    // Map the Kernel into the higher half of memory.
-    {
-        const kernel_size: f32 = @floatFromInt(kernelSize());
-        const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
-        const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
-
-        mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
-    }
-}
-
-fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
+pub fn mapKernelPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
     const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
 
     const start_page_dir, const end_page_dir = .{ start_virt_addr.pageDir(), end_virt_addr.pageDir() };
