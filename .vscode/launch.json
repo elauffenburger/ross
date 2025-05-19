@@ -12,9 +12,18 @@
       "remote": true,
       "cwd": "${workspaceRoot}",
       "valuesFormatting": "prettyPrinters",
-      "autorun": [
-        "symbol-file ${workspaceFolder}/.zig-cache/o/85833100de614698845051ee696d165f/out/iso/boot/kernel.elf"
-      ]
+      "autorun": ["symbol-file ${workspaceFolder}/zig-out/bin/ross"]
+    },
+    {
+      "name": "Remote attach (maybe)",
+      "type": "lldb",
+      "request": "launch",
+      "targetCreateCommands": [
+        "target create ${workspaceFolder}/zig-out/bin/ross"
+      ],
+      "processCreateCommands": [
+        "gdb-remote localhost:1234"
+      ],
     }
   ]
 }

@@ -102,7 +102,7 @@ main() {
       QEMU_ARGS+=(-serial stdio)
     fi
 
-    qemu-system-x86_64 "${QEMU_ARGS[@]}"
+    qemu-system-i386 "${QEMU_ARGS[@]}"
   fi
 }
 

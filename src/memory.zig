@@ -84,7 +84,8 @@ var __pagerProcFromInit: Process = .{
     .vm = .{},
 };
 
-pub fn init() void {
+pub fn init(foo: u32) void {
+    _ = foo; // autofix
     // Identity Map the first 1MiB.
     mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
@@ -104,9 +105,9 @@ pub fn init() void {
             num_pages_for_kernel,
         });
 
-        mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+        // mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
 
-        asm volatile ("hlt");
+        // asm volatile ("hlt");
     }
 }
 

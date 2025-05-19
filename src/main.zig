@@ -169,24 +169,24 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
     // Transfer to kmain.
     asm volatile (
-        \\ call %[kmain:P]
+        \\ jmp %[kmain:P]
         :
         : [kmain] "X" (&kmain),
     );
 }
 
-fn kmain() callconv(.c) void {
+pub fn kmain() void {
     vga.init();
 
     // Set up paging.
-    memory.init();
+    memory.init(42);
 
     vga.writeStr("hello, zig!\n");
 
     vga.printf(
         \\ gdtr:  {{ addr: 0x{x}, limit: 0x{x} }}
         \\ idtr:  {{ addr: 0x{x}, limit: 0x{x} }}
-        \\ stack: {{ addr: {*} }}
+        \\ stack: {{ base: {x}, top: {x} }}
         \\
     ,
         .{
@@ -194,7 +194,8 @@ fn kmain() callconv(.c) void {
             gdtr.limit,
             idtr.addr,
             idtr.limit,
-            &kernel_stack_bytes,
+            @as(u32, @intFromPtr(&kernel_stack_bytes)),
+            stackTop(&kernel_stack_bytes),
         },
     );
 
