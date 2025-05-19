@@ -128,7 +128,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
                 .system = @bitCast(@as(u8, 0x89)),
             },
             .flags = .{
-                .size = .bits32,
+                .size = .@"32bit",
                 .granularity = .page,
             },
         });

@@ -17,14 +17,14 @@ pub const PageDirectoryEntry = packed struct(u32) {
     cacheDisable: bool,
     accessed: bool,
     _r1: u1 = undefined,
-    pageSize: PageSize = .size4KiB,
+    pageSize: PageSize = .@"4KiB",
     meta: u4 = undefined,
     addr: u20,
 
     // NOTE: Technically this could be a 4KiB or 4MiB entry, but we're just going to support 4KiB for now so we have a page table.
     pub const PageSize = enum(u1) {
-        size4KiB = 0,
-        size4MiB = 1,
+        @"4KiB" = 0,
+        @"4MiB" = 1,
     };
 };
 
@@ -113,7 +113,7 @@ fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_a
             .pwt = .writeThrough,
             .cacheDisable = false,
             .accessed = false,
-            .pageSize = .size4KiB,
+            .pageSize = .@"4KiB",
             .addr = @truncate(@intFromPtr(page_table) >> 12),
         };
 

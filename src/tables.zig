@@ -83,19 +83,19 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
 
         pub const SystemSegmentType = enum(u4) {
             // A 16-bit available Task State Segment (TSS).
-            bits16TssAvailable = 1,
+            tssAvailable16Bit = 1,
 
             // A Local Descriptor Table.
             ldt = 2,
 
             // A 16-bit busy TSS.
-            bits16TssBusy = 3,
+            tssBusy16Bit = 3,
 
             // A 32-bit available TSS.
-            bits32TssAvailable = 9,
+            tssAvailable32Bit = 9,
 
             // A 32-bit busy TSS.
-            bits32TssBusy = 11,
+            tssBusy32Bit = 11,
         };
 
         pub const SystemSegment = @FieldType(Self, "system");
@@ -118,8 +118,8 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
 
         // The size mode of a segment (16-bit or 32-bit).
         pub const SegmentSizeMode = enum(u1) {
-            bits16 = 0,
-            bits32 = 1,
+            @"16bit" = 0,
+            @"32bit" = 1,
         };
 
         // The unit for limit (either 1B units or 4KiB pages).
