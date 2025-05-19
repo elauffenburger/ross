@@ -81,7 +81,7 @@ main() {
 
     QEMU_ARGS=(
       -accel 'tcg,thread=single'
-      -cpu core2duo
+      -cpu 'core2duo,-lm'
       -m 128
       -smp 1
       -usb

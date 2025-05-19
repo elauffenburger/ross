@@ -92,21 +92,9 @@ pub fn init() void {
     {
         const kernel_size: f32 = @floatFromInt(kernelSize());
         const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
-
         const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
-        vga.printf(
-            \\ kernel_size: {x}
-            \\ bytes_per_page: {x}
-            \\ num_pages_for_kernel: {d}
-        , .{
-            @as(u32, @intFromFloat(kernel_size)),
-            @as(u32, @intFromFloat(bytes_per_page)),
-            num_pages_for_kernel,
-        });
 
         mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
-
-        asm volatile ("hlt");
     }
 }
 
@@ -174,12 +162,12 @@ pub const VirtualAddress = packed struct(u32) {
     pub inline fn offset(self: Self) u12 {
         return @truncate(self.addr & 0x0000_07ff);
     }
+
+    test "0xC0011222" {
+        const addr = VirtualAddress{ .addr = 0xC0011222 };
+
+        try std.testing.expect(addr.pageDir() == 768);
+        try std.testing.expect(addr.pageTableEntry() == 17);
+        try std.testing.expect(addr.offset() == 546);
+    }
 };
-
-test "0xC0011222" {
-    const addr = VirtualAddress{ .addr = 0xC0011222 };
-
-    try std.testing.expect(addr.pageDir() == 768);
-    try std.testing.expect(addr.pageTableEntry() == 17);
-    try std.testing.expect(addr.offset() == 546);
-}
