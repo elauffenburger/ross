@@ -185,17 +185,17 @@ pub export fn _kmain() callconv(.naked) noreturn {
 pub fn kmain() void {
     vga.init();
 
-    // Set up pager.
+    // Set up paging.
     {
-        // Identity Map the first 1MiB.
-        vmem.mapKernelPages(&pagerProc.vm, 0, .{ .addr = 0 }, 0x400);
-
-        // Map the Kernel into the higher half of memory.
         const kernel_size: f32 = @floatFromInt(kernelSize());
         const bytes_per_page: f32 = @floatFromInt(vmem.PageTableEntry.NumBytesManaged);
         const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
 
-        vmem.mapKernelPages(&pagerProc.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+        // Identity Map the first 1MiB.
+        vmem.mapKernelPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
+
+        // Map the Kernel into the higher half of memory.
+        vmem.mapKernelPages(&pagerProc.vm, .kernel, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
     }
 
     vga.writeStr("hello, zig!\n");

@@ -64,23 +64,36 @@ const MaxAddress: u32 = 0xffffffff;
 const NumPageDirEntries = @typeInfo(@FieldType(ProcessVirtualMemory, "pageDirectory")).array.len;
 const NumPageTableEntries = @typeInfo(@FieldType(ProcessVirtualMemory.PageTable, "pages")).array.len;
 
-pub fn mapKernelPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
+pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
     const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
 
     const start_page_dir, const end_page_dir = .{ start_virt_addr.pageDir(), end_virt_addr.pageDir() };
     for (start_page_dir..end_page_dir + 1) |page_dir_i| {
         const page_table = &vm.pageTables[page_dir_i];
+        const page_table_addr: u20 = @truncate(@intFromPtr(page_table) >> 12);
 
         const dir_entry = &vm.pageDirectory[page_dir_i];
-        dir_entry.* = .{
-            .present = true,
-            .rw = true,
-            .userAccessible = false,
-            .pwt = .writeThrough,
-            .cacheDisable = false,
-            .accessed = false,
-            .pageSize = .@"4KiB",
-            .addr = @truncate(@intFromPtr(page_table) >> 12),
+        dir_entry.* = switch (privilege) {
+            .kernel => .{
+                .present = true,
+                .rw = true,
+                .userAccessible = false,
+                .pwt = .writeThrough,
+                .cacheDisable = false,
+                .accessed = false,
+                .pageSize = .@"4KiB",
+                .addr = page_table_addr,
+            },
+            .userspace => .{
+                .present = true,
+                .rw = false,
+                .userAccessible = true,
+                .pwt = .writeThrough,
+                .cacheDisable = false,
+                .accessed = false,
+                .pageSize = .@"4KiB",
+                .addr = page_table_addr,
+            },
         };
 
         // Figure out how many pages we need to write for this table; if we're not at the last table, then write a full
@@ -95,18 +108,33 @@ pub fn mapKernelPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_vir
 
         for (0..num_pages_for_table) |page_i| {
             const addr = start_phys_addr + ((page_i + NumPageTableEntries) * PageTableEntry.NumBytesManaged);
+            const addr_trunc: u20 = @truncate(addr >> 12);
 
-            page_table.pages[page_i] = PageTableEntry{
-                .present = true,
-                .rw = true,
-                .userAccessible = true,
-                .pwt = .writeThrough,
-                .cacheDisable = false,
-                .accessed = false,
-                .dirty = false,
-                .pat = false,
-                .global = false,
-                .addr = @truncate(addr >> 12),
+            page_table.pages[page_i] = switch (privilege) {
+                .kernel => .{
+                    .present = true,
+                    .rw = true,
+                    .userAccessible = false,
+                    .pwt = .writeThrough,
+                    .cacheDisable = false,
+                    .accessed = false,
+                    .dirty = false,
+                    .pat = false,
+                    .global = false,
+                    .addr = addr_trunc,
+                },
+                .userspace => .{
+                    .present = true,
+                    .rw = false,
+                    .userAccessible = true,
+                    .pwt = .writeThrough,
+                    .cacheDisable = false,
+                    .accessed = false,
+                    .dirty = false,
+                    .pat = false,
+                    .global = true,
+                    .addr = addr_trunc,
+                },
             };
         }
     }
