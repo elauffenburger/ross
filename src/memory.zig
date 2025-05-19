@@ -84,8 +84,7 @@ var __pagerProcFromInit: Process = .{
     .vm = .{},
 };
 
-pub fn init(foo: u32) void {
-    _ = foo; // autofix
+pub fn init() void {
     // Identity Map the first 1MiB.
     mapKernelPages(&__pagerProcFromInit.vm, 0, .{ .addr = 0 }, 0x400);
 
@@ -105,19 +104,20 @@ pub fn init(foo: u32) void {
             num_pages_for_kernel,
         });
 
-        // mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+        mapKernelPages(&__pagerProcFromInit.vm, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
 
-        // asm volatile ("hlt");
+        asm volatile ("hlt");
     }
 }
 
 fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
     const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
 
-    for (start_virt_addr.pageDir()..end_virt_addr.pageDir()) |top_level_table_index| {
-        const page_table = &vm.pageTables[top_level_table_index];
+    const start_page_dir, const end_page_dir = .{ start_virt_addr.pageDir(), end_virt_addr.pageDir() };
+    for (start_page_dir..end_page_dir + 1) |page_dir_i| {
+        const page_table = &vm.pageTables[page_dir_i];
 
-        const dir_entry = &vm.pageDirectory[top_level_table_index];
+        const dir_entry = &vm.pageDirectory[page_dir_i];
         dir_entry.* = .{
             .present = true,
             .rw = true,
@@ -129,14 +129,20 @@ fn mapKernelPages(vm: *Process.VirtualMemory, start_phys_addr: u32, start_virt_a
             .addr = @truncate(@intFromPtr(page_table) >> 12),
         };
 
-        // Figure out how many pages we need to write for this table based on how many we've written already.
-        const num_pages_written = top_level_table_index * NumPageTableEntries;
-        const num_pages_for_table = num_pages - num_pages_written;
+        // Figure out how many pages we need to write for this table; if we're not at the last table, then write a full
+        // table's amount; otherwise, write the remainder of the pages.
+        const num_pages_for_table = blk: {
+            if (page_dir_i == end_page_dir) {
+                break :blk @mod(num_pages, NumPageTableEntries);
+            } else {
+                break :blk NumPageTableEntries;
+            }
+        };
 
-        for (0..num_pages_for_table) |i| {
-            const addr = start_phys_addr + ((i + num_pages_written) * PageTableEntry.NumBytesManaged);
+        for (0..num_pages_for_table) |page_i| {
+            const addr = start_phys_addr + ((page_i + NumPageTableEntries) * PageTableEntry.NumBytesManaged);
 
-            page_table.pages[i] = PageTableEntry{
+            page_table.pages[page_i] = PageTableEntry{
                 .present = true,
                 .rw = true,
                 .userAccessible = true,

@@ -179,7 +179,7 @@ pub fn kmain() void {
     vga.init();
 
     // Set up paging.
-    memory.init(42);
+    memory.init();
 
     vga.writeStr("hello, zig!\n");
 

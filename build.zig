@@ -40,6 +40,7 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .optimize = b.standardOptimizeOption(.{}),
             .link_libc = false,
             .link_libcpp = false,
+            .dwarf_format = .@"32",
         }),
     });
     kernel.entry = .{ .symbol_name = "_kmain" };
