@@ -88,6 +88,7 @@ var gdt align(4) = [_]tables.GdtSegmentDescriptor{
 // Allocate a pointer to the memory location we pass to lgdt.
 var gdtr: *tables.GdtDescriptor = undefined;
 
+// Allocate space for our TSS.
 var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
 
 // Allocate space for the IDT.
@@ -104,8 +105,8 @@ var kernel_stack_bytes: [KERNEL_STACK_SIZE]u8 align(4) linksection(".bss") = und
 const STACK_SIZE = 16 * 1024;
 var user_stack_bytes: [STACK_SIZE]u8 align(4) linksection(".bss") = undefined;
 
+// Declare a hook to grab __kernel_size from the linker script.
 extern const __kernel_size: u8;
-
 inline fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
@@ -180,17 +181,6 @@ pub export fn _kmain() callconv(.naked) noreturn {
         : [kmain] "X" (&kmain),
     );
 }
-
-// HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
-var pagerProc: Process = .{
-    .id = 0,
-    .vm = .{},
-};
-
-pub const Process = struct {
-    id: u32,
-    vm: vmem.ProcessVirtualMemory,
-};
 
 pub fn kmain() void {
     vga.init();
@@ -339,3 +329,14 @@ fn handleInt42() callconv(.naked) void {
 inline fn stackTop(stack: []align(4) u8) u32 {
     return @as(u32, @intFromPtr(stack.ptr)) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
 }
+
+// HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
+var pagerProc: Process = .{
+    .id = 0,
+    .vm = .{},
+};
+
+pub const Process = struct {
+    id: u32,
+    vm: vmem.ProcessVirtualMemory,
+};
