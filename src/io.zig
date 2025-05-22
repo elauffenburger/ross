@@ -1,4 +1,4 @@
-pub fn inb(port: u16) u8 {
+pub inline fn inb(port: u16) u8 {
     return asm volatile (
         \\ in %[port], %%eax
         : [res] "={ax}" (-> u8),
@@ -6,7 +6,7 @@ pub fn inb(port: u16) u8 {
     );
 }
 
-pub fn outb(port: u16, val: u8) void {
+pub inline fn outb(port: u16, val: u8) void {
     asm volatile (
         \\ movb %[val], %%al
         \\ movw %[port], %%dx
@@ -17,7 +17,7 @@ pub fn outb(port: u16, val: u8) void {
     );
 }
 
-pub fn wait() void {
+pub inline fn wait() void {
     // This is a bit weird, but we're basically just sending a byte on a (hopefully)
     // unused IO port to force waiting a little before sending more data.
     //

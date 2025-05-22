@@ -265,6 +265,8 @@ inline fn loadIdt() void {
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
+    addIdtEntry(0x21, .interrupt32bits, .kernel, &handleIrq1);
+
     // HACK: just for testings stuff!
     addIdtEntry(42, .interrupt32bits, .kernel, &handleInt42);
 
@@ -318,8 +320,9 @@ inline fn intPopErrCode() u32 {
     );
 }
 
-fn handleInt1() callconv(.naked) void {
+fn handleIrq1() callconv(.naked) void {
     intPrologue();
+    pic.eoi(1);
     intReturn();
 }
 

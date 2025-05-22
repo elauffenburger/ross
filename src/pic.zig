@@ -5,11 +5,11 @@ pub const Pic = struct {
 
     addr: u16,
 
-    pub fn cmd(self: Self) u16 {
+    pub inline fn cmd(self: Self) u16 {
         return self.addr;
     }
 
-    pub fn data(self: Self) u16 {
+    pub inline fn data(self: Self) u16 {
         return self.addr + 1;
     }
 };
@@ -56,7 +56,7 @@ pub fn init() void {
     io.outb(pic2.data(), 0);
 }
 
-pub fn eoi(irq: u8) void {
+pub inline fn eoi(irq: u8) void {
     if (irq >= 8) {
         io.outb(pic2.cmd(), @intFromEnum(PicCmd.eoi));
     }
