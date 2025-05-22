@@ -76,7 +76,8 @@ load_gdtr:
   mov esp, ebp
   pop ebp
 
-  ; TODO: restore interrupts? Does this need to wait until after we load the IDTR?
+  ; restore interrupts
+  sti
 
   ret
 
@@ -105,5 +106,8 @@ load_idtr:
 
   mov esp, ebp
   pop ebp
+
+  ; restore interrupts
+  sti
 
   ret

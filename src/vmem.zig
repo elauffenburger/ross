@@ -2,6 +2,19 @@ const std = @import("std");
 
 const vga = @import("vga.zig");
 
+pub fn enablePaging(pdt: []PageDirectoryEntry) void {
+    asm volatile (
+        \\ mov %%[pdt_addr], %eax
+        \\ mov %eax, %cr3
+        \\
+        \\ mov %cr0, %eax
+        \\ or %eax, $0x80000001
+        \\ mov %eax, %cr0
+        :
+        : [pdt_addr] "X" (@as(u32, @intFromPtr(pdt.ptr))),
+    );
+}
+
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
 pub const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).

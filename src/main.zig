@@ -1,6 +1,7 @@
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
+const pic = @import("pic.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
@@ -170,7 +171,8 @@ pub export fn _kmain() callconv(.naked) noreturn {
             \\ movl %[stack_top], %%esp
             \\ movl %%esp, %%ebp
             :
-            : [stack_top] "X" (stackTop(&kernel_stack_bytes)),
+            : [val] "X" (@as(u8, 42)),
+              [stack_top] "X" (stackTop(&kernel_stack_bytes)),
         );
     }
 
@@ -184,6 +186,9 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
 pub fn kmain() void {
     vga.init();
+
+    // Init PICs.
+    pic.init();
 
     // Set up paging.
     {
@@ -239,8 +244,8 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: struct { segment: GdtSegment,
 
     // Load tss.
     asm volatile (
-        \\ mov %[tss_gdt_offset], %ax
-        \\ ltr %ax
+        \\ mov %[tss_gdt_offset], %%ax
+        \\ ltr %%ax
         :
         : [tss_gdt_offset] "X" (8 * @as(u32, @intFromEnum(tssSegment))),
     );
@@ -311,6 +316,11 @@ inline fn intPopErrCode() u32 {
         \\ pop %%eax
         : [eax] "={eax}" (-> u32),
     );
+}
+
+fn handleInt1() callconv(.naked) void {
+    intPrologue();
+    intReturn();
 }
 
 fn handleInt3() callconv(.naked) void {
