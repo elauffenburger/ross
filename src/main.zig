@@ -2,6 +2,7 @@ const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
+const ps2 = @import("ps2.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
@@ -190,6 +191,9 @@ pub fn kmain() void {
     // Init PICs.
     pic.init();
 
+    // Init PS/2 interface.
+    ps2.init();
+
     // Set up paging.
     {
         const kernel_size: f32 = @floatFromInt(kernelSize());
@@ -265,7 +269,7 @@ inline fn loadIdt() void {
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
-    addIdtEntry(0x21, .interrupt32bits, .kernel, &handleIrq1);
+    addIdtEntry(0x09, .interrupt32bits, .kernel, &handleIrq1);
 
     // HACK: just for testings stuff!
     addIdtEntry(42, .interrupt32bits, .kernel, &handleInt42);
