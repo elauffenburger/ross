@@ -88,7 +88,28 @@ pub fn init() void {
     }
 
     // Perform self-test.
-    io.outb(Ports.cmd, 0xaa);
+    {
+        io.outb(Ports.cmd, 0xaa);
+
+        const res = waitForData();
+        if (res == 0x55) {
+            vga.printf("ps/2 self-test: pass!\n", .{});
+        } else {
+            vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
+        }
+    }
+
+    // Perform interface test.
+    {
+        io.outb(Ports.cmd, 0xab);
+
+        const res = waitForData();
+        if (res == 0x00) {
+            vga.printf("ps/2 interface test: pass!\n", .{});
+        } else {
+            vga.printf("ps/2 interface test: fail! ({b})\n", .{res});
+        }
+    }
 }
 
 fn getStatus() StatusRegister {
@@ -99,9 +120,14 @@ fn getControllerConfig() ControllerConfig {
     // Request config byte.
     io.outb(Ports.cmd, 0x20);
 
+    // Read the config byte as our struct.
+    return @bitCast(waitForData());
+}
+
+fn waitForData() u8 {
     // Wait for the output buffer bit to be flipped.
     while (!getStatus().outputBufferFull) {}
 
     // Read the config byte as our struct.
-    return @bitCast(io.inb(Ports.data));
+    return io.inb(Ports.data);
 }
