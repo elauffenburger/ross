@@ -66,14 +66,9 @@ pub fn init() void {
     {
         // Save the PIC mask before we disable all interrupts.
         const pic_mask = pic.getMask();
-        vga.printf("mask: {b}\n", .{pic_mask});
 
         // Disable PIC interrupts before we work with the PS/2 controller.
         pic.setMask(0xffff);
-
-        vga.printf("mask: {b}\n", .{pic.getMask()});
-
-        // asm volatile ("hlt");
 
         // Get the PS/2 controller config and disable .
         var config = getControllerConfig();
@@ -82,7 +77,7 @@ pub fn init() void {
         config.port2TranslationEnabled = false;
 
         // TODO: is this right?
-        config.port1InterruptsEnabled = false;
+        config.port2InterruptsEnabled = false;
 
         // Write the config back
         io.outb(Ports.cmd, 0x60);
