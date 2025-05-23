@@ -1,7 +1,8 @@
 pub inline fn inb(port: u16) u8 {
     return asm volatile (
-        \\ in %[port], %%eax
-        : [res] "={ax}" (-> u8),
+        \\ movw %[port], %%dx
+        \\ inb %%dx, %%al
+        : [res] "={al}" (-> u8),
         : [port] "X" (port),
     );
 }
@@ -12,8 +13,8 @@ pub inline fn outb(port: u16, val: u8) void {
         \\ movw %[port], %%dx
         \\ outb %%al, %%dx
         :
-        : [port] "r" (port),
-          [val] "r" (val),
+        : [port] "X" (port),
+          [val] "X" (val),
     );
 }
 

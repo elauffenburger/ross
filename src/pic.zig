@@ -1,6 +1,6 @@
 const io = @import("io.zig");
 
-pub const Pic = struct {
+const Pic = struct {
     const Self = @This();
 
     addr: u16,
@@ -30,9 +30,9 @@ pub fn init() void {
     io.wait();
 
     // ICW2: Set vector table offsets.
-    io.outb(pic1.cmd(), 0x20);
+    io.outb(pic1.data(), 0x20);
     io.wait();
-    io.outb(pic2.cmd(), 0x28);
+    io.outb(pic2.data(), 0x28);
     io.wait();
 
     // ICW3: Tell master PIC there's a secondary at IRQ2 (0000_0100).
@@ -64,6 +64,45 @@ pub inline fn eoi(irq: u8) void {
     io.outb(pic1.cmd(), @intFromEnum(PicCmd.eoi));
 }
 
+pub inline fn getMask() u16 {
+    const pic1_mask = io.inb(pic1.data());
+    const pic2_mask = io.inb(pic2.data());
+
+    return @as(u16, pic1_mask) | (@as(u16, pic2_mask) << 8);
+}
+
+pub inline fn setMask(mask: u16) void {
+    io.outb(pic1.data(), @truncate(mask));
+    io.outb(pic2.data(), @truncate(mask >> 8));
+}
+
+// NOTE: IRQ2 on PIC1 is wired to PIC2, so masking IRQ2 will mask the secondary PIC entirely
+pub inline fn maskIRQ(irq: u4) void {
+    const port, const pic_irq = portAndPicIRQFromIRQ(irq);
+
+    const mask = io.inb(port);
+    const new_mask = mask | (1 << pic_irq);
+
+    io.outb(port, new_mask);
+}
+
+pub inline fn unmaskIRQ(irq: u4) void {
+    const port, const pic_irq = portAndPicIRQFromIRQ(irq);
+
+    const mask = io.inb(port);
+    const new_mask = mask & ~(1 << pic_irq);
+
+    io.outb(port, new_mask);
+}
+
+inline fn portAndPicIRQFromIRQ(irq: u4) struct { port: u16, pic_irq: u4 } {
+    if (irq < 8) {
+        return .{ pic1.data(), irq };
+    } else {
+        return .{ pic2.data(), irq - 8 };
+    }
+}
+
 const PicCmd = enum(u8) {
     eoi = 0x20,
 };
@@ -82,7 +121,7 @@ const InitControlWord1 = struct {
     pub const level = 0x08;
 
     // Initialization.
-    pub const init = 0x16;
+    pub const init = 0x10;
 };
 
 const InitControlWord4 = struct {

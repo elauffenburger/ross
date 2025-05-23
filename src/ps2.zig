@@ -1,4 +1,5 @@
 const io = @import("io.zig");
+const pic = @import("pic.zig");
 const vga = @import("vga.zig");
 
 const Ports = struct {
@@ -36,8 +37,8 @@ const StatusRegister = packed struct(u8) {
 };
 
 const ControllerConfig = packed struct(u8) {
-    port1IntEnabled: bool,
-    port2IntEnabled: bool,
+    port1InterruptsEnabled: bool,
+    port2InterruptsEnabled: bool,
     systemPOSTed: bool,
     _r1: u1 = 0,
     port1ClockDisabled: bool,
@@ -63,16 +64,32 @@ pub fn init() void {
 
     // Set controller config.
     {
-        // NOTE: to future Eric: this is triple faulting because we need to disable the PICs
-        // before doing this or IRQs will still fire!
+        // Save the PIC mask before we disable all interrupts.
+        const pic_mask = pic.getMask();
+        vga.printf("mask: {b}\n", .{pic_mask});
+
+        // Disable PIC interrupts before we work with the PS/2 controller.
+        pic.setMask(0xffff);
+
+        vga.printf("mask: {b}\n", .{pic.getMask()});
+
+        // asm volatile ("hlt");
+
+        // Get the PS/2 controller config and disable .
         var config = getControllerConfig();
-        config.port1IntEnabled = false;
-        config.port2TranslationEnabled = false;
+        config.port1InterruptsEnabled = false;
         config.port1ClockDisabled = false;
+        config.port2TranslationEnabled = false;
+
+        // TODO: is this right?
+        config.port1InterruptsEnabled = false;
 
         // Write the config back
         io.outb(Ports.cmd, 0x60);
         io.outb(Ports.cmd, @bitCast(config));
+
+        // Restore the PIC mask.
+        pic.setMask(pic_mask);
     }
 
     // Perform self-test.
