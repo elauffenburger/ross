@@ -343,7 +343,7 @@ fn handleIrq0() callconv(.naked) void {
 fn handleIrq1() callconv(.naked) void {
     intPrologue();
 
-    ps2.dev1.recv();
+    ps2.port1.recv();
 
     pic.eoi(1);
     intReturn();
@@ -352,7 +352,7 @@ fn handleIrq1() callconv(.naked) void {
 fn handleIrq12() callconv(.naked) void {
     intPrologue();
 
-    ps2.dev2.recv();
+    ps2.port2.recv();
 
     pic.eoi(12);
     intReturn();

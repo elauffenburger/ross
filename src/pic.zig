@@ -105,6 +105,22 @@ inline fn portAndPicIRQFromIRQ(irq: u4) struct { port: u16, pic_irq: u4 } {
     }
 }
 
+pub inline fn getIRR() u16 {
+    return getIRQReg(0x0a);
+}
+
+pub inline fn getISR() u16 {
+    return getIRQReg(0x0b);
+}
+
+inline fn getIRQReg(cmd: u8) u16 {
+    io.outb(pic1.cmd(), cmd);
+    io.outb(pic2.cmd(), cmd);
+
+    const res = @as(u16, io.inb(pic2.cmd())) << 8 | @as(u16, io.inb(pic1.cmd()));
+    return res;
+}
+
 const PicCmd = enum(u8) {
     eoi = 0x20,
 };

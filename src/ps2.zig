@@ -4,7 +4,7 @@ const io = @import("io.zig");
 const pic = @import("pic.zig");
 const vga = @import("vga.zig");
 
-const Ports = struct {
+const IOPort = struct {
     // Read: data from device
     // Write: data to device
     pub const data = 0x60;
@@ -41,7 +41,7 @@ const StatusRegister = packed struct(u8) {
 const ControllerConfig = packed struct(u8) {
     port1InterruptsEnabled: bool,
     port2InterruptsEnabled: bool,
-    systemPOSTed: bool,
+    systemPOSTed: bool = true,
     _r1: u1 = 0,
     port1ClockDisabled: bool,
     port2ClockDisabled: bool,
@@ -62,11 +62,11 @@ pub fn init() void {
     // TODO: make sure PS/2 controller exists.
 
     // Disable both ports.
-    io.outb(Ports.cmd, 0xad);
-    io.outb(Ports.cmd, 0xa7);
+    io.outb(IOPort.cmd, 0xad);
+    io.outb(IOPort.cmd, 0xa7);
 
     // Flush output buffer.
-    _ = io.inb(Ports.data);
+    _ = io.inb(IOPort.data);
 
     // Set controller config.
     {
@@ -77,15 +77,15 @@ pub fn init() void {
         config.port2TranslationEnabled = false;
 
         // Write the config back
-        io.outb(Ports.cmd, 0x60);
-        io.outb(Ports.cmd, @bitCast(config));
+        io.outb(IOPort.cmd, 0x60);
+        io.outb(IOPort.cmd, @bitCast(config));
     }
 
     // Perform controller self-test.
     {
-        io.outb(Ports.cmd, 0xaa);
+        io.outb(IOPort.cmd, 0xaa);
 
-        const res = controller.pollResponse();
+        const res = controller.pollData();
         if (res == 0x55) {
             vga.printf("ps/2 self-test: pass!\n", .{});
         } else {
@@ -96,18 +96,18 @@ pub fn init() void {
     // Check if there's a second channel.
     {
         // Enable the second port.
-        io.outb(Ports.cmd, 0xa8);
+        io.outb(IOPort.cmd, 0xa8);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
         const config = controller.pollConfig();
-        dev2.verified = !config.port2ClockDisabled;
+        port2.verified = !config.port2ClockDisabled;
     }
 
     // Perform interface test.
     {
-        io.outb(Ports.cmd, 0xab);
+        io.outb(IOPort.cmd, 0xab);
 
-        const res = controller.pollResponse();
+        const res = controller.pollData();
         if (res == 0x00) {
             vga.printf("ps/2 interface test: pass!\n", .{});
         } else {
@@ -118,85 +118,95 @@ pub fn init() void {
     // Re-enable devices and reset.
     {
         // Enable port 1.
-        io.outb(Ports.cmd, 0xae);
+        io.outb(IOPort.cmd, 0xae);
 
         // Enable port 2 if it exists.
-        if (dev2.verified) {
-            io.outb(Ports.cmd, 0xa8);
+        if (port2.verified) {
+            io.outb(IOPort.cmd, 0xa8);
         }
 
         // Get the PS/2 controller config and re-enable interrupts
         var config = controller.waitConfig();
         config.port1InterruptsEnabled = true;
         config.port2InterruptsEnabled = true;
+        config.port1ClockDisabled = false;
+        config.port2ClockDisabled = false;
+        config.port2TranslationEnabled = false;
 
         // Write the config back
-        io.outb(Ports.cmd, 0x60);
-        io.outb(Ports.cmd, @bitCast(config));
+        io.outb(IOPort.cmd, 0x60);
+        io.outb(IOPort.cmd, @bitCast(config));
+
+        // HACK: try to make stuff work.
+        pic.setMask(0b11101111_11111000);
+
+        vga.printf(
+            \\ irr: {b}
+            \\ isr: {b}
+        ,
+            .{
+                pic.getIRR(),
+                pic.getISR(),
+            },
+        );
     }
 
     // Reset devices.
     {
-        resetDevice(dev1);
-        resetDevice(dev2);
+        resetDevice(&port1);
+        resetDevice(&port2);
     }
 
     vga.writeStr("ps/2 interface 1 OK!\n");
-    if (dev2.verified) {
+    if (port2.verified) {
         vga.writeStr("ps/2 interface 2 OK!\n");
     }
 }
 
-fn resetDevice(dev: anytype) void {
+fn resetDevice(port: anytype) void {
     // Send reset.
-    dev.writeData(0xff);
+    port.writeData(0xff);
 
-    switch (dev.waitForByte()) {
+    const ack = port.waitForByte();
+    switch (ack) {
         0xfa => {
-            switch (dev.waitForByte()) {
+            const health_code = port.waitForByte();
+            switch (health_code) {
                 0xaa => {
-                    const dev_id = dev.waitForByte();
-                    _ = dev_id; // autofix
+                    port.healthy = true;
                 },
                 else => {
-                    // TODO: unknown
-                },
-            }
-        },
-        0xaa => {
-            switch (dev.waitForByte()) {
-                0xfa => {
-                    const dev_id = dev.waitForByte();
-                    _ = dev_id; // autofix
-                },
-                else => {
-                    // TODO: unknown
+                    vga.printf("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.port_num), health_code });
                 },
             }
         },
         0xfc => {
-            // TODO: fail
+            vga.printf("health check failed for ps/2 port {s}\n", .{@tagName(port.port_num)});
         },
         else => {
-            // TODO: not populated
+            vga.printf("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.port_num), ack });
         },
     }
 }
 
-fn Device(comptime dev: enum { one, two }, assumeVerified: bool) type {
+fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
     return struct {
         const Self = @This();
 
+        port_num: @TypeOf(port) = port,
         verified: bool = assumeVerified,
+        healthy: bool = false,
 
-        var buffered: ?u8 = null;
+        dev_id: u8 = 0,
 
-        pub fn writeData(_: Self, byte: u8) void {
-            switch (dev) {
+        buffered: ?u8 = null,
+
+        pub fn writeData(_: *Self, byte: u8) void {
+            switch (port) {
                 .one => {},
                 .two => {
                     // Tell the controller we're going to write to port two.
-                    io.outb(Ports.cmd, 0xd4);
+                    io.outb(IOPort.cmd, 0xd4);
                 },
             }
 
@@ -206,60 +216,67 @@ fn Device(comptime dev: enum { one, two }, assumeVerified: bool) type {
             }
 
             // Write our byte.
-            io.outb(Ports.data, byte);
+            io.outb(IOPort.data, byte);
         }
 
-        pub fn waitForByte(_: Self) u8 {
-            while (buffered == null) {
-                vga.writeStr("waiting for byte in buffer...\n");
+        pub fn waitForByte(self: *Self) u8 {
+            while (self.buffered == null) {
+                // vga.writeStr("waiting for byte in buffer...\n");
             }
 
-            return buffered.?;
+            const result = self.buffered.?;
+            self.buffered = null;
+
+            return result;
         }
 
-        pub inline fn recv(_: Self) void {
-            if (buffered != null) {
+        pub inline fn recv(self: *Self) void {
+            if (self.buffered != null) {
                 // TODO: what do?
             }
 
-            buffered = io.inb(Ports.data);
+            self.buffered = io.inb(IOPort.data);
         }
     };
 }
 
-pub var dev1 = Device(.one, true){};
-pub var dev2 = Device(.two, false){};
+pub var port1 = Port(.one, true){};
+pub var port2 = Port(.two, false){};
 
 const controller = struct {
     const Self = @This();
 
     pub fn status() StatusRegister {
-        return @bitCast(io.inb(Ports.cmd));
+        return @bitCast(io.inb(IOPort.cmd));
     }
 
     pub fn pollConfig() ControllerConfig {
         // Request config byte.
-        io.outb(Ports.cmd, 0x20);
+        io.outb(IOPort.cmd, 0x20);
 
         // Poll until we get a response.
-        return @bitCast(pollResponse());
+        return @bitCast(pollData());
     }
 
     pub fn waitConfig() ControllerConfig {
         // Request config byte.
-        io.outb(Ports.cmd, 0x20);
+        io.outb(IOPort.cmd, 0x20);
 
         // Steal the byte off the dev1 IRQ buffer.
-        return @bitCast(dev1.waitForByte());
+        return @bitCast(port1.waitForByte());
     }
 
-    pub fn pollResponse() u8 {
+    pub fn pollData() u8 {
         // Wait for the controller to write the response.
         while (!status().outputBufferFull) {
             vga.writeStr("waiting for polled byte...\n");
         }
 
         // Read the response.
-        return io.inb(Ports.data);
+        return io.inb(IOPort.data);
+    }
+
+    pub fn writeCmd(cmd: u8) void {
+        io.outb(IOPort.cmd, cmd);
     }
 };
