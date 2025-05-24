@@ -140,6 +140,11 @@ pub fn init() void {
         resetDevice(dev1);
         resetDevice(dev2);
     }
+
+    vga.writeStr("ps/2 interface 1 OK!\n");
+    if (dev2.verified) {
+        vga.writeStr("ps/2 interface 2 OK!\n");
+    }
 }
 
 fn resetDevice(dev: anytype) void {

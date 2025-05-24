@@ -269,7 +269,7 @@ inline fn loadIdt() void {
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
-    addIrqHandler(0, &noopIrq);
+    addIrqHandler(0, &handleIrq0);
     addIrqHandler(1, &handleIrq1);
     addIrqHandler(12, &handleIrq12);
 
@@ -332,8 +332,10 @@ inline fn intPopErrCode() u32 {
     );
 }
 
-fn noopIrq() callconv(.naked) void {
+fn handleIrq0() callconv(.naked) void {
     intPrologue();
+
+    pic.eoi(0);
     intReturn();
 }
 
