@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const io = @import("io.zig");
 const pic = @import("pic.zig");
 const vga = @import("vga.zig");
@@ -55,6 +57,10 @@ const ControllerConfig = packed struct(u8) {
 //
 // NOTE: there's a bunch of stuff we _should_ do...and we're not going to do any of it for now because it requires ACPI and stuff :)
 pub fn init() void {
+    // TODO: initialize USB controllers.
+
+    // TODO: make sure PS/2 controller exists.
+
     // Disable both ports.
     io.outb(Ports.cmd, 0xad);
     io.outb(Ports.cmd, 0xa7);
@@ -64,34 +70,22 @@ pub fn init() void {
 
     // Set controller config.
     {
-        // Save the PIC mask before we disable all interrupts.
-        const pic_mask = pic.getMask();
-
-        // Disable PIC interrupts before we work with the PS/2 controller.
-        pic.setMask(0xffff);
-
-        // Get the PS/2 controller config and disable .
-        var config = getControllerConfig();
+        // Get the PS/2 controller config and set things up so we can run tests.
+        var config = controller.config();
         config.port1InterruptsEnabled = false;
         config.port1ClockDisabled = false;
         config.port2TranslationEnabled = false;
 
-        // TODO: is this right?
-        config.port2InterruptsEnabled = false;
-
         // Write the config back
         io.outb(Ports.cmd, 0x60);
         io.outb(Ports.cmd, @bitCast(config));
-
-        // Restore the PIC mask.
-        pic.setMask(pic_mask);
     }
 
-    // Perform self-test.
+    // Perform controller self-test.
     {
         io.outb(Ports.cmd, 0xaa);
 
-        const res = waitForData();
+        const res = controller.pollResponse();
         if (res == 0x55) {
             vga.printf("ps/2 self-test: pass!\n", .{});
         } else {
@@ -99,35 +93,154 @@ pub fn init() void {
         }
     }
 
+    // Check if there's a second channel.
+    {
+        // Enable the second port.
+        io.outb(Ports.cmd, 0xa8);
+
+        // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
+        const config = controller.config();
+        dev2.verified = !config.port2ClockDisabled;
+    }
+
     // Perform interface test.
     {
         io.outb(Ports.cmd, 0xab);
 
-        const res = waitForData();
+        const res = controller.pollResponse();
         if (res == 0x00) {
             vga.printf("ps/2 interface test: pass!\n", .{});
         } else {
             vga.printf("ps/2 interface test: fail! ({b})\n", .{res});
         }
     }
+
+    // Re-enable devices and reset.
+    {
+        // Enable port 1.
+        io.outb(Ports.cmd, 0xae);
+
+        // Enable port 2 if it exists.
+        if (dev2.verified) {
+            io.outb(Ports.cmd, 0xa8);
+        }
+
+        // Get the PS/2 controller config and re-enable interrupts
+        var config = controller.config();
+        config.port1InterruptsEnabled = true;
+        config.port2InterruptsEnabled = true;
+
+        // Write the config back
+        io.outb(Ports.cmd, 0x60);
+        io.outb(Ports.cmd, @bitCast(config));
+    }
+
+    // Reset devices.
+    {
+        resetDevice(dev1);
+        resetDevice(dev2);
+    }
 }
 
-fn getStatus() StatusRegister {
-    return @bitCast(io.inb(Ports.cmd));
+fn resetDevice(dev: anytype) void {
+    // Send reset.
+    dev.writeData(0xff);
+
+    switch (dev.waitForByte()) {
+        0xfa => {
+            switch (dev.waitForByte()) {
+                0xaa => {
+                    const dev_id = dev.waitForByte();
+                    _ = dev_id; // autofix
+                },
+                else => {
+                    // TODO: unknown
+                },
+            }
+        },
+        0xaa => {
+            switch (dev.waitForByte()) {
+                0xfa => {
+                    const dev_id = dev.waitForByte();
+                    _ = dev_id; // autofix
+                },
+                else => {
+                    // TODO: unknown
+                },
+            }
+        },
+        0xfc => {
+            // TODO: fail
+        },
+        else => {
+            // TODO: not populated
+        },
+    }
 }
 
-fn getControllerConfig() ControllerConfig {
-    // Request config byte.
-    io.outb(Ports.cmd, 0x20);
+fn Device(comptime dev: enum { one, two }, assumeVerified: bool) type {
+    return struct {
+        const Self = @This();
 
-    // Read the config byte as our struct.
-    return @bitCast(waitForData());
+        verified: bool = assumeVerified,
+
+        var queued: ?u8 = null;
+
+        pub fn writeData(_: Self, byte: u8) void {
+            switch (dev) {
+                .one => {},
+                .two => {
+                    // Tell the controller we're going to write to port two.
+                    io.outb(Ports.cmd, 0xd4);
+                },
+            }
+
+            // Wait for the input buffer to be clear.
+            while (controller.status().inputBufferFull) {}
+
+            // Write our byte.
+            io.outb(Ports.data, byte);
+        }
+
+        pub fn waitForByte(_: Self) u8 {
+            while (queued == null) {}
+
+            return queued.?;
+        }
+
+        pub inline fn recv(_: Self) void {
+            if (queued != null) {
+                // TODO: what do?
+            }
+
+            queued = io.inb(Ports.data);
+        }
+    };
 }
 
-fn waitForData() u8 {
-    // Wait for the output buffer bit to be flipped.
-    while (!getStatus().outputBufferFull) {}
+pub var dev1 = Device(.one, true){};
+pub var dev2 = Device(.two, false){};
 
-    // Read the config byte as our struct.
-    return io.inb(Ports.data);
-}
+const controller = struct {
+    const Self = @This();
+
+    pub fn status() StatusRegister {
+        return @bitCast(io.inb(Ports.cmd));
+    }
+
+    pub fn config() ControllerConfig {
+        // Request config byte.
+        io.outb(Ports.cmd, 0x20);
+
+        // Read the response as our struct.
+        return @bitCast(pollResponse());
+    }
+
+    pub fn pollResponse() u8 {
+        // Wait for the controller to write the response.
+        while (!status().outputBufferFull) {}
+
+        // Read the response.
+        return io.inb(Ports.data);
+    }
+};

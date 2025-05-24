@@ -269,8 +269,9 @@ inline fn loadIdt() void {
 
     addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
 
-    // addIdtEntry(0x08, .interrupt32bits, .kernel, &noopIrq);
-    addIdtEntry(0x09, .interrupt32bits, .kernel, &handleIrq1);
+    addIrqHandler(0, &noopIrq);
+    addIrqHandler(1, &handleIrq1);
+    addIrqHandler(12, &handleIrq12);
 
     // HACK: just for testings stuff!
     addIdtEntry(42, .interrupt32bits, .kernel, &handleInt42);
@@ -286,6 +287,12 @@ inline fn loadIdt() void {
     );
 
     idtr = @ptrFromInt(idtr_addr);
+}
+
+inline fn addIrqHandler(irq: u8, handler: *const fn () callconv(.naked) void) void {
+    const index = irq + pic.irqOffset;
+
+    addIdtEntry(index, .interrupt32bits, .kernel, handler);
 }
 
 inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
@@ -332,7 +339,19 @@ fn noopIrq() callconv(.naked) void {
 
 fn handleIrq1() callconv(.naked) void {
     intPrologue();
+
+    ps2.dev1.recv();
+
     pic.eoi(1);
+    intReturn();
+}
+
+fn handleIrq12() callconv(.naked) void {
+    intPrologue();
+
+    ps2.dev2.recv();
+
+    pic.eoi(12);
     intReturn();
 }
 
