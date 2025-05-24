@@ -336,6 +336,7 @@ fn handleIrq0() callconv(.naked) void {
     intPrologue();
 
     pic.eoi(0);
+
     intReturn();
 }
 

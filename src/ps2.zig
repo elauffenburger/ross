@@ -71,7 +71,7 @@ pub fn init() void {
     // Set controller config.
     {
         // Get the PS/2 controller config and set things up so we can run tests.
-        var config = controller.config();
+        var config = controller.pollConfig();
         config.port1InterruptsEnabled = false;
         config.port1ClockDisabled = false;
         config.port2TranslationEnabled = false;
@@ -99,7 +99,7 @@ pub fn init() void {
         io.outb(Ports.cmd, 0xa8);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
-        const config = controller.config();
+        const config = controller.pollConfig();
         dev2.verified = !config.port2ClockDisabled;
     }
 
@@ -126,7 +126,7 @@ pub fn init() void {
         }
 
         // Get the PS/2 controller config and re-enable interrupts
-        var config = controller.config();
+        var config = controller.waitConfig();
         config.port1InterruptsEnabled = true;
         config.port2InterruptsEnabled = true;
 
@@ -189,7 +189,7 @@ fn Device(comptime dev: enum { one, two }, assumeVerified: bool) type {
 
         verified: bool = assumeVerified,
 
-        var queued: ?u8 = null;
+        var buffered: ?u8 = null;
 
         pub fn writeData(_: Self, byte: u8) void {
             switch (dev) {
@@ -201,24 +201,28 @@ fn Device(comptime dev: enum { one, two }, assumeVerified: bool) type {
             }
 
             // Wait for the input buffer to be clear.
-            while (controller.status().inputBufferFull) {}
+            while (controller.status().inputBufferFull) {
+                vga.writeStr("waiting on input buffer...\n");
+            }
 
             // Write our byte.
             io.outb(Ports.data, byte);
         }
 
         pub fn waitForByte(_: Self) u8 {
-            while (queued == null) {}
+            while (buffered == null) {
+                vga.writeStr("waiting for byte in buffer...\n");
+            }
 
-            return queued.?;
+            return buffered.?;
         }
 
         pub inline fn recv(_: Self) void {
-            if (queued != null) {
+            if (buffered != null) {
                 // TODO: what do?
             }
 
-            queued = io.inb(Ports.data);
+            buffered = io.inb(Ports.data);
         }
     };
 }
@@ -233,17 +237,27 @@ const controller = struct {
         return @bitCast(io.inb(Ports.cmd));
     }
 
-    pub fn config() ControllerConfig {
+    pub fn pollConfig() ControllerConfig {
         // Request config byte.
         io.outb(Ports.cmd, 0x20);
 
-        // Read the response as our struct.
+        // Poll until we get a response.
         return @bitCast(pollResponse());
+    }
+
+    pub fn waitConfig() ControllerConfig {
+        // Request config byte.
+        io.outb(Ports.cmd, 0x20);
+
+        // Steal the byte off the dev1 IRQ buffer.
+        return @bitCast(dev1.waitForByte());
     }
 
     pub fn pollResponse() u8 {
         // Wait for the controller to write the response.
-        while (!status().outputBufferFull) {}
+        while (!status().outputBufferFull) {
+            vga.writeStr("waiting for polled byte...\n");
+        }
 
         // Read the response.
         return io.inb(Ports.data);

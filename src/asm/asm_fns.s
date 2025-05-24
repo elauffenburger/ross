@@ -1,8 +1,12 @@
+extern handleIrq0
+
 global gdtr
 global idtr
 
 global load_gdtr
 global load_idtr
+
+global handle_irq0
 
 section .data
   align 4
@@ -111,3 +115,13 @@ load_idtr:
   sti
 
   ret
+
+handle_irq0:
+  push eax
+  cld
+
+  mov al, 0x20
+  out 0x20, al
+
+  pop eax
+  iret
