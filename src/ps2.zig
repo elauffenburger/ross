@@ -47,7 +47,7 @@ const ControllerConfig = packed struct(u8) {
     port2ClockDisabled: bool,
 
     // Translates scan codes to scan code 1 for compatibility reasons.
-    port2TranslationEnabled: bool,
+    port1TranslationEnabled: bool,
 
     // NOTE: this must be zero. don't know why.
     _r2: u1 = 0,
@@ -74,7 +74,7 @@ pub fn init() void {
         var config = controller.pollConfig();
         config.port1InterruptsEnabled = false;
         config.port1ClockDisabled = false;
-        config.port2TranslationEnabled = false;
+        config.port1TranslationEnabled = false;
 
         // Write the config back
         io.outb(IOPort.cmd, 0x60);
@@ -105,13 +105,28 @@ pub fn init() void {
 
     // Perform interface test.
     {
-        io.outb(IOPort.cmd, 0xab);
+        // Test Port 1.
+        {
+            io.outb(IOPort.cmd, 0xab);
 
-        const res = controller.pollData();
-        if (res == 0x00) {
-            vga.printf("ps/2 interface test: pass!\n", .{});
-        } else {
-            vga.printf("ps/2 interface test: fail! ({b})\n", .{res});
+            const res = controller.pollData();
+            if (res == 0) {
+                vga.printf("ps/2 interface 1 test: pass!\n", .{});
+            } else {
+                vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
+            }
+        }
+
+        // Test Port 2.
+        if (port2.verified) {
+            io.outb(IOPort.cmd, 0xa9);
+
+            const res = controller.pollData();
+            if (res == 0) {
+                vga.printf("ps/2 interface 2 test: pass!\n", .{});
+            } else {
+                vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
+            }
         }
     }
 
@@ -131,35 +146,17 @@ pub fn init() void {
         config.port2InterruptsEnabled = true;
         config.port1ClockDisabled = false;
         config.port2ClockDisabled = false;
-        config.port2TranslationEnabled = false;
+        config.port1TranslationEnabled = false;
 
         // Write the config back
         io.outb(IOPort.cmd, 0x60);
         io.outb(IOPort.cmd, @bitCast(config));
-
-        // HACK: try to make stuff work.
-        pic.setMask(0b11101111_11111000);
-
-        vga.printf(
-            \\ irr: {b}
-            \\ isr: {b}
-        ,
-            .{
-                pic.getIRR(),
-                pic.getISR(),
-            },
-        );
     }
 
     // Reset devices.
     {
-        resetDevice(&port1);
+        // resetDevice(&port1);
         resetDevice(&port2);
-    }
-
-    vga.writeStr("ps/2 interface 1 OK!\n");
-    if (port2.verified) {
-        vga.writeStr("ps/2 interface 2 OK!\n");
     }
 }
 
@@ -167,24 +164,25 @@ fn resetDevice(port: anytype) void {
     // Send reset.
     port.writeData(0xff);
 
-    const ack = port.waitForByte();
+    const ack = controller.pollData();
     switch (ack) {
         0xfa => {
-            const health_code = port.waitForByte();
+            const health_code = controller.pollData();
             switch (health_code) {
                 0xaa => {
                     port.healthy = true;
+                    vga.printf("ps/2 port {s} OK!\n", .{@tagName(port.portNum)});
                 },
                 else => {
-                    vga.printf("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.port_num), health_code });
+                    vga.printf("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.portNum), health_code });
                 },
             }
         },
         0xfc => {
-            vga.printf("health check failed for ps/2 port {s}\n", .{@tagName(port.port_num)});
+            vga.printf("health check failed for ps/2 port {s}\n", .{@tagName(port.portNum)});
         },
         else => {
-            vga.printf("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.port_num), ack });
+            vga.printf("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.portNum), ack });
         },
     }
 }
@@ -193,11 +191,11 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
     return struct {
         const Self = @This();
 
-        port_num: @TypeOf(port) = port,
+        portNum: @TypeOf(port) = port,
         verified: bool = assumeVerified,
         healthy: bool = false,
 
-        dev_id: u8 = 0,
+        devId: u8 = 0,
 
         buffered: ?u8 = null,
 
@@ -226,6 +224,8 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
 
             const result = self.buffered.?;
             self.buffered = null;
+
+            vga.printf("got byte! 0x{x}\n", .{result});
 
             return result;
         }
@@ -269,7 +269,7 @@ const controller = struct {
     pub fn pollData() u8 {
         // Wait for the controller to write the response.
         while (!status().outputBufferFull) {
-            vga.writeStr("waiting for polled byte...\n");
+            // vga.writeStr("waiting for polled byte...\n");
         }
 
         // Read the response.
