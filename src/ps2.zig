@@ -49,7 +49,7 @@ const ControllerConfig = packed struct(u8) {
     // Translates scan codes to scan code 1 for compatibility reasons.
     port1TranslationEnabled: bool,
 
-    // NOTE: this must be zero. don't know why.
+    // NOTE: this must be zero. don't know why. Might be keylock?
     _r2: u1,
 };
 
@@ -147,6 +147,7 @@ pub fn init() void {
         config.port1ClockDisabled = false;
         config.port2ClockDisabled = false;
         config.port1TranslationEnabled = false;
+        config._r2 = 0;
 
         // Write the config back
         ctrl.writeConfig(config);
@@ -298,8 +299,13 @@ const ctrl = struct {
         return io.inb(IOPort.data);
     }
 
-    pub fn writeCmd(cmd: u8) void {
+    pub fn sendCmd(cmd: u8) error{bad_ack}!void {
         io.outb(IOPort.cmd, cmd);
+
+        const ack = port1.waitForByte();
+        if (ack != 0xfa) {
+            return error.bad_ack;
+        }
     }
 
     pub fn flushData() void {
