@@ -61,25 +61,24 @@ pub fn init() void {
 
     // TODO: make sure PS/2 controller exists.
 
-    // // Disable both ports.
-    // io.outb(IOPort.cmd, 0xad);
-    // io.outb(IOPort.cmd, 0xa7);
+    // Disable both ports.
+    io.outb(IOPort.cmd, 0xad);
+    io.outb(IOPort.cmd, 0xa7);
 
-    // // Flush output buffer.
-    // _ = io.inb(IOPort.data);
+    // Flush output buffer.
+    _ = io.inb(IOPort.data);
 
-    // // Set controller config.
-    // {
-    //     // Get the PS/2 controller config and set things up so we can run tests.
-    //     var config = ctrlr.pollConfig();
-    //     config.port1InterruptsEnabled = false;
-    //     config.port1ClockDisabled = false;
-    //     config.port1TranslationEnabled = false;
+    // Set controller config.
+    {
+        // Get the PS/2 controller config and set things up so we can run tests.
+        var config = ctrl.pollConfig();
+        config.port1InterruptsEnabled = false;
+        config.port1ClockDisabled = false;
+        config.port1TranslationEnabled = false;
 
-    //     // Write the config back
-    //     io.outb(IOPort.cmd, 0x60);
-    //     io.outb(IOPort.cmd, @bitCast(config));
-    // }
+        // Write the config back
+        ctrl.writeConfig(config);
+    }
 
     // // Perform controller self-test.
     // {
@@ -133,15 +132,15 @@ pub fn init() void {
     // Re-enable devices and reset.
     {
         // Enable port 1.
-        // io.outb(IOPort.cmd, 0xae);
+        io.outb(IOPort.cmd, 0xae);
 
         // Enable port 2 if it exists.
-        // if (port2.verified) {
-        //     io.outb(IOPort.cmd, 0xa8);
-        // }
+        if (port2.verified) {
+            io.outb(IOPort.cmd, 0xa8);
+        }
 
         // Get the PS/2 controller config and re-enable interrupts
-        var config = ctrl.waitConfig();
+        var config = ctrl.pollConfig();
         config.port1InterruptsEnabled = true;
         config.port2InterruptsEnabled = true;
         config.port1ClockDisabled = false;
@@ -164,6 +163,11 @@ pub fn init() void {
     port1.writeData(0xf0);
     port1.writeData(0x00);
     dbg("scan code: 0x{x}\n", .{port1.waitForByte()});
+
+    // Enable scan codes for port1.
+    dbg("enabling port1 scan codes\n", .{});
+    port1.writeData(0xf4);
+    dbg("ack: 0x{x}\n", .{port1.waitForByte()});
 }
 
 fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
@@ -189,7 +193,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
 
             // Wait for the input buffer to be clear.
             while (ctrl.status().inputBufferFull) {
-                vdbg("waiting on input buffer...\n", .{});
+                dbgv("waiting on input buffer...\n", .{});
             }
 
             // Write our byte.
@@ -198,7 +202,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
 
         pub fn waitForByte(self: *Self) u8 {
             while (self.buffer == null) {
-                vdbg("waiting for byte in buffer...\n", .{});
+                dbgv("waiting for byte in buffer...\n", .{});
             }
 
             const result = self.buffer.?;
@@ -282,7 +286,7 @@ const ctrl = struct {
     pub fn pollData() u8 {
         // Wait for the controller to write the response.
         while (!status().outputBufferFull) {
-            vdbg("waiting for polled byte...\n", .{});
+            dbgv("waiting for polled byte...\n", .{});
         }
 
         // Read the response.
@@ -301,7 +305,7 @@ const ctrl = struct {
     pub fn flushData() void {
         while (status().outputBufferFull) {
             const byte = io.inb(IOPort.data);
-            vdbg("flushing 0x{x}\n", .{byte});
+            dbgv("flushing 0x{x}\n", .{byte});
         }
     }
 };
@@ -310,6 +314,6 @@ fn dbg(comptime format: []const u8, args: anytype) void {
     vga.printf(format, args);
 }
 
-fn vdbg(comptime format: []const u8, args: anytype) void {
+fn dbgv(comptime format: []const u8, args: anytype) void {
     vga.printf(format, args);
 }
