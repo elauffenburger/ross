@@ -155,8 +155,8 @@ pub fn init() void {
 
     // Reset devices.
     {
-        resetDevice(&port1);
-        resetDevice(&port2);
+        port1.reset();
+        port2.reset();
     }
 
     // Verify scan code.
@@ -164,47 +164,6 @@ pub fn init() void {
     port1.writeData(0xf0);
     port1.writeData(0x00);
     dbg("scan code: 0x{x}\n", .{port1.waitForByte()});
-
-    dbg("setting scan code...\n", .{});
-    port1.writeData(0xf0);
-    port1.writeData(0x01);
-    dbg("ack: 0x{x}\n", .{port1.waitForByte()});
-
-    dbg("getting scan code...\n", .{});
-    port1.writeData(0xf0);
-    port1.writeData(0x00);
-    dbg("scan code: 0x{x}\n", .{port1.waitForByte()});
-}
-
-fn resetDevice(port: anytype) void {
-    // Send reset.
-    port.writeData(0xff);
-
-    const ack = port.waitForByte();
-    switch (ack) {
-        0xfa => {
-            const health_code = port.waitForByte();
-            switch (health_code) {
-                0xaa => {
-                    port.healthy = true;
-                    dbg("ps/2 port {s} OK!\n", .{@tagName(port.portNum)});
-                },
-                else => {
-                    dbg("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.portNum), health_code });
-                },
-            }
-        },
-        0xaa => {
-            port.healthy = true;
-            dbg("ps/2 port {s} OK!\n", .{@tagName(port.portNum)});
-        },
-        0xfc => {
-            dbg("health check failed for ps/2 port {s}\n", .{@tagName(port.portNum)});
-        },
-        else => {
-            dbg("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(port.portNum), ack });
-        },
-    }
 }
 
 fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
@@ -254,6 +213,37 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             }
 
             self.buffer = io.inb(IOPort.data);
+        }
+
+        pub fn reset(self: *Self) void {
+            // Send reset.
+            self.writeData(0xff);
+
+            const ack = self.waitForByte();
+            switch (ack) {
+                0xfa => {
+                    const health_code = self.waitForByte();
+                    switch (health_code) {
+                        0xaa => {
+                            self.healthy = true;
+                            dbg("ps/2 port {s} OK!\n", .{@tagName(self.portNum)});
+                        },
+                        else => {
+                            dbg("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.portNum), health_code });
+                        },
+                    }
+                },
+                0xaa => {
+                    self.healthy = true;
+                    dbg("ps/2 port {s} OK!\n", .{@tagName(self.portNum)});
+                },
+                0xfc => {
+                    dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.portNum)});
+                },
+                else => {
+                    dbg("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.portNum), ack });
+                },
+            }
         }
     };
 }
