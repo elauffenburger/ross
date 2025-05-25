@@ -84,9 +84,6 @@ main() {
       -cpu 'core2duo,-lm'
       -m 128
       -smp 1
-      -usb
-      -device usb-kbd
-      -device 'usb-host,hostbus=0,hostaddr=1'
       -vga std
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
       -no-reboot

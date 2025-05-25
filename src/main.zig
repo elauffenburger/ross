@@ -385,3 +385,8 @@ pub const Process = struct {
     id: u32,
     vm: vmem.ProcessVirtualMemory,
 };
+
+// 0x60: data
+// 0x64: cmd
+//   read:  status
+//   write: command
