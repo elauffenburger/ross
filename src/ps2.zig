@@ -71,7 +71,7 @@ pub fn init() void {
     // Set controller config.
     {
         // Get the PS/2 controller config and set things up so we can run tests.
-        var config = controller.pollConfig();
+        var config = ctrlr.pollConfig();
         config.port1InterruptsEnabled = false;
         config.port1ClockDisabled = false;
         config.port1TranslationEnabled = false;
@@ -85,7 +85,7 @@ pub fn init() void {
     {
         io.outb(IOPort.cmd, 0xaa);
 
-        const res = controller.pollData();
+        const res = ctrlr.pollData();
         if (res == 0x55) {
             vga.printf("ps/2 self-test: pass!\n", .{});
         } else {
@@ -99,7 +99,7 @@ pub fn init() void {
         io.outb(IOPort.cmd, 0xa8);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
-        const config = controller.pollConfig();
+        const config = ctrlr.pollConfig();
         port2.verified = !config.port2ClockDisabled;
     }
 
@@ -109,7 +109,7 @@ pub fn init() void {
         {
             io.outb(IOPort.cmd, 0xab);
 
-            const res = controller.pollData();
+            const res = ctrlr.pollData();
             if (res == 0) {
                 vga.printf("ps/2 interface 1 test: pass!\n", .{});
             } else {
@@ -121,7 +121,7 @@ pub fn init() void {
         if (port2.verified) {
             io.outb(IOPort.cmd, 0xa9);
 
-            const res = controller.pollData();
+            const res = ctrlr.pollData();
             if (res == 0) {
                 vga.printf("ps/2 interface 2 test: pass!\n", .{});
             } else {
@@ -140,8 +140,10 @@ pub fn init() void {
             io.outb(IOPort.cmd, 0xa8);
         }
 
+        // ctrlr.flushData();
+
         // Get the PS/2 controller config and re-enable interrupts
-        var config = controller.waitConfig();
+        var config = ctrlr.waitConfig();
         config.port1InterruptsEnabled = true;
         config.port2InterruptsEnabled = true;
         config.port1ClockDisabled = false;
@@ -158,16 +160,35 @@ pub fn init() void {
         // resetDevice(&port1);
         resetDevice(&port2);
     }
+
+    ctrlr.flushData();
+
+    // Verify scan code.
+    vga.printf("getting scan code...\n", .{});
+    port1.writeData(0xf0);
+    port1.writeData(0x00);
+
+    vga.printf("scan code: 0x{x}\n", .{port1.waitForByte()});
+
+    vga.printf("setting scan code...\n", .{});
+    port1.writeData(0xf0);
+    port1.writeData(0x01);
+
+    vga.printf("scan code: 0x{x}\n", .{port1.waitForByte()});
+    port1.writeData(0xf0);
+    port1.writeData(0x00);
+
+    vga.printf("scan code: 0x{x}\n", .{port1.waitForByte()});
 }
 
 fn resetDevice(port: anytype) void {
     // Send reset.
     port.writeData(0xff);
 
-    const ack = controller.pollData();
+    const ack = ctrlr.pollData();
     switch (ack) {
         0xfa => {
-            const health_code = controller.pollData();
+            const health_code = ctrlr.pollData();
             switch (health_code) {
                 0xaa => {
                     port.healthy = true;
@@ -209,7 +230,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             }
 
             // Wait for the input buffer to be clear.
-            while (controller.status().inputBufferFull) {
+            while (ctrlr.status().inputBufferFull) {
                 vga.writeStr("waiting on input buffer...\n");
             }
 
@@ -224,8 +245,6 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
 
             const result = self.buffered.?;
             self.buffered = null;
-
-            vga.printf("got byte! 0x{x}\n", .{result});
 
             return result;
         }
@@ -243,7 +262,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
 pub var port1 = Port(.one, true){};
 pub var port2 = Port(.two, false){};
 
-const controller = struct {
+const ctrlr = struct {
     const Self = @This();
 
     pub fn status() StatusRegister {
@@ -278,5 +297,12 @@ const controller = struct {
 
     pub fn writeCmd(cmd: u8) void {
         io.outb(IOPort.cmd, cmd);
+    }
+
+    pub fn flushData() void {
+        while (status().outputBufferFull) {
+            const byte = io.inb(IOPort.data);
+            vga.printf("flushing 0x{x}\n", .{byte});
+        }
     }
 };
