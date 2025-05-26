@@ -52,3 +52,12 @@ const RegisterB = packed struct(u8) {
     periodicInterruptsEnabled: bool,
     abortUpdate: bool,
 };
+
+const RegisterC = packed struct(u8) {
+    _r1: u4,
+
+    updateEndedInterrupt: bool,
+    alarmInterrtup: bool,
+    periodicInterrtup: bool,
+    interruptRequest: bool,
+};
