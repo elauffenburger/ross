@@ -80,29 +80,33 @@ pub inline fn setMask(mask: u16) void {
 
 // NOTE: IRQ2 on PIC1 is wired to PIC2, so masking IRQ2 will mask the secondary PIC entirely
 pub inline fn maskIRQ(irq: u4) void {
-    const port, const pic_irq = portAndPicIRQFromIRQ(irq);
+    const port, const pic_irq = blk: {
+        if (irq < 8) {
+            break :blk .{ pic1.data(), irq };
+        } else {
+            break :blk .{ pic2.data(), irq - 8 };
+        }
+    };
 
     const mask = io.inb(port);
-    const new_mask = mask | (1 << pic_irq);
+    const new_mask = mask | (@as(u8, 1) << pic_irq);
 
     io.outb(port, new_mask);
 }
 
 pub inline fn unmaskIRQ(irq: u4) void {
-    const port, const pic_irq = portAndPicIRQFromIRQ(irq);
+    const port, const pic_irq = blk: {
+        if (irq < 8) {
+            break :blk .{ pic1.data(), irq };
+        } else {
+            break :blk .{ pic2.data(), irq - 8 };
+        }
+    };
 
     const mask = io.inb(port);
-    const new_mask = mask & ~(1 << pic_irq);
+    const new_mask = mask & ~(@as(u8, 1) << pic_irq);
 
     io.outb(port, new_mask);
-}
-
-inline fn portAndPicIRQFromIRQ(irq: u4) struct { port: u16, pic_irq: u4 } {
-    if (irq < 8) {
-        return .{ pic1.data(), irq };
-    } else {
-        return .{ pic2.data(), irq - 8 };
-    }
 }
 
 pub inline fn getIRR() u16 {

@@ -81,10 +81,6 @@ main() {
 
     QEMU_ARGS=(
       -accel 'tcg,thread=single'
-      -cpu 'core2duo,-lm'
-      -m 128
-      -smp 1
-      -vga std
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
       -no-reboot
       -d 'cpu_reset,int,guest_errors,page,in_asm,pcall'

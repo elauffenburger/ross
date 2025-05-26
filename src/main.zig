@@ -191,6 +191,9 @@ pub fn kmain() void {
     // Init PICs.
     pic.init();
 
+    // Disable timers.
+    pic.maskIRQ(0);
+
     // Init PS/2 interface.
     ps2.init();
 
@@ -209,29 +212,25 @@ pub fn kmain() void {
 
     vga.writeStr("hello, zig!\n");
 
-    vga.printf(
-        \\ gdtr:  {{ addr: 0x{x}, limit: 0x{x} }}
-        \\ idtr:  {{ addr: 0x{x}, limit: 0x{x} }}
-        \\ stack: {{ base: {x}, top: {x} }}
-        \\
-    ,
-        .{
-            gdtr.addr,
-            gdtr.limit,
-            idtr.addr,
-            idtr.limit,
-            @as(u32, @intFromPtr(&kernel_stack_bytes)),
-            stackTop(&kernel_stack_bytes),
-        },
-    );
+    // vga.printf(
+    //     \\ gdtr:  {{ addr: 0x{x}, limit: 0x{x} }}
+    //     \\ idtr:  {{ addr: 0x{x}, limit: 0x{x} }}
+    //     \\ stack: {{ base: {x}, top: {x} }}
+    //     \\
+    // ,
+    //     .{
+    //         gdtr.addr,
+    //         gdtr.limit,
+    //         idtr.addr,
+    //         idtr.limit,
+    //         @as(u32, @intFromPtr(&kernel_stack_bytes)),
+    //         stackTop(&kernel_stack_bytes),
+    //     },
+    // );
 
-    asm volatile ("int $3");
-
-    vga.printf("after int3!\n", .{});
-
-    asm volatile ("int $42");
-
-    while (true) {}
+    while (true) {
+        // asm volatile ("hlt");
+    }
 }
 
 inline fn reloadTss(tssSegment: GdtSegment, stack: struct { segment: GdtSegment, handle: []align(4) u8 }) void {
@@ -267,14 +266,9 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: struct { segment: GdtSegment,
 inline fn loadIdt() void {
     @setRuntimeSafety(false);
 
-    addIdtEntry(@intFromEnum(tables.IdtEntry.bp), .interrupt32bits, .kernel, &handleInt3);
-
     addIrqHandler(0, &handleIrq0);
     addIrqHandler(1, &handleIrq1);
     addIrqHandler(12, &handleIrq12);
-
-    // HACK: just for testings stuff!
-    addIdtEntry(42, .interrupt32bits, .kernel, &handleInt42);
 
     // Load the IDT.
     const idtr_addr = asm volatile (
@@ -358,19 +352,6 @@ fn handleIrq12() callconv(.naked) void {
     intReturn();
 }
 
-fn handleInt3() callconv(.naked) void {
-    intPrologue();
-    intReturn();
-}
-
-fn handleInt42() callconv(.naked) void {
-    intPrologue();
-
-    asm volatile (
-        \\ hlt
-    );
-}
-
 inline fn stackTop(stack: []align(4) u8) u32 {
     return @as(u32, @intFromPtr(stack.ptr)) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
 }
@@ -385,8 +366,3 @@ pub const Process = struct {
     id: u32,
     vm: vmem.ProcessVirtualMemory,
 };
-
-// 0x60: data
-// 0x64: cmd
-//   read:  status
-//   write: command
