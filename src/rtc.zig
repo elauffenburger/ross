@@ -4,12 +4,6 @@ const io = @import("io.zig");
 // The default value set by the BIOS is 1Khz, which is ~976us.
 var tickMs: f32 = 0.976;
 
-var foo: f32 = 0;
-
-pub inline fn tick() void {
-    foo += 1;
-}
-
 pub inline fn regc() RegisterC {
     return reg(RegisterC, 0x0C, true);
 }
@@ -18,6 +12,8 @@ inline fn reg(T: type, regAddr: u8, restoreNmis: bool) T {
     const nmisMasked = if (restoreNmis) cmos.areNMIsMasked() else undefined;
 
     // Get register and mask NMIs since the RTC can go into an undefined state if an interrupt triggers right now.
+    //
+    // NOTE: we're masking NMIs while we're changing the index by setting bit 7 (NMIs share an IO port with CMOS).
     cmos.writeIndex(0x80 | regAddr);
     const result: T = @bitCast(cmos.readData());
 
@@ -35,7 +31,7 @@ pub fn init() void {
 
     // Configure RTC interrupts.
     //
-    // NOTE: we're masking NMIs while we're changing the index by setting bit 7 (NMIs share an IO port with CMOS).
+    // NOTE: we're getting register b with NMIs masked and not unmasking until we're done programming the RTC.
     var reg_b = reg(RegisterB, 0x0B, false);
     reg_b.periodicInterruptsEnabled = true;
 
