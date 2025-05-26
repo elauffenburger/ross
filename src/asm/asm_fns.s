@@ -1,20 +1,11 @@
 global gdtr
-global idtr
-
 global load_gdtr
-
-global handle_irq0
 
 section .data
 align 4
 gdtr:
   dw 0x00 ; gdt limit
   dd 0x00 ; gdt address
-
-align 4
-idtr:
-  dw 0x00 ; idt limit
-  dd 0x00 ; idt address
 
 section .text
   align 4

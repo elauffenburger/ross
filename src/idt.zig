@@ -10,7 +10,7 @@ const tables = @import("tables.zig");
 var idt align(4) = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 
 // Allocate a pointer to the memory location we pass to lidt.
-extern var idtr: tables.IdtDescriptor;
+var idtr: tables.IdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
 pub fn init() void {
     // Add IRQ handlers.
@@ -25,15 +25,17 @@ pub fn init() void {
 }
 
 fn loadIdtr() void {
-    idtr = tables.IdtDescriptor{
+    idtr = .{
         .limit = (idt.len * @sizeOf(tables.InterruptDescriptor)) - 1,
         .addr = @intFromPtr(&idt),
     };
 
     asm volatile (
         \\ cli
-        \\ lidt [[idtr]]
+        \\ lidt %[idtr_addr]
         \\ sti
+        :
+        : [idtr_addr] "p" (@intFromPtr(&idtr)),
     );
 }
 

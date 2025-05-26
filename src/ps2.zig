@@ -158,16 +158,10 @@ pub fn init() void {
     //     port2.reset();
     // }
 
-    // Verify scan code.
-    dbg("getting scan code...\n", .{});
-    port1.writeData(0xf0);
-    port1.writeData(0x00);
-    dbg("scan code: 0x{x}\n", .{port1.waitForByte()});
-
     // Enable scan codes for port1.
     dbg("enabling port1 scan codes\n", .{});
     port1.writeData(0xf4);
-    dbg("ack: 0x{x}\n", .{port1.waitForByte()});
+    port1.waitAck();
 }
 
 fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
@@ -211,6 +205,11 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             return result;
         }
 
+        pub fn waitAck(self: *Self) void {
+            // TODO: handle non-ACK byte.
+            _ = self.waitForByte();
+        }
+
         pub fn recv(self: *Self) void {
             if (self.buffer != null) {
                 // TODO: what do?
@@ -219,6 +218,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             self.buffer = io.inb(IOPort.data);
         }
 
+        // TODO: surface errors better.
         pub fn reset(self: *Self) void {
             // Send reset.
             self.writeData(0xff);

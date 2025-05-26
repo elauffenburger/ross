@@ -59,15 +59,20 @@ pub fn kmain() void {
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
     vmem.init();
 
-    // Register interrupt handlers before we init components that may rely on them.
+    // Set up PIC before setting up IDT since we're going to use an offset for IRQ handlers
+    //
+    // e.g. if we were to receive an IRQ 0x08 between setting up the IDT and setting up the PIC, then we'd triple-fault because we'd
+    //      actually have the handler registered at 0x28 (if our offset is 0x20).
+    pic.init();
+
+    // Register interrupt handlers before we init components that rely on them.
     idt.init();
 
     // Init components.
-    pic.init();
     ps2.init();
     rtc.init();
 
-    // vga.writeStr("hello, zig!\n");
+    vga.writeStr("hello, zig!\n");
 
     while (true) {
         asm volatile ("hlt");
