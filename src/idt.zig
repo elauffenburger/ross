@@ -72,14 +72,27 @@ const irqHandlers = GenIrqHandlers(struct {
     }
 });
 
-const NumIrqHandlers = 256 - 32;
-fn GenIrqHandlers(origIrqs: type) [NumIrqHandlers]?*const fn () callconv(.naked) void {
-    var handlers = [_]?*const fn () callconv(.naked) void{null} ** NumIrqHandlers;
+// When an IRQ handler is triggered, it's in a very limit naked context (no stack, no real caller, must return via IRET, etc.).
+// That means our handlers can't call functions that aren't inline (and even then, that has some weird repercussions, especially
+// when calling inline assembly (mostly because I'm not always 100% sure how to do it correctly based on the context, RIP)).
+//
+// In order to get around this and use regular Zig in our interrupt handlers (which we'd like to do!), GenIrqHandlers will
+// take a struct that defines our interrupt handlers and return an array of (possibly null) handler functions that wrap the
+// IRQ handlers in the provided struct with trampolining from a naked context into a normal Zig context!
+//
+// The provided struct must contain functions that have the signature `fn irqXX() void` where `XX` is the IRQ number (e.g. `irq01`
+// for a keyboard input handler).
+//
+// TODO: verify there are only irqXX fns in the struct.
+// TODO: verify the signatures of the fns.
+// TODO: we don't actually have to return an array that has the max size of IRQs; we could figure out how many fns are on the input struct and only return that many (and use a struct that is basically `struct { irqNum: u8, handler: const* fn() void }`).
+fn GenIrqHandlers(origIrqs: type) [256 - 32]?*const fn () callconv(.naked) void {
+    var handlers = [_]?*const fn () callconv(.naked) void{null} ** (256 - 32);
 
     const orig_irqs_type = @typeInfo(origIrqs);
     for (orig_irqs_type.@"struct".decls) |decl| {
         if (!std.mem.startsWith(u8, decl.name, "irq")) {
-            continue;
+            @compileError(std.fmt.comptimePrint("found decl in struct that didn't start with irq: {s}", .{decl.name}));
         }
 
         const irq_num = std.fmt.parseInt(u8, decl.name[3..], 10) catch |err| {
