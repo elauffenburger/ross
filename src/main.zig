@@ -334,7 +334,7 @@ fn handleIrq8() callconv(.naked) void {
     rtc.tick();
 
     // We have to read from register C even if we don't use the value or the RTC won't fire the IRQ again!
-    _ = rtc.readRegC();
+    _ = rtc.regc();
 
     pic.eoi(8);
     intReturn();

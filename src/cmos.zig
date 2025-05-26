@@ -5,17 +5,21 @@ const IOPorts = struct {
     pub const data: u16 = 0x71;
 };
 
-pub fn nmiEnable() void {
+pub inline fn unmaskNMIs() void {
     const status = readIndex();
     writeData(0x7f & status);
 }
 
-pub fn nmiDisable() void {
+pub inline fn maskNMIs() void {
     const status = readIndex();
     writeData(0x80 | status);
 }
 
-pub fn readIndex() u8 {
+pub inline fn areNMIsMasked() bool {
+    return readIndex() >> 7 == 1;
+}
+
+pub inline fn readIndex() u8 {
     const val = io.inb(IOPorts.index);
     io.wait();
 
@@ -34,7 +38,7 @@ pub inline fn readData() u8 {
     return val;
 }
 
-pub fn writeData(val: u8) void {
+pub inline fn writeData(val: u8) void {
     io.outb(IOPorts.data, val);
     io.wait();
 
