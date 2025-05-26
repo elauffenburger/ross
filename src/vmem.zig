@@ -25,16 +25,18 @@ pub fn init() void {
 
     // Map the Kernel into the higher half of memory.
     mapKernelPages(&pagerProc.vm, .kernel, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+
+    enablePaging(&pagerProc.vm.pageDirectory);
 }
 
 pub fn enablePaging(pdt: []PageDirectoryEntry) void {
     asm volatile (
-        \\ mov %[pdt_addr], %eax
-        \\ mov %eax, %cr3
+        \\ mov %[pdt_addr], %%eax
+        \\ mov %%eax, %%cr3
         \\
-        \\ mov %cr0, %eax
-        \\ or %eax, $0x80000001
-        \\ mov %eax, %cr0
+        \\ mov %%cr0, %%eax
+        \\ or $0x80000001, %%eax
+        \\ mov %%eax, %%cr0
         :
         : [pdt_addr] "r" (@as(u32, @intFromPtr(pdt.ptr))),
         : "eax", "cr0"
