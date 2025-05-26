@@ -66,8 +66,8 @@ var gdt align(4) = [_]tables.GdtSegmentDescriptor{
     }),
 };
 
-// Allocate a pointer to the memory location we pass to lgdt.
-var gdtr: *tables.GdtDescriptor = undefined;
+// Allocate a var for the GDT descriptor register whose address we'll pass to lgdt.
+export var gdtr: tables.GdtDescriptor align(4) = @bitCast(@as(u64, 0));
 
 // Allocate space for our TSS.
 var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
@@ -90,15 +90,21 @@ pub inline fn init() void {
     });
 
     // Load GDT!
-    const gdtr_pointer = asm volatile (
-        \\ push %[limit]
-        \\ push %[addr]
-        \\ call load_gdtr
-        : [gdtr_addr] "={eax}" (-> usize),
-        : [addr] "X" (@as(u32, @intFromPtr(&gdt))),
-          [limit] "X" (@as(u16, @as(i16, @sizeOf(@TypeOf(gdt))) - 1)),
+    loadGdt();
+}
+
+inline fn loadGdt() void {
+    gdtr = .{
+        .addr = @intFromPtr(&gdt),
+        .limit = @as(i16, @sizeOf(@TypeOf(gdt))) - 1,
+    };
+
+    asm volatile (
+        \\ push $.after_load_gdtr
+        \\ jmp load_gdtr
+        \\
+        \\ .after_load_gdtr:
     );
-    gdtr = @ptrFromInt(gdtr_pointer);
 }
 
 pub inline fn loadTss(stack_info: struct { segment: GdtSegment, handle: []align(4) u8 }) void {

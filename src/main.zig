@@ -41,6 +41,9 @@ pub export fn _kmain() callconv(.naked) noreturn {
         .handle = &stack.kernel_stack_bytes,
     });
 
+    // Reset kernel stack.
+    stack.resetTo(&stack.kernel_stack_bytes);
+
     // Transfer to kmain.
     asm volatile (
         \\ jmp %[kmain:P]
