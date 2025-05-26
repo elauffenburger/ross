@@ -117,31 +117,31 @@ inline fn loadGdt() void {
         \\
         \\ /* set DS to 0 (null segment) to tell the CPU that's where it can find the GDT after lgdt */
         \\ xor %ax, %ax
-        \\ mov %ds, %ax
+        \\ mov %ax, %ds
         \\
         \\ /* turn on Protected Mode (...though it should already be on!) */
-        \\ mov %eax, %cr0
-        \\ or %eax, 1
         \\ mov %cr0, %eax
+        \\ or $1, %eax
+        \\ mov %eax, %cr0
         \\
         \\ /* load the gdt! */
         \\ lgdt %[gdtr]
         \\
         \\ /* set CS to segment 1 (8 * 1) by far jumping to the local label */
-        \\ ljmp $0x08, $.after_lgdtr
+        \\ ljmp $8, $.after_lgdtr
         \\
         \\ .after_lgdtr:
+        \\ .align 4
         \\ /* set data segment registers to 16d (segment 2) */
-        \\ mov %ax, 16
-        \\ mov %ds, %ax
-        \\ mov %es, %ax
-        \\ mov %fs, %ax
-        \\ mov %gs, %ax
-        \\ mov %ss, %ax
+        \\ mov $16, %ax
+        \\ mov %ax, %ds
+        \\ mov %ax, %es
+        \\ mov %ax, %fs
+        \\ mov %ax, %gs
+        \\ mov %ax, %ss
         \\
         \\ /* restore interrupts */
         \\ sti
-        \\
         :
         : [gdtr] "p" (@intFromPtr(&gdtr)),
         : "eax", "ds", "cr0", "es", "fs", "gs", "ss"
