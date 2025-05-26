@@ -1,8 +1,12 @@
 const cmos = @import("cmos.zig");
 const io = @import("io.zig");
 
-// The default value set by the BIOS is 1Khz, which is ~976us.
-var tickMs: f32 = 0.976;
+// The default value set by the BIOS is 1Khz, which is ~976us; we're going to just call that _roughly_ close to 1ms!
+var tickMs: u8 = 1;
+
+pub fn tick() void {
+    // TODO: actually do something here!
+}
 
 pub inline fn regc() RegisterC {
     return reg(RegisterC, 0x0C, true);
