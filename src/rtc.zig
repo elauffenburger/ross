@@ -4,7 +4,7 @@ const io = @import("io.zig");
 // The default value set by the BIOS is 1Khz, which is ~976us; we're going to just call that _roughly_ close to 1ms!
 var tickMs: u8 = 1;
 
-pub fn tick() void {
+pub inline fn tick() void {
     // TODO: actually do something here!
 }
 
