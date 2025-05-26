@@ -70,9 +70,6 @@ pub fn kmain() void {
 
     vga.writeStr("hello, zig!\n");
 
-    // HACK: disable timers.
-    pic.maskIRQ(0);
-
     while (true) {
         asm volatile ("hlt");
     }
