@@ -14,7 +14,7 @@ const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
 
-// Write multiboot header before we do anything.
+// Write multiboot header to .multiboot section.
 pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
     const flags = multiboot.Header.Flags.Align | multiboot.Header.Flags.MemInfo | multiboot.Header.Flags.VideoMode;
 
@@ -30,23 +30,16 @@ pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
 };
 
 pub export fn _kmain() callconv(.naked) noreturn {
-    @setRuntimeSafety(false);
-
     // Set up kernel stack.
     stack.resetTo(&stack.kernel_stack_bytes);
 
-    // Bootstrap IDT.
-    idt.init();
-
-    // Bootstrap GDT/TSS.
+    // Set up GDT and virtual memory before jumping into kmain since we need to map kernel space to the appropriate
+    // segments and pages before we jump into it (or else our segment registers will be screwed up)!
     gdt.init();
     gdt.loadTss(.{
         .segment = gdt.GdtSegment.kernelData,
         .handle = &stack.kernel_stack_bytes,
     });
-
-    // Reset kernel stack.
-    stack.resetTo(&stack.kernel_stack_bytes);
 
     // Transfer to kmain.
     asm volatile (
@@ -60,13 +53,19 @@ pub fn kmain() void {
     // Init VGA first so we can debug to screen.
     vga.init();
 
-    // Init internals.
+    // Set up virtual memory.
+    //
+    // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
+    // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
+    vmem.init();
+
+    // Register interrupt handlers before we init components that may rely on them.
+    idt.init();
+
+    // Init components.
     pic.init();
     ps2.init();
     rtc.init();
-
-    // Enable virtual memory.
-    vmem.init();
 
     vga.writeStr("hello, zig!\n");
 

@@ -102,7 +102,7 @@ pub inline fn init() void {
 }
 
 pub inline fn loadTss(stack_info: struct { segment: GdtSegment, handle: []align(4) u8 }) void {
-    tss.ss0 = 8 * @as(u32, @intFromEnum(stack_info.segment));
+    tss.ss0 = 8 * @as(u16, @intFromEnum(stack_info.segment));
 
     // NOTE: we're sharing a single TSS right now, so we need to disable multitasking
     // or else we could end up granting access to the kernel stack in userspace (which would be bad)!
