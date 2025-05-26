@@ -67,7 +67,7 @@ var gdt align(4) = [_]tables.GdtSegmentDescriptor{
 };
 
 // Allocate a var for the GDT descriptor register whose address we'll pass to lgdt.
-export var gdtr: tables.GdtDescriptor align(4) = @bitCast(@as(u64, 0));
+var gdtr: tables.GdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
 // Allocate space for our TSS.
 var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
@@ -99,11 +99,52 @@ inline fn loadGdt() void {
         .limit = @as(i16, @sizeOf(@TypeOf(gdt))) - 1,
     };
 
+    // This is pretty weird! The gist of it is we need to enable Protected Mode, load the GDT,
+    // and set up the segmentation registers through some black magick.
+    //
+    // 1. Set the DS register to 0 to tell the CPU we're in segment 0 right now
+    //    (and that's where it can find the GDT after our lgdt)
+    // 2. Turn on bit 0 of CR0 to enable Protected Mode.
+    // 3. Load the GDT.
+    // 4. Perform a far jump into our kernel-space code segment (segment 1) to tell the processor we're in segment 1,
+    //    so we just jump to a label but with the Kernel Code segment offset set (which will be 8 * offset_num).
+    // 5. Set our DS and SS registers
+    // 6. Done!
     asm volatile (
-        \\ push $.after_load_gdtr
-        \\ jmp load_gdtr
+        \\ .align 4
         \\
-        \\ .after_load_gdtr:
+        \\ cli
+        \\
+        \\ /* set DS to 0 (null segment) to tell the CPU that's where it can find the GDT after lgdt */
+        \\ xor %ax, %ax
+        \\ mov %ds, %ax
+        \\
+        \\ /* turn on Protected Mode (...though it should already be on!) */
+        \\ mov %eax, %cr0
+        \\ or %eax, 1
+        \\ mov %cr0, %eax
+        \\
+        \\ /* load the gdt! */
+        \\ lgdt %[gdtr]
+        \\
+        \\ /* set CS to segment 1 (8 * 1) by far jumping to the local label */
+        \\ ljmp $0x08, $.after_lgdtr
+        \\
+        \\ .after_lgdtr:
+        \\ /* set data segment registers to 16d (segment 2) */
+        \\ mov %ax, 16
+        \\ mov %ds, %ax
+        \\ mov %es, %ax
+        \\ mov %fs, %ax
+        \\ mov %gs, %ax
+        \\ mov %ss, %ax
+        \\
+        \\ /* restore interrupts */
+        \\ sti
+        \\
+        :
+        : [gdtr] "p" (@intFromPtr(&gdtr)),
+        : "eax", "ds", "cr0", "es", "fs", "gs", "ss"
     );
 }
 

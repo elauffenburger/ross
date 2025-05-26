@@ -130,11 +130,9 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
     };
 };
 
-pub const GdtDescriptor = packed struct(u64) {
+pub const GdtDescriptor = packed struct(u48) {
     limit: u16,
     addr: u32,
-
-    _padding: u16 = 0,
 };
 
 // See [the docs](https://wiki.osdev.org/Task_State_Segment) for more details.
