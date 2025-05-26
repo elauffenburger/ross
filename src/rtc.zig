@@ -1,14 +1,10 @@
 const cmos = @import("cmos.zig");
 const io = @import("io.zig");
 
-var msSinceStart: f32 = 0;
-
 // The default value set by the BIOS is 1Khz, which is ~976us.
 var tickMs: f32 = 0.976;
 
-pub inline fn tick() void {
-    msSinceStart += tickMs;
-}
+pub inline fn tick() void {}
 
 pub inline fn readRegC() u8 {
     cmos.writeIndex(0x0C);
@@ -16,28 +12,22 @@ pub inline fn readRegC() u8 {
 }
 
 pub fn init() void {
-    // // Disable interrupts.
-    // asm volatile ("cli");
-    // cmos.nmiDisable();
+    // Disable interrupts.
+    asm volatile ("cli");
 
     // Configure RTC interrupts.
-    // cmos.writeIndex(0x1B);
-    // var reg_b_val: RegisterB = @bitCast(cmos.readIndex());
-    // reg_b_val.periodicInterruptsEnabled = true;
-
-    // cmos.writeIndex(0x1B);
-    // cmos.writeData(@bitCast(reg_b_val));
+    //
+    // NOTE: we're masking NMIs while we're changing the index by setting bit 7 (NMIs share an IO port with CMOS).
+    cmos.writeIndex(0x8B);
+    var reg_b_val: RegisterB = @bitCast(cmos.readIndex());
+    reg_b_val.periodicInterruptsEnabled = true;
 
     cmos.writeIndex(0x8B);
-    const reg_b_val = cmos.readData();
+    cmos.writeData(@bitCast(reg_b_val));
 
-    cmos.writeIndex(0x8B);
-    cmos.writeData(reg_b_val | 0x40);
-
-    // // Re-enable interrupts.
-    // asm volatile ("sti");
-    // cmos.nmiEnable();
-
+    // Re-enable interrupts.
+    asm volatile ("sti");
+    cmos.nmiEnable();
 }
 
 const RegisterA = packed struct(u8) {
