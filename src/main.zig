@@ -56,11 +56,16 @@ pub fn kmain() void {
     // Init VGA first so we can debug to screen.
     vga.init();
 
+    // Init kstd.
+    kstd.init();
+
     // Set up virtual memory.
     //
     // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
-    vmem.init();
+    vmem.init() catch {
+        @panic("failed to init vmem");
+    };
 
     // Set up PIC before setting up IDT since we're going to use an offset for IRQ handlers
     //

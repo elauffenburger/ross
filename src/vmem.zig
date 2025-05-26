@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const kstd = @import("kstd.zig");
 const proc = @import("proc.zig");
 const vga = @import("vga.zig");
 
@@ -15,18 +16,19 @@ var pagerProc: proc.Process = .{
     .vm = .{},
 };
 
-pub fn init() void {
+pub fn init() !void {
     const kernel_size: f32 = @floatFromInt(kernelSize());
-    const bytes_per_page: f32 = @floatFromInt(PageTableEntry.NumBytesManaged);
+    const bytes_per_page: f32 = @floatFromInt(Page.NumBytesManaged);
     const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
 
     // Identity Map the first 1MiB.
-    mapKernelPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
+    try mapKernelPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
 
     // Map the Kernel into the higher half of memory.
-    mapKernelPages(&pagerProc.vm, .kernel, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+    try mapKernelPages(&pagerProc.vm, .kernel, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
 
-    enablePaging(&pagerProc.vm.pageDirectory);
+    // Enable paging!
+    // enablePaging(&pagerProc.vm.pageDirectory);
 }
 
 pub fn enablePaging(pdt: []PageDirectoryEntry) void {
@@ -43,12 +45,14 @@ pub fn enablePaging(pdt: []PageDirectoryEntry) void {
     );
 }
 
-pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) void {
-    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * PageTableEntry.NumBytesManaged) };
+pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) !void {
+    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * Page.NumBytesManaged) };
 
     const start_page_dir, const end_page_dir = .{ start_virt_addr.pageDir(), end_virt_addr.pageDir() };
     for (start_page_dir..end_page_dir + 1) |page_dir_i| {
-        const page_table = &vm.pageTables[page_dir_i];
+        const page_table = try kstd.mem.kernel_heap_allocator.create(PageTable);
+        vm.pageTables[page_dir_i] = page_table;
+
         const page_table_addr: u20 = @truncate(@intFromPtr(page_table) >> 12);
 
         const dir_entry = &vm.pageDirectory[page_dir_i];
@@ -79,14 +83,14 @@ pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, users
         // table's amount; otherwise, write the remainder of the pages.
         const num_pages_for_table = blk: {
             if (page_dir_i == end_page_dir) {
-                break :blk @mod(num_pages, ProcessVirtualMemory.PageTable.NumPages);
+                break :blk @mod(num_pages, PageTable.NumPages);
             } else {
-                break :blk ProcessVirtualMemory.PageTable.NumPages;
+                break :blk PageTable.NumPages;
             }
         };
 
         for (0..num_pages_for_table) |page_i| {
-            const addr = start_phys_addr + ((page_i + ProcessVirtualMemory.PageTable.NumPages) * PageTableEntry.NumBytesManaged);
+            const addr = start_phys_addr + ((page_i + PageTable.NumPages) * Page.NumBytesManaged);
             const addr_trunc: u20 = @truncate(addr >> 12);
 
             page_table.pages[page_i] = switch (privilege) {
@@ -145,7 +149,7 @@ pub const PageDirectoryEntry = packed struct(u32) {
     };
 };
 
-pub const PageTableEntry = packed struct(u32) {
+pub const Page = packed struct(u32) {
     // Each page in the page table manages 4KiB (since there are 1024 entries to cover a 4MiB page dir entry).
     pub const NumBytesManaged: u32 = 0x1000;
 
@@ -168,19 +172,22 @@ pub const PageTableEntry = packed struct(u32) {
 pub const ProcessVirtualMemory = struct {
     // Each process gets its own page directory and each page dir entry has an associated page table.
     //
+    // NOTE: we allocate the page directory up-front (4KiB/process) since that _has_ to be present, but we only allocate page tables as-needed.
+    // NOTE: (WIP) the first N page tables are shared pointers to kernel page table entries so we don't have to reallocate for each process.
+    //
     // To visualize:
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
     pageDirectory: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
-    pageTables: [1024]PageTable = [_]PageTable{.{}} ** 1024,
+    pageTables: [1024]?*PageTable = [_]?*PageTable{null} ** 1024,
+};
 
-    pub const PageTable = struct {
-        pub const NumPages = 1024;
+pub const PageTable = struct {
+    pub const NumPages = 1024;
 
-        // Each entry in a page table is initially marked not present.
-        pages: [NumPages]PageTableEntry = [_]PageTableEntry{@bitCast(@as(u32, 0))} ** NumPages,
-    };
+    // Each entry in a page table is initially marked not present.
+    pages: [NumPages]Page = [_]Page{@bitCast(@as(u32, 0))} ** NumPages,
 };
 
 pub const VirtualAddress = packed struct(u32) {
