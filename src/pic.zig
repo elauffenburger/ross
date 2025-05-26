@@ -89,7 +89,7 @@ pub inline fn maskIRQ(irq: u4) void {
     };
 
     const mask = io.inb(port);
-    const new_mask = mask | (@as(u8, 1) << pic_irq);
+    const new_mask = mask | (1 << pic_irq);
 
     io.outb(port, new_mask);
 }
@@ -104,7 +104,7 @@ pub inline fn unmaskIRQ(irq: u4) void {
     };
 
     const mask = io.inb(port);
-    const new_mask = mask & ~(@as(u8, 1) << pic_irq);
+    const new_mask = mask & ~(1 << pic_irq);
 
     io.outb(port, new_mask);
 }
