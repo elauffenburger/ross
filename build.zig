@@ -41,6 +41,9 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .link_libc = false,
             .link_libcpp = false,
             .dwarf_format = .@"32",
+
+            // Disable red zone to prevent stack-clobbering nonsense in IRQ handlers.
+            .red_zone = false,
         }),
     });
     kernel.entry = .{ .symbol_name = "_kmain" };
