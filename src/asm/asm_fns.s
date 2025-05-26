@@ -2,7 +2,6 @@ global gdtr
 global idtr
 
 global load_gdtr
-; global load_idtr
 
 global handle_irq0
 
@@ -82,34 +81,3 @@ load_gdtr:
   sti
 
   ret
-
-; ; ---------
-; ; load_idtr(address: u32, limit: u16) u32
-; ; ---------
-; load_idtr:
-;   cli
-
-;   push ebp
-;   mov ebp, esp
-
-;   ; load address
-;   mov eax, [esp + 8]
-;   mov [idtr + 2], eax
-
-;   ; load limit
-;   mov ax, [esp + 12]
-;   mov [idtr], ax
-
-;   ; load idtr!
-;   lidt [idtr]
-
-;   ; return idtr address
-;   mov eax, idtr
-
-;   mov esp, ebp
-;   pop ebp
-
-;   ; restore interrupts
-;   sti
-
-;   ret

@@ -21,15 +21,15 @@ pub fn init() void {
         }
     }
 
+    loadIdtr();
+}
+
+fn loadIdtr() void {
     idtr = tables.IdtDescriptor{
         .limit = (idt.len * @sizeOf(tables.InterruptDescriptor)) - 1,
         .addr = @intFromPtr(&idt),
     };
 
-    loadIdtr();
-}
-
-fn loadIdtr() void {
     asm volatile (
         \\ cli
         \\ lidt [[idtr]]
