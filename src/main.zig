@@ -1,8 +1,10 @@
+const cmos = @import("cmos.zig");
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
+const rtc = @import("rtc.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
@@ -186,16 +188,11 @@ pub export fn _kmain() callconv(.naked) noreturn {
 }
 
 pub fn kmain() void {
+    // Init internals.
     vga.init();
-
-    // Init PICs.
     pic.init();
-
-    // Disable timers.
-    pic.maskIRQ(0);
-
-    // Init PS/2 interface.
     ps2.init();
+    rtc.init();
 
     // Set up paging.
     {
@@ -212,24 +209,11 @@ pub fn kmain() void {
 
     vga.writeStr("hello, zig!\n");
 
-    // vga.printf(
-    //     \\ gdtr:  {{ addr: 0x{x}, limit: 0x{x} }}
-    //     \\ idtr:  {{ addr: 0x{x}, limit: 0x{x} }}
-    //     \\ stack: {{ base: {x}, top: {x} }}
-    //     \\
-    // ,
-    //     .{
-    //         gdtr.addr,
-    //         gdtr.limit,
-    //         idtr.addr,
-    //         idtr.limit,
-    //         @as(u32, @intFromPtr(&kernel_stack_bytes)),
-    //         stackTop(&kernel_stack_bytes),
-    //     },
-    // );
+    // HACK: disable timers.
+    pic.maskIRQ(0);
 
     while (true) {
-        // asm volatile ("hlt");
+        asm volatile ("hlt");
     }
 }
 
@@ -268,6 +252,7 @@ inline fn loadIdt() void {
 
     addIrqHandler(0, &handleIrq0);
     addIrqHandler(1, &handleIrq1);
+    addIrqHandler(8, &handleIrq8);
     addIrqHandler(12, &handleIrq12);
 
     // Load the IDT.
@@ -340,6 +325,18 @@ fn handleIrq1() callconv(.naked) void {
     ps2.port1.recv();
 
     pic.eoi(1);
+    intReturn();
+}
+
+fn handleIrq8() callconv(.naked) void {
+    intPrologue();
+
+    rtc.tick();
+
+    // We have to read from register C even if we don't use the value or the RTC won't fire the IRQ again!
+    _ = rtc.readRegC();
+
+    pic.eoi(8);
     intReturn();
 }
 
