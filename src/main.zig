@@ -1,3 +1,5 @@
+const std = @import("std");
+
 const cmos = @import("cmos.zig");
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
@@ -250,10 +252,11 @@ inline fn reloadTss(tssSegment: GdtSegment, stack: struct { segment: GdtSegment,
 inline fn loadIdt() void {
     @setRuntimeSafety(false);
 
-    addIrqHandler(0, &handleIrq0);
-    addIrqHandler(1, &handleIrq1);
-    addIrqHandler(8, &handleIrq8);
-    addIrqHandler(12, &handleIrq12);
+    inline for (irqHandlers, 0..irqHandlers.len) |handler, i| {
+        if (handler != null) {
+            addIrqHandler(i, handler.?);
+        }
+    }
 
     // Load the IDT.
     const idtr_addr = asm volatile (
@@ -290,65 +293,6 @@ inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, 
     };
 }
 
-inline fn intPrologue() void {
-    asm volatile (
-        \\ pusha
-        \\ cld
-    );
-}
-
-inline fn intReturn() void {
-    asm volatile (
-        \\ popa
-        \\ iret
-    );
-}
-
-inline fn intPopErrCode() u32 {
-    return asm volatile (
-        \\ pop %%eax
-        : [eax] "={eax}" (-> u32),
-    );
-}
-
-fn handleIrq0() callconv(.naked) void {
-    intPrologue();
-
-    pic.eoi(0);
-
-    intReturn();
-}
-
-fn handleIrq1() callconv(.naked) void {
-    intPrologue();
-
-    ps2.port1.recv();
-
-    pic.eoi(1);
-    intReturn();
-}
-
-fn handleIrq8() callconv(.naked) void {
-    intPrologue();
-
-    rtc.tick();
-
-    // We have to read from register C even if we don't use the value or the RTC won't fire the IRQ again!
-    _ = rtc.regc();
-
-    pic.eoi(8);
-    intReturn();
-}
-
-fn handleIrq12() callconv(.naked) void {
-    intPrologue();
-
-    ps2.port2.recv();
-
-    pic.eoi(12);
-    intReturn();
-}
-
 inline fn stackTop(stack: []align(4) u8) u32 {
     return @as(u32, @intFromPtr(stack.ptr)) + (@sizeOf(@TypeOf(kernel_stack_bytes)));
 }
@@ -363,3 +307,70 @@ pub const Process = struct {
     id: u32,
     vm: vmem.ProcessVirtualMemory,
 };
+
+const irqHandlers = GenIrqHandlers(struct {
+    pub fn irq0() void {}
+
+    pub fn irq1() void {
+        ps2.port1.recv();
+    }
+
+    pub fn irq8() void {
+        rtc.tick();
+
+        // We have to read from register C even if we don't use the value or the RTC won't fire the IRQ again!
+        _ = rtc.regc();
+    }
+
+    pub fn irq12() void {
+        ps2.port2.recv();
+    }
+});
+
+const NumIrqHandlers = 256 - 32;
+fn GenIrqHandlers(origIrqs: type) [NumIrqHandlers]?*const fn () callconv(.naked) void {
+    var handlers = [_]?*const fn () callconv(.naked) void{null} ** NumIrqHandlers;
+
+    const orig_irqs_type = @typeInfo(origIrqs);
+    for (orig_irqs_type.@"struct".decls) |decl| {
+        if (!std.mem.startsWith(u8, decl.name, "irq")) {
+            continue;
+        }
+
+        const irq_num = std.fmt.parseInt(u8, decl.name[3..], 10) catch |err| {
+            @compileError(std.fmt.comptimePrint("error parsing irq handler name as int: {s}", .{err}));
+        };
+
+        const Handler = struct {
+            pub fn handler() callconv(.naked) void {
+                // Save registers before calling handler.
+                //
+                // NOTE: the direction flag must be clear on entry for SYS V calling conv.
+                asm volatile (
+                    \\ pusha
+                    \\ cld
+                );
+
+                // Call actual handler.
+                asm volatile (
+                    \\ call %[func:P]
+                    :
+                    : [func] "X" (&@field(origIrqs, decl.name)),
+                );
+
+                // Trigger EOI on PIC.
+                pic.eoi(irq_num);
+
+                // Restore registers and return from INT handler.
+                asm volatile (
+                    \\ popa
+                    \\ iret
+                );
+            }
+        };
+
+        handlers[irq_num] = &Handler.handler;
+    }
+
+    return handlers;
+}

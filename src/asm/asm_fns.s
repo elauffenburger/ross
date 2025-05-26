@@ -1,5 +1,3 @@
-extern handleIrq0
-
 global gdtr
 global idtr
 
@@ -115,13 +113,3 @@ load_idtr:
   sti
 
   ret
-
-handle_irq0:
-  push eax
-  cld
-
-  mov al, 0x20
-  out 0x20, al
-
-  pop eax
-  iret

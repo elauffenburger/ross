@@ -211,7 +211,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             return result;
         }
 
-        pub inline fn recv(self: *Self) void {
+        pub fn recv(self: *Self) void {
             if (self.buffer != null) {
                 // TODO: what do?
             }
