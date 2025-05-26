@@ -13,12 +13,10 @@ var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 var idtr: *tables.IdtDescriptor = undefined;
 
 pub inline fn init() void {
-    @setRuntimeSafety(false);
-
     // Add IRQ handlers.
-    inline for (irqHandlers, 0..irqHandlers.len) |handler, irq_num| {
+    for (irqHandlers, 0..irqHandlers.len) |handler, irq_num| {
         if (handler != null) {
-            const entry_index = irq_num + pic.irqOffset;
+            const entry_index: u8 = @intCast(irq_num + pic.irqOffset);
             addIdtEntry(entry_index, .interrupt32bits, .kernel, handler.?);
         }
     }
@@ -36,7 +34,7 @@ pub inline fn init() void {
     idtr = @ptrFromInt(idtr_addr);
 }
 
-inline fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
+fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
     idt[index] = tables.InterruptDescriptor{
