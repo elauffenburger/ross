@@ -267,7 +267,9 @@ pub const IdtEntry = enum(u8) {
     cp = 21,
 };
 
-pub const IdtDescriptor = packed struct(u48) {
+pub const IdtDescriptor = packed struct(u64) {
     limit: u16,
     addr: u32,
+
+    _padding: u16 = 0,
 };

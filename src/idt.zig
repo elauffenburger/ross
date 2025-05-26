@@ -7,12 +7,12 @@ const rtc = @import("rtc.zig");
 const tables = @import("tables.zig");
 
 // Allocate space for the IDT.
-var idt = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
+var idt align(4) = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 
 // Allocate a pointer to the memory location we pass to lidt.
-var idtr: *tables.IdtDescriptor = undefined;
+extern var idtr: tables.IdtDescriptor;
 
-pub inline fn init() void {
+pub fn init() void {
     // Add IRQ handlers.
     for (irqHandlers, 0..irqHandlers.len) |handler, irq_num| {
         if (handler != null) {
@@ -21,17 +21,20 @@ pub inline fn init() void {
         }
     }
 
-    // Load the IDT.
-    const idtr_addr = asm volatile (
-        \\ push %[idt_size]
-        \\ push %[idt_addr]
-        \\ call load_idtr
-        : [idtr_addr] "={eax}" (-> u32),
-        : [idt_addr] "X" (@intFromPtr(&idt)),
-          [idt_size] "X" ((idt.len * @sizeOf(tables.InterruptDescriptor)) - 1),
-    );
+    idtr = tables.IdtDescriptor{
+        .limit = (idt.len * @sizeOf(tables.InterruptDescriptor)) - 1,
+        .addr = @intFromPtr(&idt),
+    };
 
-    idtr = @ptrFromInt(idtr_addr);
+    loadIdtr();
+}
+
+fn loadIdtr() void {
+    asm volatile (
+        \\ cli
+        \\ lidt [[idtr]]
+        \\ sti
+    );
 }
 
 fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {

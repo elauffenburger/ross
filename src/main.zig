@@ -67,7 +67,7 @@ pub fn kmain() void {
     ps2.init();
     rtc.init();
 
-    vga.writeStr("hello, zig!\n");
+    // vga.writeStr("hello, zig!\n");
 
     while (true) {
         asm volatile ("hlt");
