@@ -11,7 +11,8 @@ pub inline fn resetTo(stack: []align(4) u8) void {
         \\ movl %[stack_top], %%esp
         \\ movl %%esp, %%ebp
         :
-        : [stack_top] "X" (top(stack)),
+        : [stack_top] "r" (top(stack)),
+        : "esp", "ebp"
     );
 }
 

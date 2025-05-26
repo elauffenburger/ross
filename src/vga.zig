@@ -119,11 +119,11 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
     writeStr(fmtd);
 }
 
-inline fn size() u32 {
+fn size() u32 {
     return width * height;
 }
 
-inline fn newline() void {
+fn newline() void {
     curr_x = 0;
 
     curr_y += 1;

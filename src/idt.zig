@@ -114,19 +114,24 @@ fn GenIrqHandlers(origIrqs: type) [256 - 32]?*const fn () callconv(.naked) void 
 
                 // Call actual handler.
                 asm volatile (
-                    \\ call %[func:P]
+                    \\ call %[wrapper:P]
                     :
-                    : [func] "X" (&@field(origIrqs, decl.name)),
+                    : [wrapper] "X" (&wrapper),
                 );
-
-                // Trigger EOI on PIC.
-                pic.eoi(irq_num);
 
                 // Restore registers and return from INT handler.
                 asm volatile (
                     \\ popa
                     \\ iret
                 );
+            }
+
+            pub fn wrapper() void {
+                // Call actual handler.
+                @call(.auto, &@field(origIrqs, decl.name), .{});
+
+                // Trigger EOI on PIC.
+                pic.eoi(irq_num);
             }
         };
 

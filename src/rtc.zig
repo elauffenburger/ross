@@ -4,15 +4,15 @@ const io = @import("io.zig");
 // The default value set by the BIOS is 1Khz, which is ~976us; we're going to just call that _roughly_ close to 1ms!
 var tickMs: u8 = 1;
 
-pub inline fn tick() void {
+pub fn tick() void {
     // TODO: actually do something here!
 }
 
-pub inline fn regc() RegisterC {
+pub fn regc() RegisterC {
     return reg(RegisterC, 0x0C, true);
 }
 
-inline fn reg(T: type, regAddr: u8, restoreNmis: bool) T {
+fn reg(T: type, regAddr: u8, restoreNmis: bool) T {
     const nmisMasked = if (restoreNmis) cmos.areNMIsMasked() else undefined;
 
     // Get register and mask NMIs since the RTC can go into an undefined state if an interrupt triggers right now.

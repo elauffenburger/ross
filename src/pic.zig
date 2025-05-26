@@ -7,11 +7,11 @@ const Pic = struct {
 
     addr: u16,
 
-    pub inline fn cmd(self: Self) u16 {
+    pub fn cmd(self: Self) u16 {
         return self.addr;
     }
 
-    pub inline fn data(self: Self) u16 {
+    pub fn data(self: Self) u16 {
         return self.addr + 1;
     }
 };
@@ -58,7 +58,7 @@ pub fn init() void {
     io.outb(pic2.data(), 0);
 }
 
-pub inline fn eoi(irq: u8) void {
+pub fn eoi(irq: u8) void {
     if (irq >= 8) {
         io.outb(pic2.cmd(), @intFromEnum(PicCmd.eoi));
     }
@@ -66,20 +66,20 @@ pub inline fn eoi(irq: u8) void {
     io.outb(pic1.cmd(), @intFromEnum(PicCmd.eoi));
 }
 
-pub inline fn getMask() u16 {
+pub fn getMask() u16 {
     const pic1_mask = io.inb(pic1.data());
     const pic2_mask = io.inb(pic2.data());
 
     return @as(u16, pic1_mask) | (@as(u16, pic2_mask) << 8);
 }
 
-pub inline fn setMask(mask: u16) void {
+pub fn setMask(mask: u16) void {
     io.outb(pic1.data(), @truncate(mask));
     io.outb(pic2.data(), @truncate(mask >> 8));
 }
 
 // NOTE: IRQ2 on PIC1 is wired to PIC2, so masking IRQ2 will mask the secondary PIC entirely
-pub inline fn maskIRQ(irq: u4) void {
+pub fn maskIRQ(irq: u4) void {
     const port, const pic_irq = blk: {
         if (irq < 8) {
             break :blk .{ pic1.data(), irq };
@@ -94,7 +94,7 @@ pub inline fn maskIRQ(irq: u4) void {
     io.outb(port, new_mask);
 }
 
-pub inline fn unmaskIRQ(irq: u4) void {
+pub fn unmaskIRQ(irq: u4) void {
     const port, const pic_irq = blk: {
         if (irq < 8) {
             break :blk .{ pic1.data(), irq };
@@ -109,15 +109,15 @@ pub inline fn unmaskIRQ(irq: u4) void {
     io.outb(port, new_mask);
 }
 
-pub inline fn getIRR() u16 {
+pub fn getIRR() u16 {
     return getIRQReg(0x0a);
 }
 
-pub inline fn getISR() u16 {
+pub fn getISR() u16 {
     return getIRQReg(0x0b);
 }
 
-inline fn getIRQReg(cmd: u8) u16 {
+fn getIRQReg(cmd: u8) u16 {
     io.outb(pic1.cmd(), cmd);
     io.outb(pic2.cmd(), cmd);
 

@@ -5,7 +5,7 @@ const vga = @import("vga.zig");
 
 // Declare a hook to grab __kernel_size from the linker script.
 extern const __kernel_size: u8;
-inline fn kernelSize() u32 {
+fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
@@ -29,14 +29,15 @@ pub fn init() void {
 
 pub fn enablePaging(pdt: []PageDirectoryEntry) void {
     asm volatile (
-        \\ mov %%[pdt_addr], %eax
+        \\ mov %[pdt_addr], %eax
         \\ mov %eax, %cr3
         \\
         \\ mov %cr0, %eax
         \\ or %eax, $0x80000001
         \\ mov %eax, %cr0
         :
-        : [pdt_addr] "X" (@as(u32, @intFromPtr(pdt.ptr))),
+        : [pdt_addr] "r" (@as(u32, @intFromPtr(pdt.ptr))),
+        : "eax", "cr0"
     );
 }
 
@@ -185,15 +186,15 @@ pub const VirtualAddress = packed struct(u32) {
 
     addr: u32,
 
-    pub inline fn pageDir(self: Self) u10 {
+    pub fn pageDir(self: Self) u10 {
         return @truncate(self.addr >> 22);
     }
 
-    pub inline fn pageTableEntry(self: Self) u10 {
+    pub fn pageTableEntry(self: Self) u10 {
         return @truncate((self.addr >> 12) & 0x03FF);
     }
 
-    pub inline fn offset(self: Self) u12 {
+    pub fn offset(self: Self) u12 {
         return @truncate(self.addr & 0x0000_07ff);
     }
 
