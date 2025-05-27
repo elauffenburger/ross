@@ -16,6 +16,10 @@ SECTIONS {
     .bss : ALIGN (4K) { *(.bss); *(.bss.*) }
 
     __kernel_end = .;
+
+    . = ALIGN(4M);
+
+    __userspace_start = .;
 }
 
 __kernel_size = __kernel_end - __kernel_start;

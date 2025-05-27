@@ -10,6 +10,9 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
+var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xC0000000 };
+var kernel_end_virt_addr: VirtualAddress = undefined;
+
 // HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
 var pagerProc: proc.Process = .{
     .id = 0,
@@ -17,15 +20,20 @@ var pagerProc: proc.Process = .{
 };
 
 pub fn init() !void {
-    const kernel_size: f32 = @floatFromInt(kernelSize());
-    const bytes_per_page: f32 = @floatFromInt(Page.NumBytesManaged);
-    const num_pages_for_kernel: u32 = @intFromFloat(@ceil(kernel_size / bytes_per_page));
+    kernel_end_virt_addr = .{ .addr = kernel_start_virt_addr.addr + kernelSize() };
+
+    const num_kernel_pages: u32 = blk: {
+        const kernel_size: f32 = @floatFromInt(kernelSize());
+        const bytes_per_page: f32 = @floatFromInt(Page.NumBytesManaged);
+
+        break :blk @intFromFloat(@ceil(kernel_size / bytes_per_page));
+    };
 
     // Identity Map the first 1MiB.
-    try mapKernelPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
+    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
 
     // Map the Kernel into the higher half of memory.
-    try mapKernelPages(&pagerProc.vm, .kernel, 0x100000, .{ .addr = 0xC0000000 }, num_pages_for_kernel);
+    try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
     // Enable paging!
     // enablePaging(&pagerProc.vm.pageDirectory);
@@ -45,17 +53,32 @@ pub fn enablePaging(pdt: []PageDirectoryEntry) void {
     );
 }
 
-pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) !void {
-    const end_virt_addr = VirtualAddress{ .addr = start_virt_addr.addr + (num_pages * Page.NumBytesManaged) };
+pub fn mapKernelIntoProcessVM(vm: *ProcessVirtualMemory) void {
+    const kernel_start_table, const kernel_end_table = .{ kernel_start_virt_addr.table(), kernel_start_virt_addr.table() };
+    const num_tables = kernel_end_table - kernel_start_table;
 
-    const start_page_dir, const end_page_dir = .{ start_virt_addr.pageDir(), end_virt_addr.pageDir() };
-    for (start_page_dir..end_page_dir + 1) |page_dir_i| {
-        const page_table = try kstd.mem.kernel_heap_allocator.create(PageTable);
-        vm.pageTables[page_dir_i] = page_table;
+    for (0..num_tables) |i| {
+        // Map in the existing kernel tables from the pager process.
+        vm.pageDirectory[i] = pagerProc.vm.pageDirectory[kernel_start_table + i];
+        vm.pageTables[i] = pagerProc.vm.pageTables[kernel_start_table + 1];
+    }
+}
 
+pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) !void {
+    var curr_table_index = start_virt_addr.table();
+    var curr_table_page_index = start_virt_addr.page();
+
+    var num_pages_written: usize = 0;
+    dir_loop: while (true) {
+        // Create a page table if it's not already present.
+        if (vm.pageTables[curr_table_index] == null) {
+            vm.pageTables[curr_table_index] = try kstd.mem.kernel_heap_allocator.create(PageTable);
+        }
+
+        const page_table = vm.pageTables[curr_table_index].?;
         const page_table_addr: u20 = @truncate(@intFromPtr(page_table) >> 12);
 
-        const dir_entry = &vm.pageDirectory[page_dir_i];
+        const dir_entry = &vm.pageDirectory[curr_table_index];
         dir_entry.* = switch (privilege) {
             .kernel => .{
                 .present = true,
@@ -79,18 +102,13 @@ pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, users
             },
         };
 
-        // Figure out how many pages we need to write for this table; if we're not at the last table, then write a full
-        // table's amount; otherwise, write the remainder of the pages.
-        const num_pages_for_table = blk: {
-            if (page_dir_i == end_page_dir) {
-                break :blk @mod(num_pages, PageTable.NumPages);
-            } else {
-                break :blk PageTable.NumPages;
+        for (curr_table_page_index..PageTable.NumPages) |page_i| {
+            // If we've written the number of pages we were supposed to, bail!
+            if (num_pages_written == num_pages) {
+                break :dir_loop;
             }
-        };
 
-        for (0..num_pages_for_table) |page_i| {
-            const addr = start_phys_addr + ((page_i + PageTable.NumPages) * Page.NumBytesManaged);
+            const addr = start_phys_addr + (num_pages_written * Page.NumBytesManaged);
             const addr_trunc: u20 = @truncate(addr >> 12);
 
             page_table.pages[page_i] = switch (privilege) {
@@ -119,7 +137,13 @@ pub fn mapKernelPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, users
                     .addr = addr_trunc,
                 },
             };
+
+            num_pages_written += 1;
         }
+
+        // Looks like we wrote the entire page table; go to the next one!
+        curr_table_index += 1;
+        curr_table_page_index = 0;
     }
 }
 
@@ -195,11 +219,11 @@ pub const VirtualAddress = packed struct(u32) {
 
     addr: u32,
 
-    pub fn pageDir(self: Self) u10 {
+    pub fn table(self: Self) u10 {
         return @truncate(self.addr >> 22);
     }
 
-    pub fn pageTableEntry(self: Self) u10 {
+    pub fn page(self: Self) u10 {
         return @truncate((self.addr >> 12) & 0x03FF);
     }
 
@@ -210,8 +234,8 @@ pub const VirtualAddress = packed struct(u32) {
     test "0xC0011222" {
         const addr = VirtualAddress{ .addr = 0xC0011222 };
 
-        try std.testing.expect(addr.pageDir() == 768);
-        try std.testing.expect(addr.pageTableEntry() == 17);
+        try std.testing.expect(addr.table() == 768);
+        try std.testing.expect(addr.page() == 17);
         try std.testing.expect(addr.offset() == 546);
     }
 };
