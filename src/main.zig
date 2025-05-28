@@ -59,13 +59,8 @@ pub fn kmain() void {
     // Init kstd.
     kstd.init();
 
-    // Set up virtual memory.
-    //
-    // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
-    // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
-    vmem.init() catch {
-        @panic("failed to init vmem");
-    };
+    // Register interrupt handlers before we init components that rely on them.
+    idt.init();
 
     // Set up PIC before setting up IDT since we're going to use an offset for IRQ handlers
     //
@@ -73,12 +68,17 @@ pub fn kmain() void {
     //      actually have the handler registered at 0x28 (if our offset is 0x20).
     pic.init();
 
-    // Register interrupt handlers before we init components that rely on them.
-    idt.init();
-
     // Init components.
     ps2.init();
     rtc.init();
+
+    // Set up virtual memory.
+    //
+    // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
+    // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
+    vmem.init() catch {
+        @panic("failed to init vmem");
+    };
 
     vga.writeStr("hello, zig!\n");
 

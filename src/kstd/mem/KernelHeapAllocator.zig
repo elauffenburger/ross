@@ -24,6 +24,7 @@ const KernelHeapAllocator = struct {
         };
     }
 
+    // TODO: implement!
     fn resize(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) bool {
         _ = ptr; // autofix
         _ = memory; // autofix
@@ -31,9 +32,10 @@ const KernelHeapAllocator = struct {
         _ = new_len; // autofix
         _ = ret_addr; // autofix
 
-        @panic("not implemented");
+        return false;
     }
 
+    // TODO: implement!
     fn remap(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, new_len: usize, ret_addr: usize) ?[*]u8 {
         _ = ptr; // autofix
         _ = memory; // autofix
@@ -41,15 +43,14 @@ const KernelHeapAllocator = struct {
         _ = new_len; // autofix
         _ = ret_addr; // autofix
 
-        @panic("not implemented");
+        return null;
     }
 
+    // TODO: implement!
     fn free(ptr: *anyopaque, memory: []u8, alignment: std.mem.Alignment, ret_addr: usize) void {
         _ = ptr; // autofix
         _ = memory; // autofix
         _ = alignment; // autofix
         _ = ret_addr; // autofix
-
-        @panic("not implemented");
     }
 };
