@@ -113,6 +113,7 @@ inline fn loadGdt() void {
     asm volatile (
         \\ .align 4
         \\
+        \\ /* clear interrupts */
         \\ cli
         \\
         \\ /* set DS to 0 (null segment) to tell the CPU that's where it can find the GDT after lgdt */

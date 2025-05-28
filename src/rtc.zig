@@ -30,21 +30,14 @@ fn reg(T: type, regAddr: u8, restoreNmis: bool) T {
 }
 
 pub fn init() void {
-    // Disable interrupts.
-    asm volatile ("cli");
-
     // Configure RTC interrupts.
     //
-    // NOTE: we're getting register b with NMIs masked and not unmasking until we're done programming the RTC.
+    // NOTE: we're getting register b with NMIs masked and not unmasking until we're done initializing the kernel.
     var reg_b = reg(RegisterB, 0x0B, false);
     reg_b.periodicInterruptsEnabled = true;
 
     cmos.writeIndex(0x8B);
     cmos.writeData(@bitCast(reg_b));
-
-    // Re-enable interrupts.
-    asm volatile ("sti");
-    cmos.unmaskNMIs();
 }
 
 pub const RegisterA = packed struct(u8) {

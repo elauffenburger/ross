@@ -53,9 +53,7 @@ fn loadIdt() void {
     };
 
     asm volatile (
-        \\ cli
         \\ lidt %[idtr_addr]
-        \\ sti
         :
         : [idtr_addr] "p" (@intFromPtr(&idtr)),
     );

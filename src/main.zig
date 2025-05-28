@@ -59,23 +59,30 @@ pub fn kmain() void {
     // Init kstd.
     kstd.init();
 
-    // Register interrupt handlers before we init components that rely on them.
-    idt.init();
+    // Disable interrupts while we init components that configure interrupts.
+    asm volatile ("cli");
+    cmos.maskNMIs();
 
-    // Set up PIC before setting up IDT since we're going to use an offset for IRQ handlers
-    //
-    // e.g. if we were to receive an IRQ 0x08 between setting up the IDT and setting up the PIC, then we'd triple-fault because we'd
-    //      actually have the handler registered at 0x28 (if our offset is 0x20).
+    // Set up interrupts.
+    idt.init();
     pic.init();
 
-    // Init components.
-    ps2.init();
+    // Init other components.
     rtc.init();
+
+    // Re-enable interrupts.
+    asm volatile ("sti");
+    cmos.unmaskNMIs();
+
+    // Enable PS/2 interfaces.
+    ps2.init();
 
     // Set up virtual memory.
     //
     // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
+    //
+    // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
     vmem.init() catch {
         @panic("failed to init vmem");
     };
