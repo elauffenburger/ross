@@ -14,7 +14,7 @@ var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xC0000000 };
 var kernel_end_virt_addr: VirtualAddress = undefined;
 
 // HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
-var pagerProc: proc.Process = .{
+var pagerProc: proc.Process align(4096) = .{
     .id = 0,
     .vm = .{},
 };
@@ -35,6 +35,8 @@ pub fn init() !void {
     // Map the Kernel into the higher half of memory.
     try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
+    vga.printf("dir[16].addr: 0x{0x}\n", .{pagerProc.vm.page_dir[16].addr});
+
     // Enable paging!
     enablePaging();
 }
@@ -48,7 +50,7 @@ pub fn enablePaging() void {
         \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&pagerProc.vm.pageDirectory)),
+        : [pdt_addr] "r" (@intFromPtr(&pagerProc.vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
@@ -58,9 +60,8 @@ pub fn mapKernelIntoProcessVM(vm: *ProcessVirtualMemory) void {
     const num_tables = kernel_end_table - kernel_start_table;
 
     for (0..num_tables) |i| {
-        // Map in the existing kernel tables from the pager process.
-        vm.pageDirectory[i] = pagerProc.vm.pageDirectory[kernel_start_table + i];
-        vm.pageTables[i] = pagerProc.vm.pageTables[kernel_start_table + 1];
+        // Map in the existing kernel table from the pager process.
+        vm.page_dir[i] = pagerProc.vm.page_dir[kernel_start_table + i];
     }
 }
 
@@ -73,19 +74,13 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
 
     var num_pages_written: usize = 0;
     dir_loop: while (true) {
-        // Create a page table if it's not already present.
-        //
-        // NOTE: for future Eric: this is probably your bug!! Page table addresses need to be 4KiB aligned, and I'm betting this isn't since we switched to pointers so we need to implement alignment in the heap to actually align this at 4KiB boundaries.
-        // I started fixing this, but we're panicking because the alignment isn't correct (because we're not aligning in kmalloc), so let's fix that and see if it fixes this!
-        if (vm.pageTables[curr_table_index] == null) {
-            vm.pageTables[curr_table_index] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
-        }
+        const page_table: *PageTable = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
 
-        const page_table = vm.pageTables[curr_table_index].?;
+        const page_table_real_addr: u32 = @intFromPtr(page_table);
+        const page_table_addr: u20 = @truncate(page_table_real_addr);
+        vga.printf("page_table_index: 0x{x}, real_addr: 0x{x}, trunc_addr: 0x{x}\n", .{ curr_table_index, page_table_real_addr, page_table_addr });
 
-        const page_table_addr: u20 = @truncate(@intFromPtr(page_table) >> 12);
-
-        const dir_entry = &vm.pageDirectory[curr_table_index];
+        const dir_entry = &vm.page_dir[curr_table_index];
         dir_entry.* = switch (privilege) {
             .kernel => .{
                 .present = true,
@@ -178,6 +173,10 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4KiB" = 0,
         @"4MiB" = 1,
     };
+
+    pub fn pageTable(self: @This()) *PageTable {
+        return @ptrFromInt(@as(u32, self.addr) << 12);
+    }
 };
 
 pub const Page = packed struct(u32) {
@@ -210,15 +209,14 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    pageDirectory: [1024]PageDirectoryEntry align(4096) = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
-    pageTables: [1024]?*PageTable = [_]?*PageTable{null} ** 1024,
+    page_dir: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
 };
 
 pub const PageTable = struct {
     pub const NumPages = 1024;
 
     // Each entry in a page table is initially marked not present.
-    pages: [NumPages]Page = [_]Page{@bitCast(@as(u32, 0))} ** NumPages,
+    pages: [1024]Page = [_]Page{@bitCast(@as(u32, 0))} ** 1024,
 };
 
 pub const VirtualAddress = packed struct(u32) {
