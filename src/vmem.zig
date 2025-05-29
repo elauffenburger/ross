@@ -30,26 +30,26 @@ pub fn init() !void {
     };
 
     // Identity Map the first 1MiB.
-    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x400);
+    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100);
 
     // Map the Kernel into the higher half of memory.
     try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
     // Enable paging!
-    enablePaging(&pagerProc.vm.pageDirectory);
+    enablePaging();
 }
 
-pub fn enablePaging(pdt: []PageDirectoryEntry) void {
+pub fn enablePaging() void {
     asm volatile (
         \\ mov %[pdt_addr], %%eax
         \\ mov %%eax, %%cr3
         \\
         \\ mov %%cr0, %%eax
-        \\ or $0x80000001, %%eax
+        \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@as(u32, @intFromPtr(pdt.ptr))),
-        : "eax", "cr0"
+        : [pdt_addr] "r" (@intFromPtr(&pagerProc.vm.pageDirectory)),
+        : "eax", "cr0", "cr3"
     );
 }
 
@@ -68,6 +68,9 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
     var curr_table_index = start_virt_addr.table();
     var curr_table_page_index = start_virt_addr.page();
 
+    const end_phys_address = start_phys_addr + (num_pages * Page.NumBytesManaged);
+    vga.printf("paging from phys addresses 0x{x} to 0x{x}\n", .{ start_phys_addr, end_phys_address });
+
     var num_pages_written: usize = 0;
     dir_loop: while (true) {
         // Create a page table if it's not already present.
@@ -75,7 +78,7 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
         // NOTE: for future Eric: this is probably your bug!! Page table addresses need to be 4KiB aligned, and I'm betting this isn't since we switched to pointers so we need to implement alignment in the heap to actually align this at 4KiB boundaries.
         // I started fixing this, but we're panicking because the alignment isn't correct (because we're not aligning in kmalloc), so let's fix that and see if it fixes this!
         if (vm.pageTables[curr_table_index] == null) {
-            vm.pageTables[curr_table_index] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 0x20000, 1)).ptr);
+            vm.pageTables[curr_table_index] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
         }
 
         const page_table = vm.pageTables[curr_table_index].?;
@@ -207,7 +210,7 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    pageDirectory: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
+    pageDirectory: [1024]PageDirectoryEntry align(4096) = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
     pageTables: [1024]?*PageTable = [_]?*PageTable{null} ** 1024,
 };
 

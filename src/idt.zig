@@ -14,7 +14,7 @@ var idtr: tables.IdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
 pub fn init() void {
     // Add handlers.
-    for (int_handlers.handlers) |handler| {
+    for (int_handlers) |handler| {
         switch (handler.kind) {
             .exc => {
                 addIdtEntry(handler.int_num, .trap32bits, .kernel, handler.handler);
@@ -106,11 +106,10 @@ const GeneratedInterruptHandler = struct {
 //   - `fn irqXX() void` where `XX` is the IRQ number (e.g. `irq01` for a keyboard input handler).
 //
 // TODO: we don't actually have to return an array that has the max size of the table; we could figure out how many fns are on the input struct and only return that many (and use a struct that is basically `struct { intNum: u8, handler: const* fn() void }`).
-fn GenInterruptHandlers(orig_handlers: type) type {
+fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct".decls.len]GeneratedInterruptHandler {
     const orig_handlers_type = @typeInfo(orig_handlers).@"struct";
 
     var generated_handlers = [_]GeneratedInterruptHandler{undefined} ** orig_handlers_type.decls.len;
-
     for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, i| {
         // Check if this is an exception or interrupt handler.
         const exc_or_irq: @FieldType(GeneratedInterruptHandler, "kind") = blk: {
@@ -160,6 +159,37 @@ fn GenInterruptHandlers(orig_handlers: type) type {
             }
         };
 
+        const Wrapper = blk: {
+            if (!has_err) {
+                break :blk struct {
+                    pub fn wrapper() void {
+                        // Call actual handler.
+                        @call(.auto, @field(orig_handlers, decl.name), .{});
+
+                        // Trigger EOI on PIC.
+                        pic.eoi(int_num);
+                    }
+                };
+            }
+
+            break :blk struct {
+                pub fn wrapper() void {
+                    const err = asm volatile (
+                        \\ pop %%eax
+                        : [err] "={eax}" (-> u32),
+                        :
+                        : "eax"
+                    );
+
+                    // Call actual handler.
+                    @call(.auto, @field(orig_handlers, decl.name), .{err});
+
+                    // Trigger EOI on PIC.
+                    pic.eoi(int_num);
+                }
+            };
+        };
+
         const Handler = struct {
             pub fn handler() callconv(.naked) void {
                 // Save registers before calling handler.
@@ -179,7 +209,7 @@ fn GenInterruptHandlers(orig_handlers: type) type {
                         .{ int_num, int_num },
                     )
                     :
-                    : [wrapper] "p" (&wrapper),
+                    : [wrapper] "p" (&Wrapper.wrapper),
                       [int_num] "X" (int_num),
                 );
 
@@ -188,29 +218,6 @@ fn GenInterruptHandlers(orig_handlers: type) type {
                     \\ popa
                     \\ iret
                 );
-            }
-
-            pub fn wrapper() void {
-                const args = blk: {
-                    if (!has_err) {
-                        break :blk .{};
-                    }
-
-                    const err = asm volatile (
-                        \\ pop %%eax
-                        : [err] "={eax}" (-> u32),
-                        :
-                        : "eax"
-                    );
-
-                    break :blk .{err};
-                };
-
-                // Call actual handler.
-                @call(.auto, @field(orig_handlers, decl.name), args);
-
-                // Trigger EOI on PIC.
-                pic.eoi(int_num);
             }
         };
 
@@ -221,8 +228,5 @@ fn GenInterruptHandlers(orig_handlers: type) type {
         };
     }
 
-    const result_handlers = generated_handlers;
-    return struct {
-        pub var handlers: @TypeOf(generated_handlers) = result_handlers;
-    };
+    return generated_handlers;
 }
