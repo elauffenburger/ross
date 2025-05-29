@@ -60,9 +60,13 @@ fn loadIdt() void {
 }
 
 const int_handlers = GenInterruptHandlers(struct {
-    // pub fn exc13(err_code: u32) void {
-    //     _ = err_code; // autofix
-    // }
+    pub fn exc13(err_code: u32) void {
+        _ = err_code; // autofix
+    }
+
+    pub fn exc14(err_code: u32) void {
+        _ = err_code; // autofix
+    }
 
     pub fn irq0() void {}
 

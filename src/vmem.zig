@@ -36,7 +36,7 @@ pub fn init() !void {
     try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
     // Enable paging!
-    // enablePaging(&pagerProc.vm.pageDirectory);
+    enablePaging(&pagerProc.vm.pageDirectory);
 }
 
 pub fn enablePaging(pdt: []PageDirectoryEntry) void {
@@ -71,11 +71,15 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
     var num_pages_written: usize = 0;
     dir_loop: while (true) {
         // Create a page table if it's not already present.
+        //
+        // NOTE: for future Eric: this is probably your bug!! Page table addresses need to be 4KiB aligned, and I'm betting this isn't since we switched to pointers so we need to implement alignment in the heap to actually align this at 4KiB boundaries.
+        // I started fixing this, but we're panicking because the alignment isn't correct (because we're not aligning in kmalloc), so let's fix that and see if it fixes this!
         if (vm.pageTables[curr_table_index] == null) {
-            vm.pageTables[curr_table_index] = try kstd.mem.kernel_heap_allocator.create(PageTable);
+            vm.pageTables[curr_table_index] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 0x20000, 1)).ptr);
         }
 
         const page_table = vm.pageTables[curr_table_index].?;
+
         const page_table_addr: u20 = @truncate(@intFromPtr(page_table) >> 12);
 
         const dir_entry = &vm.pageDirectory[curr_table_index];
