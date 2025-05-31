@@ -46,14 +46,13 @@ pub fn init() !void {
 
 pub fn enablePaging() void {
     asm volatile (
-        \\ mov %[pdt_addr], %%eax
-        \\ mov %%eax, %%cr3
+        \\ mov %[pdt_addr], %%cr3
         \\
         \\ mov %%cr0, %%eax
         \\ or $0x80000001, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "p" (@intFromPtr(&kernel_proc.vm.page_dir)),
+        : [pdt_addr] "r" (@intFromPtr(&kernel_proc.vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
@@ -87,8 +86,8 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
             .kernel => .{
                 .present = true,
                 .rw = true,
-                .userAccessible = false,
-                .pwt = .writeThrough,
+                .userAccessible = true,
+                .pwt = .writeBack,
                 .cacheDisable = false,
                 .accessed = false,
                 .pageSize = .@"4KiB",
@@ -119,8 +118,8 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
                 .kernel => .{
                     .present = true,
                     .rw = true,
-                    .userAccessible = false,
-                    .pwt = .writeThrough,
+                    .userAccessible = true,
+                    .pwt = .writeBack,
                     .cacheDisable = false,
                     .accessed = false,
                     .dirty = false,
@@ -165,9 +164,9 @@ pub const PageDirectoryEntry = packed struct(u32) {
     },
     cacheDisable: bool,
     accessed: bool,
-    _r1: u1 = undefined,
+    _r1: u1 = 0,
     pageSize: PageSize = .@"4KiB",
-    meta: u4 = undefined,
+    meta: u4 = 0,
     addr: u20,
 
     // NOTE: Technically this could be a 4KiB or 4MiB entry, but we're just going to support 4KiB for now so we have a page table.
@@ -197,7 +196,7 @@ pub const Page = packed struct(u32) {
     dirty: bool,
     pat: bool,
     global: bool,
-    meta: u3 = undefined,
+    meta: u3 = 0,
     addr: u20,
 };
 
