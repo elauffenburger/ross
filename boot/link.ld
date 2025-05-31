@@ -13,6 +13,9 @@ SECTIONS {
 
     .rodata : ALIGN(4K) { *(.rodata); *(.rodata.*) }
     .data : ALIGN(4K) { *(.data); *(.data.*); }
+
+    __bss_start = .;
+
     .bss : ALIGN (4K) { *(.bss); *(.bss.*) }
 
     __kernel_end = .;
@@ -23,3 +26,4 @@ SECTIONS {
 }
 
 __kernel_size = __kernel_end - __kernel_start;
+__kernel_to_bss_size = __bss_start - __kernel_start;

@@ -10,11 +10,16 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
+extern const __kernel_to_bss_size: u8;
+fn kernelToBssSize() u32 {
+    return @as(u32, @intFromPtr(&__kernel_to_bss_size));
+}
+
 var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xC0000000 };
 var kernel_end_virt_addr: VirtualAddress = undefined;
 
 // HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
-var pagerProc: proc.Process align(4096) = .{
+var pagerProc: proc.Process = .{
     .id = 0,
     .vm = .{},
 };
@@ -30,18 +35,20 @@ pub fn init() !void {
     };
 
     // Identity Map the first 1MiB.
-    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100);
+    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100 + num_kernel_pages);
 
     // Map the Kernel into the higher half of memory.
-    try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
+    // try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
-    vga.printf("dir[16].addr: 0x{0x}\n", .{pagerProc.vm.page_dir[16].addr});
+    vga.printf("dir[16].addr: 0x{0x}\n", .{pagerProc.vm.page_dir[0].addr});
 
     // Enable paging!
     enablePaging();
 }
 
 pub fn enablePaging() void {
+    vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&pagerProc.vm.page_dir)});
+
     asm volatile (
         \\ mov %[pdt_addr], %%eax
         \\ mov %%eax, %%cr3
@@ -111,7 +118,7 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
             }
 
             const addr = start_phys_addr + (num_pages_written * Page.NumBytesManaged);
-            const addr_trunc: u20 = @truncate(addr >> 12);
+            const addr_trunc: u20 = @truncate(addr & 0xfff);
 
             page_table.pages[page_i] = switch (privilege) {
                 .kernel => .{
@@ -229,11 +236,11 @@ pub const VirtualAddress = packed struct(u32) {
     }
 
     pub fn page(self: Self) u10 {
-        return @truncate((self.addr >> 12) & 0x03FF);
+        return @truncate((self.addr >> 12) & 0x03ff);
     }
 
     pub fn offset(self: Self) u12 {
-        return @truncate(self.addr & 0x0000_07ff);
+        return @truncate(self.addr & 0x00000fff);
     }
 
     test "0xC0011222" {
