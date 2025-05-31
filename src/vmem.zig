@@ -4,28 +4,28 @@ const kstd = @import("kstd.zig");
 const proc = @import("proc.zig");
 const vga = @import("vga.zig");
 
-// Declare a hook to grab __kernel_size from the linker script.
+extern const __kernel_start: u8;
+fn kernelStartPhysAddr() u32 {
+    return @as(u32, @intFromPtr(&__kernel_start));
+}
+
 extern const __kernel_size: u8;
 fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
-extern const __kernel_to_bss_size: u8;
-fn kernelToBssSize() u32 {
-    return @as(u32, @intFromPtr(&__kernel_to_bss_size));
-}
-
 var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xC0000000 };
-var kernel_end_virt_addr: VirtualAddress = undefined;
 
-// HACK: this should just be proc 0 in our processes lookup, but we don't have a heap yet, so we're going to punt on that!
-var pagerProc: proc.Process = .{
+// HACK: this should just be proc 0 in our processes lookup!
+var kernel_proc: proc.Process = .{
     .id = 0,
     .vm = .{},
 };
 
+var shared_proc_vm = ProcessVirtualMemory{};
+
 pub fn init() !void {
-    kernel_end_virt_addr = .{ .addr = kernel_start_virt_addr.addr + kernelSize() };
+    vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
     const num_kernel_pages: u32 = blk: {
         const kernel_size: f32 = @floatFromInt(kernelSize());
@@ -34,50 +34,46 @@ pub fn init() !void {
         break :blk @intFromFloat(@ceil(kernel_size / bytes_per_page));
     };
 
-    vga.printf("page dir addr: 0x{x}\n", .{@intFromPtr(&pagerProc.vm.page_dir)});
+    // Identity-map the entire memory space into the kernel process.
+    try mapPages(&kernel_proc.vm, .kernel, 0, .{ .addr = 0 }, num_kernel_pages);
 
-    // Identity Map the first 1MiB.
-    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100);
-
-    // Map the Kernel into the higher half of memory.
-    try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
+    // Map the kernel into the higher half of memory in the shared proc page dir for userspace programs.
+    // try mapPages(&shared_proc_vm, .kernel, kernelStartPhysAddr(), kernel_start_virt_addr, num_kernel_pages);
 
     // Enable paging!
     enablePaging();
 }
 
 pub fn enablePaging() void {
-    vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&pagerProc.vm.page_dir)});
-
     asm volatile (
         \\ mov %[pdt_addr], %%eax
         \\ mov %%eax, %%cr3
         \\
         \\ mov %%cr0, %%eax
-        \\ or $0x80000000, %%eax
+        \\ or $0x80000001, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&pagerProc.vm.page_dir)),
+        : [pdt_addr] "p" (@intFromPtr(&kernel_proc.vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
 
 pub fn mapKernelIntoProcessVM(vm: *ProcessVirtualMemory) void {
-    const kernel_start_table, const kernel_end_table = .{ kernel_start_virt_addr.table(), kernel_start_virt_addr.table() };
-    const num_tables = kernel_end_table - kernel_start_table;
+    const kernel_start_dir = kernel_start_virt_addr.dir();
 
-    for (0..num_tables) |i| {
-        // Map in the existing kernel table from the pager process.
-        vm.page_dir[i] = pagerProc.vm.page_dir[kernel_start_table + i];
+    for (kernel_start_dir..shared_proc_vm.page_dir.len) |i| {
+        // Map in the existing kernel table from the shared page dir.
+        vm.page_dir[i] = shared_proc_vm.page_dir[i];
     }
 }
 
 pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) !void {
-    var curr_table_index = start_virt_addr.table();
-    var curr_table_page_index = start_virt_addr.page();
+    var curr_dir = start_virt_addr.dir();
+    var curr_page = start_virt_addr.page();
 
     const end_phys_address = start_phys_addr + (num_pages * Page.NumBytesManaged);
-    vga.printf("paging from phys addresses 0x{x} to 0x{x}\n", .{ start_phys_addr, end_phys_address });
+    _ = end_phys_address; // autofix
+    // vga.printf("paging from phys addresses 0x{x} to 0x{x}\n", .{ start_phys_addr, end_phys_address });
 
     var num_pages_written: usize = 0;
     dir_loop: while (true) {
@@ -85,9 +81,8 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
 
         const page_table_real_addr: u32 = @intFromPtr(page_table);
         const page_table_addr: u20 = @truncate(page_table_real_addr >> 12);
-        vga.printf("page_table_index: 0x{x}, real_addr: 0x{x}, trunc_addr: 0x{x}\n", .{ curr_table_index, page_table_real_addr, page_table_addr });
 
-        const dir_entry = &vm.page_dir[curr_table_index];
+        const dir_entry = &vm.page_dir[curr_dir];
         dir_entry.* = switch (privilege) {
             .kernel => .{
                 .present = true,
@@ -111,7 +106,7 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
             },
         };
 
-        for (curr_table_page_index..PageTable.NumPages) |page_i| {
+        for (curr_page..PageTable.NumPages) |page_i| {
             // If we've written the number of pages we were supposed to, bail!
             if (num_pages_written == num_pages) {
                 break :dir_loop;
@@ -151,8 +146,8 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
         }
 
         // Looks like we wrote the entire page table; go to the next one!
-        curr_table_index += 1;
-        curr_table_page_index = 0;
+        curr_dir += 1;
+        curr_page = 0;
     }
 }
 
@@ -231,7 +226,7 @@ pub const VirtualAddress = packed struct(u32) {
 
     addr: u32,
 
-    pub fn table(self: Self) u10 {
+    pub fn dir(self: Self) u10 {
         return @truncate(self.addr >> 22);
     }
 
@@ -244,10 +239,18 @@ pub const VirtualAddress = packed struct(u32) {
     }
 };
 
-test "Virtual Address: 0x00801004" {
+test "virtual Address 0x00801004" {
     const addr = VirtualAddress{ .addr = 0x00801004 };
 
-    try std.testing.expect(addr.table() == 0x2);
+    try std.testing.expect(addr.dir() == 0x2);
     try std.testing.expect(addr.page() == 0x1);
     try std.testing.expect(addr.offset() == 0x4);
+}
+
+test "virtual Address 0x00132251" {
+    const addr = VirtualAddress{ .addr = 0x00132251 };
+
+    try std.testing.expect(addr.dir() == 0x000);
+    try std.testing.expect(addr.page() == 0x132);
+    try std.testing.expect(addr.offset() == 0x251);
 }

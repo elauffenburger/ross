@@ -5,6 +5,7 @@ const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const tables = @import("tables.zig");
+const vga = @import("vga.zig");
 
 // Allocate space for the IDT.
 var idt align(4) = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
@@ -17,6 +18,7 @@ pub fn init() void {
     for (int_handlers) |handler| {
         switch (handler.kind) {
             .exc => {
+                @import("vga.zig").printf("registering {d} @ 0x{x}\n", .{ handler.int_num, @intFromPtr(&handler.handler) });
                 addIdtEntry(handler.int_num, .trap32bits, .kernel, handler.handler);
             },
             .irq => {
@@ -60,6 +62,10 @@ fn loadIdt() void {
 }
 
 const int_handlers = GenInterruptHandlers(struct {
+    pub fn exc08() void {
+        vga.printf("shit\n", .{});
+    }
+
     pub fn exc13(err_code: u32) void {
         _ = err_code; // autofix
     }
@@ -202,11 +208,11 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
                 // Call actual handler.
                 asm volatile (std.fmt.comptimePrint(
-                        \\ push $[.after_gen_int_handler_{d}]
+                        \\ push $[.after_gen_int_handler_{s}]
                         \\ jmp %[wrapper:P]
-                        \\ .after_gen_int_handler_{d}:
+                        \\ .after_gen_int_handler_{s}:
                     ,
-                        .{ int_num, int_num },
+                        .{ decl.name, decl.name },
                     )
                     :
                     : [wrapper] "p" (&Wrapper.wrapper),

@@ -81,7 +81,7 @@ main() {
 
     QEMU_ARGS=(
       -cpu 'core2duo,-lm'
-      -m 1024
+      -m 4096
       -accel 'tcg,thread=single'
       -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
       -no-reboot
