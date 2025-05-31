@@ -34,13 +34,13 @@ pub fn init() !void {
         break :blk @intFromFloat(@ceil(kernel_size / bytes_per_page));
     };
 
+    vga.printf("page dir addr: 0x{x}\n", .{@intFromPtr(&pagerProc.vm.page_dir)});
+
     // Identity Map the first 1MiB.
-    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100 + num_kernel_pages);
+    try mapPages(&pagerProc.vm, .kernel, 0, .{ .addr = 0 }, 0x100);
 
     // Map the Kernel into the higher half of memory.
-    // try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
-
-    vga.printf("dir[16].addr: 0x{0x}\n", .{pagerProc.vm.page_dir[0].addr});
+    try mapPages(&pagerProc.vm, .kernel, 0x100000, kernel_start_virt_addr, num_kernel_pages);
 
     // Enable paging!
     enablePaging();
@@ -84,7 +84,7 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
         const page_table: *PageTable = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
 
         const page_table_real_addr: u32 = @intFromPtr(page_table);
-        const page_table_addr: u20 = @truncate(page_table_real_addr);
+        const page_table_addr: u20 = @truncate(page_table_real_addr >> 12);
         vga.printf("page_table_index: 0x{x}, real_addr: 0x{x}, trunc_addr: 0x{x}\n", .{ curr_table_index, page_table_real_addr, page_table_addr });
 
         const dir_entry = &vm.page_dir[curr_table_index];
@@ -118,7 +118,7 @@ pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }
             }
 
             const addr = start_phys_addr + (num_pages_written * Page.NumBytesManaged);
-            const addr_trunc: u20 = @truncate(addr & 0xfff);
+            const addr_trunc: u20 = @truncate(addr >> 12);
 
             page_table.pages[page_i] = switch (privilege) {
                 .kernel => .{
@@ -242,12 +242,12 @@ pub const VirtualAddress = packed struct(u32) {
     pub fn offset(self: Self) u12 {
         return @truncate(self.addr & 0x00000fff);
     }
-
-    test "0xC0011222" {
-        const addr = VirtualAddress{ .addr = 0xC0011222 };
-
-        try std.testing.expect(addr.table() == 768);
-        try std.testing.expect(addr.page() == 17);
-        try std.testing.expect(addr.offset() == 546);
-    }
 };
+
+test "Virtual Address: 0x00801004" {
+    const addr = VirtualAddress{ .addr = 0x00801004 };
+
+    try std.testing.expect(addr.table() == 0x2);
+    try std.testing.expect(addr.page() == 0x1);
+    try std.testing.expect(addr.offset() == 0x4);
+}
