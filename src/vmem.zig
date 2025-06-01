@@ -2,6 +2,7 @@ const std = @import("std");
 
 const kstd = @import("kstd.zig");
 const proc = @import("proc.zig");
+const types = @import("types.zig");
 const vga = @import("vga.zig");
 
 extern const __kernel_start: u8;
@@ -27,35 +28,8 @@ var shared_proc_vm = ProcessVirtualMemory{};
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
-    var kernel_page_dir = &kernel_proc.vm.page_dir;
-
-    kernel_proc.vm.page_tables[0] = &(try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
-    var kernel_first_page_table = kernel_proc.vm.page_tables[0];
-
-    // Create page directory.
-    for (0..kernel_page_dir.len) |i| {
-        kernel_page_dir[i] = .{
-            .rw = true,
-        };
-    }
-
-    // Create first page table.
-    for (0..kernel_first_page_table.len) |i| {
-        const addr = @as(u32, @intCast(i)) * 4096;
-
-        kernel_first_page_table[i] = .{
-            .present = true,
-            .rw = true,
-            .addr = @as(u20, @intCast(addr >> 12)),
-        };
-    }
-
-    // Load the first page table into the page dir.
-    kernel_page_dir[0] = .{
-        .present = true,
-        .rw = true,
-        .addr = @as(u20, @truncate(@as(u32, @intFromPtr(kernel_first_page_table)) >> 12)),
-    };
+    // Identity-map the kernel into the kernel_proc.
+    try identityMapKernel(&kernel_proc.vm);
 
     // Enable paging!
     enablePaging(&kernel_proc.vm);
@@ -74,8 +48,73 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
     );
 }
 
+fn identityMapKernel(vm: *ProcessVirtualMemory) !void {
+    var kernel_page_dir = &vm.page_dir;
+
+    vm.page_tables[0] = try newPageTable();
+    var kernel_first_page_table = vm.page_tables[0];
+
+    // Create page directory.
+    for (0..kernel_page_dir.len) |i| {
+        kernel_page_dir[i] = .{
+            .rw = true,
+        };
+    }
+
+    // Create first page table.
+    for (0..kernel_first_page_table.len) |i| {
+        kernel_first_page_table[i] = try Page.new(.{
+            .present = true,
+            .rw = true,
+            .addr = i * 4096,
+        });
+    }
+
+    // Load the first page table into the page dir.
+    kernel_page_dir[0] = try PageDirectoryEntry.new(.{
+        .present = true,
+        .rw = true,
+        .pageTable = kernel_first_page_table,
+    });
+}
+
+fn newPageTable() !*PageTable {
+    return &(try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
+}
+
+pub const ProcessVirtualMemory = struct {
+    // Each process gets its own page directory and each page dir entry has an associated page table.
+    //
+    //   Page Directory -> Page Table Entry (Page) -> Offset in Page
+    //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
+    //   City           -> Street                  -> Number on street
+    page_dir: PageDirectory align(4096) = undefined,
+    page_tables: [1024]*PageTable = undefined,
+};
+
+const VirtualAddress = packed struct(u32) {
+    const Self = @This();
+
+    addr: u32,
+
+    pub fn dir(self: Self) u10 {
+        return @truncate(self.addr >> 22);
+    }
+
+    pub fn page(self: Self) u10 {
+        return @truncate((self.addr >> 12) & 0x03ff);
+    }
+
+    pub fn offset(self: Self) u12 {
+        return @truncate(self.addr & 0x00000fff);
+    }
+};
+
+const PageDirectory = [1024]PageDirectoryEntry;
+const PageTable = [1024]Page;
+
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
-pub const PageDirectoryEntry = packed struct(u32) {
+const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).
     pub const NumBytesManaged: u32 = 0x400000;
 
@@ -99,12 +138,37 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn pageTable(self: @This()) *PageTable {
+    pub fn new(
+        args: types.And(
+            types.Exclude(@This(), .{"addr"}),
+            struct { pageTable: *PageTable },
+        ),
+    ) !@This() {
+        const page_table_addr: u32 = @intFromPtr(args.pageTable);
+
+        // Make sure the PageTable address is properly aligned.
+        std.debug.assert(try std.math.mod(u32, page_table_addr, 4096) == 0);
+
+        return .{
+            .present = args.present,
+            .rw = args.rw,
+            .userAccessible = args.userAccessible,
+            .pwt = args.pwt,
+            .cacheDisable = args.cacheDisable,
+            .accessed = args.accessed,
+            ._r1 = args._r1,
+            .pageSize = args.pageSize,
+            .meta = args.meta,
+            .addr = @intCast(page_table_addr >> 12),
+        };
+    }
+
+    pub inline fn pageTable(self: @This()) *PageTable {
         return @ptrFromInt(@as(u32, self.addr) << 12);
     }
 };
 
-pub const Page = packed struct(u32) {
+const Page = packed struct(u32) {
     // Each page in the page table manages 4KiB (since there are 1024 entries to cover a 4MiB page dir entry).
     pub const NumBytesManaged: u32 = 0x1000;
 
@@ -122,36 +186,29 @@ pub const Page = packed struct(u32) {
     global: bool = false,
     meta: u3 = 0,
     addr: u20,
-};
 
-pub const ProcessVirtualMemory = struct {
-    // Each process gets its own page directory and each page dir entry has an associated page table.
-    //
-    //   Page Directory -> Page Table Entry (Page) -> Offset in Page
-    //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
-    //   City           -> Street                  -> Number on street
-    page_dir: PageDirectory align(4096) = undefined,
-    page_tables: [1024]*PageTable = undefined,
-};
+    pub fn new(
+        args: types.And(
+            types.Exclude(Page, .{"addr"}),
+            struct { addr: u32 },
+        ),
+    ) !@This() {
+        // Make sure the address is properly aligned.
+        std.debug.assert(try std.math.mod(u32, args.addr, 4096) == 0);
 
-const PageDirectory = [1024]PageDirectoryEntry;
-const PageTable = [1024]Page;
-
-pub const VirtualAddress = packed struct(u32) {
-    const Self = @This();
-
-    addr: u32,
-
-    pub fn dir(self: Self) u10 {
-        return @truncate(self.addr >> 22);
-    }
-
-    pub fn page(self: Self) u10 {
-        return @truncate((self.addr >> 12) & 0x03ff);
-    }
-
-    pub fn offset(self: Self) u12 {
-        return @truncate(self.addr & 0x00000fff);
+        return .{
+            .present = args.present,
+            .rw = args.rw,
+            .userAccessible = args.userAccessible,
+            .pwt = args.pwt,
+            .cacheDisable = args.cacheDisable,
+            .accessed = args.accessed,
+            .dirty = args.dirty,
+            .pat = args.pat,
+            .global = args.global,
+            .meta = args.meta,
+            .addr = @intCast(args.addr >> 12),
+        };
     }
 };
 
