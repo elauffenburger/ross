@@ -49,8 +49,8 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
 }
 
 fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: VirtualAddress, num_bytes: u32) !void {
-    const num_pages: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_bytes)) / @as(f32, 4096)));
-    const num_tables: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_pages)) / @as(f32, 1024)));
+    const num_pages: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_bytes)) / 4096));
+    const num_tables: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_pages)) / 1024));
 
     const start_table, const end_table = .{ start_virt_add.table(), start_virt_add.table() + num_tables };
 
