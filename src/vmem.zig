@@ -49,33 +49,46 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
 }
 
 fn identityMapKernel(vm: *ProcessVirtualMemory) !void {
-    var kernel_page_dir = &vm.page_dir;
-
-    vm.page_tables[0] = try newPageTable();
-    var kernel_first_page_table = vm.page_tables[0];
-
-    // Create page directory.
-    for (0..kernel_page_dir.len) |i| {
-        kernel_page_dir[i] = .{
+    // Init page directory.
+    for (0..vm.page_dir.len) |i| {
+        vm.page_dir[i] = .{
             .rw = true,
         };
     }
 
-    // Create first page table.
-    for (0..kernel_first_page_table.len) |i| {
-        kernel_first_page_table[i] = try Page.new(.{
+    const kernel_size = kernelSize();
+
+    // Map page tables into the page dir until we've mapped the entire kernel.
+    var bytes_mapped: u32 = 0;
+    var page_table_i: u32 = 0;
+    fill_page_dir: while (true) {
+        // Create a new page table and add it to the page dir.
+        const page_table = try newPageTable();
+
+        vm.page_tables[page_table_i] = page_table;
+        vm.page_dir[page_table_i] = try PageDirectoryEntry.new(.{
             .present = true,
             .rw = true,
-            .addr = i * 4096,
+            .pageTable = page_table,
         });
-    }
 
-    // Load the first page table into the page dir.
-    kernel_page_dir[0] = try PageDirectoryEntry.new(.{
-        .present = true,
-        .rw = true,
-        .pageTable = kernel_first_page_table,
-    });
+        // Fill the page table.
+        for (0..1024) |page_i| {
+            if (bytes_mapped >= kernel_size) {
+                break :fill_page_dir;
+            }
+
+            page_table[page_i] = try Page.new(.{
+                .present = true,
+                .rw = true,
+                .addr = page_i * 4096,
+            });
+
+            bytes_mapped += 4096;
+        }
+
+        page_table_i += 1;
+    }
 }
 
 fn newPageTable() !*PageTable {

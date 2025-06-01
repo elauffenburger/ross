@@ -1,9 +1,10 @@
 ENTRY(_kmain)
 
 SECTIONS {
+    __kernel_start = .;
+
     /* Load code after 1MiB barrier to prevent vm86 from doing weird stuff apparently. */
     . = 1M;
-    __kernel_start = .;
 
     .text : ALIGN(4K) {
         KEEP(*(.multiboot));
