@@ -24,13 +24,13 @@ var kernel_proc: proc.Process = .{
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
-var kernel_first_page_table: [1024]Page align(4096) = undefined;
-
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
     var kernel_page_dir = &kernel_proc.vm.page_dir;
-    kernel_proc.vm.page_tables[0] = &kernel_first_page_table;
+
+    kernel_proc.vm.page_tables[0] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
+    var kernel_first_page_table = kernel_proc.vm.page_tables[0];
 
     // Create page directory.
     for (0..kernel_page_dir.len) |i| {
@@ -54,7 +54,7 @@ pub fn init() !void {
     kernel_page_dir[0] = .{
         .present = true,
         .rw = true,
-        .addr = @as(u20, @truncate(@as(u32, @intFromPtr(&kernel_first_page_table)) >> 12)),
+        .addr = @as(u20, @truncate(@as(u32, @intFromPtr(kernel_first_page_table)) >> 12)),
     };
 
     // Enable paging!
