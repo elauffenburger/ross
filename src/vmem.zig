@@ -24,15 +24,15 @@ var kernel_proc: proc.Process = .{
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
-var kernel_page_directory: [1024]PageDirectoryEntry align(4096) = undefined;
 var kernel_first_page_table: [1024]Page align(4096) = undefined;
 
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
     // Create page directory.
-    for (0..kernel_page_directory.len) |i| {
-        kernel_page_directory[i] = .{
+    const kernel_page_dir = &kernel_proc.vm.page_dir;
+    for (0..kernel_page_dir.len) |i| {
+        kernel_page_dir[i] = .{
             .rw = true,
         };
     }
@@ -48,17 +48,18 @@ pub fn init() !void {
         };
     }
 
-    kernel_page_directory[0] = .{
+    // Load the first page table into the page dir.
+    kernel_page_dir[0] = .{
         .present = true,
         .rw = true,
         .addr = @as(u20, @truncate(@as(u32, @intFromPtr(&kernel_first_page_table)) >> 12)),
     };
 
     // Enable paging!
-    enablePaging();
+    enablePaging(&kernel_proc.vm);
 }
 
-pub fn enablePaging() void {
+pub fn enablePaging(vm: *ProcessVirtualMemory) void {
     asm volatile (
         \\ mov %[pdt_addr], %%cr3
         \\
@@ -66,7 +67,7 @@ pub fn enablePaging() void {
         \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&kernel_page_directory)),
+        : [pdt_addr] "r" (@intFromPtr(&vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
@@ -133,7 +134,7 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: [num_pages_in_table]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** num_pages_in_table,
+    page_dir: [num_pages_in_table]PageDirectoryEntry align(4096) = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** num_pages_in_table,
 };
 
 pub const VirtualAddress = packed struct(u32) {
