@@ -22,15 +22,16 @@ var kernel_proc: proc.Process = .{
     .vm = .{},
 };
 
-var shared_proc_vm = ProcessVirtualMemory{};
+var shared_proc_vm align(4096) = ProcessVirtualMemory{};
 
+var kernel_page_dir: [1024]PageDirectoryEntry align(4096) = undefined;
 var kernel_first_page_table: [1024]Page align(4096) = undefined;
 
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
     // Create page directory.
-    const kernel_page_dir = &kernel_proc.vm.page_dir;
+    kernel_proc.vm.page_dir = &kernel_page_dir;
     for (0..kernel_page_dir.len) |i| {
         kernel_page_dir[i] = .{
             .rw = true,
@@ -67,7 +68,7 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
         \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&vm.page_dir)),
+        : [pdt_addr] "r" (@intFromPtr(vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
@@ -97,8 +98,10 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn pageTable(self: @This()) [num_pages_in_table]Page {
-        return @ptrFromInt(@as(u32, self.addr) << 12);
+    pub fn pageTable(self: @This()) PageTable {
+        return .{
+            .pages = @ptrFromInt(@as(u32, self.addr) << 12),
+        };
     }
 };
 
@@ -122,19 +125,17 @@ pub const Page = packed struct(u32) {
     addr: u20,
 };
 
-const num_pages_in_table = 1024;
-
 pub const ProcessVirtualMemory = struct {
     // Each process gets its own page directory and each page dir entry has an associated page table.
     //
-    // NOTE: we allocate the page directory up-front (4KiB/process) since that _has_ to be present, but we only allocate page tables as-needed.
-    // NOTE: (WIP) the first N page tables are shared pointers to kernel page table entries so we don't have to reallocate for each process.
-    //
-    // To visualize:
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: [num_pages_in_table]PageDirectoryEntry align(4096) = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** num_pages_in_table,
+    page_dir: *[1024]PageDirectoryEntry = undefined,
+};
+
+const PageTable = struct {
+    pages: *[1024]Page = undefined,
 };
 
 pub const VirtualAddress = packed struct(u32) {
