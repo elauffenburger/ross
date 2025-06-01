@@ -6,226 +6,6 @@ const io = @import("io.zig");
 const pic = @import("pic.zig");
 const vga = @import("vga.zig");
 
-const Cmd = struct {
-    pub const Ctrl = struct {
-        pub const ReadByte0 = struct {
-            pub const C: u8 = 0x20;
-            pub const R = CtrlConfig;
-        };
-
-        pub const DisablePort2 = CtrlCmd(0xa7, null);
-        pub const EnablePort2 = CtrlCmd(0xa8, null);
-        pub const TestPort2 = CtrlCmd(
-            0xa9,
-            enum(u8) {
-                passed = 0,
-                clockLineStuckLow = 1,
-                clockLineStuckHigh = 2,
-                dataLineStuckLow = 3,
-                dataLineStuckHigh = 4,
-            },
-        );
-
-        pub const DisablePort1 = CtrlCmd(0xad, null);
-        pub const EnablePort1 = CtrlCmd(0xad, null);
-        pub const TestPort1 = CtrlCmd(
-            0xab,
-            enum(u8) {
-                passed = 0,
-                clockLineStuckLow = 1,
-                clockLineStuckHigh = 2,
-                dataLineStuckLow = 3,
-                dataLineStuckHigh = 4,
-            },
-        );
-
-        pub const TestCtrl = CtrlCmd(
-            0xaa,
-            enum(u8) {
-                passed = 0x55,
-                failed = 0xfc,
-            },
-        );
-
-        // NOTE: the response is all bytes of internal RAM.
-        pub const DiagnosticDump = CtrlCmd(0xac, null);
-
-        // NOTE: there is a response, but it's not standardized.
-        pub const ReadCtrlInputPort = CtrlCmd(0xc0, null);
-
-        pub const CopyInputPortNibble1ToStatusNibble2 = CtrlCmd(0xc1, null);
-        pub const CopyInputPortNibble2ToStatusNibble2 = CtrlCmd(0xc2, null);
-
-        pub const ReadCtrlOutputPort = struct {
-            pub const C: u8 = 0xd0;
-
-            pub const R = CtrlOutputPort;
-        };
-
-        pub const WriteCtrlOutputPort = CtrlCmd(0xd1, null);
-
-        // NOTE: these commands only apply if there are 2 PS/2 ports supported.
-        pub const WritePort1OutputBuf = CtrlCmd(0xd2, null);
-        pub const WritePort2OutputBuf = CtrlCmd(0xd3, null);
-        pub const WritePort2InputBuf = CtrlCmd(0xd4, null);
-
-        // NOTE: Each bit in the mask is a bool for that line (e.g. 0101 pulses ports 2 and 0).
-        pub fn pulseOutputLineLow(mask: u4) u8 {
-            return 0xf0 | mask;
-        }
-
-        pub fn writeNextByteToN(n: u5) u8 {
-            return n + 0x60;
-        }
-    };
-
-    pub const Device = struct {
-        pub const SetLEDs = DevCmd(
-            0xed,
-            enum(u8) {
-                scrollLock = 0,
-                numLock = 1,
-                capsLock = 2,
-            },
-            null,
-        );
-
-        pub const Echo = DevCmd(
-            0xee,
-            null,
-            enum(u8) {
-                echo = 0xee,
-                ack = 0xfe,
-                err = 0xff,
-            },
-        );
-
-        pub const ScanCodes = DevCmd(
-            0xf0,
-            enum(u8) {
-                getScanCodeSet = 0,
-                setScanCodeSet1 = 1,
-                setScanCodeSet2 = 2,
-                setScanCodeSet3 = 3,
-            },
-            enum(u8) {
-                ack = 0xfa,
-                resend = 0xfe,
-                err = 0xff,
-
-                set1 = 0x43,
-                set2 = 0x41,
-                set3 = 0x3f,
-            },
-        );
-
-        pub const IdentifyKeyboard = DevCmd(0xf2, null, null);
-
-        pub const SetTypematic = struct {
-            pub const command: u8 = 0xf3;
-
-            pub const Data = packed struct(u8) {
-                repeat_rate: u5 = 0,
-                delay: enum(u2) {
-                    @"250ms" = 0,
-                    @"500ms" = 1,
-                    @"750ms" = 2,
-                    @"1000ms" = 3,
-                } = 0,
-                _r1: u1 = 0,
-            };
-
-            pub const Response = enum(u8) {
-                ack = 0xfa,
-                resend = 0xfe,
-                err = 0xff,
-            };
-        };
-
-        pub const EnableScanning = DevCmd(0xf4, null, null);
-
-        // NOTE: may restore defaults.
-        pub const DisableScanning = DevCmd(0xf5, null, null);
-
-        pub const SetDefaultParams = DevCmd(0xf6, null, null);
-
-        pub const ResendLastByte = DevCmd(0xfe, null, null);
-
-        pub const ResetAndSelfTest = DevCmd(
-            0xff,
-            null,
-            enum(u8) {
-                ack = 0xfa,
-                resend = 0xfe,
-                passed = 0xaa,
-                failed = 0xfc,
-                alsoFailed = 0xfd,
-                err = 0xff,
-            },
-        );
-    };
-};
-
-const CtrlOutputPort = packed struct(u8) {
-    reset: bool = true,
-    a20_gate: bool,
-    port2_clock: bool,
-    port2_data: bool,
-    buf_full_from_port1: bool,
-    buf_full_from_port2: bool,
-    port1_clock: bool,
-    port1_data: bool,
-};
-
-const IOPort = struct {
-    // Read: data from device
-    // Write: data to device
-    pub const data = 0x60;
-
-    // Read: status register.
-    // Write: command register (sends commands to controller).
-    pub const cmd = 0x64;
-};
-
-const StatusRegister = packed struct(u8) {
-    // Must be set before attempting to read from IO port.
-    output_buf_full: bool,
-
-    // Must be clear before attempting to write to IO port.
-    input_buf_full: bool,
-
-    _r1: u1 = undefined,
-
-    input_for: enum(u1) {
-        // Data in input buffer is for ps/2 device.
-        data = 0,
-
-        // Data in input buffer is for ps/2 controller command.
-        command = 1,
-    },
-
-    _r2: u1 = undefined,
-    _r3: u1 = undefined,
-
-    timeout_err: bool,
-    parity_err: bool,
-};
-
-const CtrlConfig = packed struct(u8) {
-    port1_interrupts_enabled: bool,
-    port2_interrupts_enabled: bool,
-    systemd_posted: bool,
-    _r1: u1,
-    port1_clock_disabled: bool,
-    port2_clock_disabled: bool,
-
-    // Translates scan codes to scan code 1 for compatibility reasons.
-    port1_translation_enabled: bool,
-
-    // NOTE: this must be zero. don't know why. Might be keylock?
-    _r2: u1 = 0,
-};
-
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
 //
 // NOTE: there's a bunch of stuff we _should_ do...and we're not going to do any of it for now because it requires ACPI and stuff :)
@@ -235,8 +15,8 @@ pub fn init() void {
     // TODO: make sure PS/2 controller exists.
 
     // Disable both ports.
-    io.outb(IOPort.cmd, Cmd.Ctrl.DisablePort1.C);
-    io.outb(IOPort.cmd, Cmd.Ctrl.DisablePort2.C);
+    io.outb(IOPort.cmd, Ctrl.DisablePort1.C);
+    io.outb(IOPort.cmd, Ctrl.DisablePort2.C);
 
     // Flush output buffer.
     _ = io.inb(IOPort.data);
@@ -255,10 +35,10 @@ pub fn init() void {
 
     // Perform controller self-test.
     {
-        io.outb(IOPort.cmd, Cmd.Ctrl.TestCtrl.C);
+        io.outb(IOPort.cmd, Ctrl.TestCtrl.C);
 
         const res = ctrl.pollData();
-        if (res == @intFromEnum(Cmd.Ctrl.TestCtrl.R.passed)) {
+        if (res == @intFromEnum(Ctrl.TestCtrl.R.passed)) {
             vga.printf("ps/2 self-test: pass!\n", .{});
         } else {
             vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
@@ -268,7 +48,7 @@ pub fn init() void {
     // Check if there's a second channel.
     {
         // Enable the second port.
-        io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort2.C);
+        io.outb(IOPort.cmd, Ctrl.EnablePort2.C);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
         const config = ctrl.pollConfig();
@@ -279,10 +59,10 @@ pub fn init() void {
     {
         // Test Port 1.
         {
-            io.outb(IOPort.cmd, Cmd.Ctrl.TestPort1.C);
+            io.outb(IOPort.cmd, Ctrl.TestPort1.C);
 
             const res = ctrl.pollData();
-            if (res == @intFromEnum(Cmd.Ctrl.TestPort1.R.passed)) {
+            if (res == @intFromEnum(Ctrl.TestPort1.R.passed)) {
                 vga.printf("ps/2 interface 1 test: pass!\n", .{});
             } else {
                 vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
@@ -291,10 +71,10 @@ pub fn init() void {
 
         // Test Port 2.
         if (port2.verified) {
-            io.outb(IOPort.cmd, Cmd.Ctrl.TestPort2.C);
+            io.outb(IOPort.cmd, Ctrl.TestPort2.C);
 
             const res = ctrl.pollData();
-            if (res == @intFromEnum(Cmd.Ctrl.TestPort2.R.passed)) {
+            if (res == @intFromEnum(Ctrl.TestPort2.R.passed)) {
                 vga.printf("ps/2 interface 2 test: pass!\n", .{});
             } else {
                 vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
@@ -305,11 +85,11 @@ pub fn init() void {
     // Re-enable devices and reset.
     {
         // Enable port 1.
-        io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort1.C);
+        io.outb(IOPort.cmd, Ctrl.EnablePort1.C);
 
         // Enable port 2 if it exists.
         if (port2.verified) {
-            io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort2.C);
+            io.outb(IOPort.cmd, Ctrl.EnablePort2.C);
         }
 
         // Get the PS/2 controller config and re-enable interrupts
@@ -335,7 +115,7 @@ pub fn init() void {
 
     // Enable scan codes for port1.
     dbg("enabling port1 scan codes\n", .{});
-    port1.writeData(Cmd.Device.EnableScanning.C);
+    port1.writeData(Device.EnableScanning.C);
     port1.waitAck();
 }
 
@@ -358,7 +138,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
                 .one => {},
                 .two => {
                     // Tell the controller we're going to write to port two.
-                    io.outb(IOPort.cmd, Cmd.Ctrl.WritePort2InputBuf.C);
+                    io.outb(IOPort.cmd, Ctrl.WritePort2InputBuf.C);
                 },
             }
 
@@ -402,7 +182,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
         // TODO: surface errors better.
         pub fn reset(self: *Self) void {
             // Send reset.
-            self.writeData(Cmd.Device.ResetAndSelfTest.C);
+            self.writeData(Device.ResetAndSelfTest.C);
 
             const ack = self.waitForByte();
             switch (ack) {
@@ -499,6 +279,66 @@ fn dbgv(comptime format: []const u8, args: anytype) void {
     vga.printf(format, args);
 }
 
+const CtrlOutputPort = packed struct(u8) {
+    reset: bool = true,
+    a20_gate: bool,
+    port2_clock: bool,
+    port2_data: bool,
+    buf_full_from_port1: bool,
+    buf_full_from_port2: bool,
+    port1_clock: bool,
+    port1_data: bool,
+};
+
+const IOPort = struct {
+    // Read: data from device
+    // Write: data to device
+    pub const data = 0x60;
+
+    // Read: status register.
+    // Write: command register (sends commands to controller).
+    pub const cmd = 0x64;
+};
+
+const StatusRegister = packed struct(u8) {
+    // Must be set before attempting to read from IO port.
+    output_buf_full: bool,
+
+    // Must be clear before attempting to write to IO port.
+    input_buf_full: bool,
+
+    _r1: u1 = undefined,
+
+    input_for: enum(u1) {
+        // Data in input buffer is for ps/2 device.
+        data = 0,
+
+        // Data in input buffer is for ps/2 controller command.
+        command = 1,
+    },
+
+    _r2: u1 = undefined,
+    _r3: u1 = undefined,
+
+    timeout_err: bool,
+    parity_err: bool,
+};
+
+const CtrlConfig = packed struct(u8) {
+    port1_interrupts_enabled: bool,
+    port2_interrupts_enabled: bool,
+    systemd_posted: bool,
+    _r1: u1,
+    port1_clock_disabled: bool,
+    port2_clock_disabled: bool,
+
+    // Translates scan codes to scan code 1 for compatibility reasons.
+    port1_translation_enabled: bool,
+
+    // NOTE: this must be zero. don't know why. Might be keylock?
+    _r2: u1 = 0,
+};
+
 fn CtrlCmd(command: u8, response: ?type) type {
     const helpers = struct {
         fn assertByteEnum(name: []const u8, ty: type) type {
@@ -585,3 +425,161 @@ fn DevCmd(command: u8, data: ?type, response: ?type) type {
         };
     };
 }
+
+pub const Ctrl = struct {
+    pub const ReadByte0 = struct {
+        pub const C: u8 = 0x20;
+        pub const R = CtrlConfig;
+    };
+
+    pub const DisablePort2 = CtrlCmd(0xa7, null);
+    pub const EnablePort2 = CtrlCmd(0xa8, null);
+    pub const TestPort2 = CtrlCmd(
+        0xa9,
+        enum(u8) {
+            passed = 0,
+            clockLineStuckLow = 1,
+            clockLineStuckHigh = 2,
+            dataLineStuckLow = 3,
+            dataLineStuckHigh = 4,
+        },
+    );
+
+    pub const DisablePort1 = CtrlCmd(0xad, null);
+    pub const EnablePort1 = CtrlCmd(0xad, null);
+    pub const TestPort1 = CtrlCmd(
+        0xab,
+        enum(u8) {
+            passed = 0,
+            clockLineStuckLow = 1,
+            clockLineStuckHigh = 2,
+            dataLineStuckLow = 3,
+            dataLineStuckHigh = 4,
+        },
+    );
+
+    pub const TestCtrl = CtrlCmd(
+        0xaa,
+        enum(u8) {
+            passed = 0x55,
+            failed = 0xfc,
+        },
+    );
+
+    // NOTE: the response is all bytes of internal RAM.
+    pub const DiagnosticDump = CtrlCmd(0xac, null);
+
+    // NOTE: there is a response, but it's not standardized.
+    pub const ReadCtrlInputPort = CtrlCmd(0xc0, null);
+
+    pub const CopyInputPortNibble1ToStatusNibble2 = CtrlCmd(0xc1, null);
+    pub const CopyInputPortNibble2ToStatusNibble2 = CtrlCmd(0xc2, null);
+
+    pub const ReadCtrlOutputPort = struct {
+        pub const C: u8 = 0xd0;
+
+        pub const R = CtrlOutputPort;
+    };
+
+    pub const WriteCtrlOutputPort = CtrlCmd(0xd1, null);
+
+    // NOTE: these commands only apply if there are 2 PS/2 ports supported.
+    pub const WritePort1OutputBuf = CtrlCmd(0xd2, null);
+    pub const WritePort2OutputBuf = CtrlCmd(0xd3, null);
+    pub const WritePort2InputBuf = CtrlCmd(0xd4, null);
+
+    // NOTE: Each bit in the mask is a bool for that line (e.g. 0101 pulses ports 2 and 0).
+    pub fn pulseOutputLineLow(mask: u4) u8 {
+        return 0xf0 | mask;
+    }
+
+    pub fn writeNextByteToN(n: u5) u8 {
+        return n + 0x60;
+    }
+};
+
+pub const Device = struct {
+    pub const SetLEDs = DevCmd(
+        0xed,
+        enum(u8) {
+            scrollLock = 0,
+            numLock = 1,
+            capsLock = 2,
+        },
+        null,
+    );
+
+    pub const Echo = DevCmd(
+        0xee,
+        null,
+        enum(u8) {
+            echo = 0xee,
+            ack = 0xfe,
+            err = 0xff,
+        },
+    );
+
+    pub const ScanCodes = DevCmd(
+        0xf0,
+        enum(u8) {
+            getScanCodeSet = 0,
+            setScanCodeSet1 = 1,
+            setScanCodeSet2 = 2,
+            setScanCodeSet3 = 3,
+        },
+        enum(u8) {
+            ack = 0xfa,
+            resend = 0xfe,
+            err = 0xff,
+
+            set1 = 0x43,
+            set2 = 0x41,
+            set3 = 0x3f,
+        },
+    );
+
+    pub const IdentifyKeyboard = DevCmd(0xf2, null, null);
+
+    pub const SetTypematic = struct {
+        pub const command: u8 = 0xf3;
+
+        pub const Data = packed struct(u8) {
+            repeat_rate: u5 = 0,
+            delay: enum(u2) {
+                @"250ms" = 0,
+                @"500ms" = 1,
+                @"750ms" = 2,
+                @"1000ms" = 3,
+            } = 0,
+            _r1: u1 = 0,
+        };
+
+        pub const Response = enum(u8) {
+            ack = 0xfa,
+            resend = 0xfe,
+            err = 0xff,
+        };
+    };
+
+    pub const EnableScanning = DevCmd(0xf4, null, null);
+
+    // NOTE: may restore defaults.
+    pub const DisableScanning = DevCmd(0xf5, null, null);
+
+    pub const SetDefaultParams = DevCmd(0xf6, null, null);
+
+    pub const ResendLastByte = DevCmd(0xfe, null, null);
+
+    pub const ResetAndSelfTest = DevCmd(
+        0xff,
+        null,
+        enum(u8) {
+            ack = 0xfa,
+            resend = 0xfe,
+            passed = 0xaa,
+            failed = 0xfc,
+            alsoFailed = 0xfd,
+            err = 0xff,
+        },
+    );
+};
