@@ -24,13 +24,12 @@ var kernel_proc: proc.Process = .{
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
-var kernel_page_dir: [1024]PageDirectoryEntry align(4096) = undefined;
 var kernel_first_page_table: [1024]Page align(4096) = undefined;
 
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
-    kernel_proc.vm.page_dir = &kernel_page_dir;
+    var kernel_page_dir = &kernel_proc.vm.page_dir;
     kernel_proc.vm.page_tables[0] = &kernel_first_page_table;
 
     // Create page directory.
@@ -70,7 +69,7 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
         \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(vm.page_dir)),
+        : [pdt_addr] "r" (@intFromPtr(&vm.page_dir)),
         : "eax", "cr0", "cr3"
     );
 }
@@ -131,7 +130,7 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: *[1024]PageDirectoryEntry = undefined,
+    page_dir: [1024]PageDirectoryEntry align(4096) = undefined,
     page_tables: [1024]*[1024]Page = undefined,
 };
 
