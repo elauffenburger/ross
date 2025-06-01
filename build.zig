@@ -2,13 +2,13 @@ const std = @import("std");
 const fs = std.fs;
 
 pub fn build(b: *std.Build) !void {
-    const exe = addInstall(b);
-    addTests(b, exe.root_module);
+    const kernelc = addInstall(b);
+    addTests(b, kernelc);
 
     addBuildIso(b);
 }
 
-fn addInstall(b: *std.Build) *std.Build.Step.Compile {
+fn addInstall(b: *std.Build) KernelCompile {
     const kernel = b.addExecutable(.{
         .name = "ross",
         .code_model = .kernel,
@@ -68,13 +68,20 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
 
     b.installArtifact(kernel);
 
-    return kernel;
+    return .{ .kernel = kernel, .asm_lib_obj = asm_lib_obj };
 }
 
-fn addTests(b: *std.Build, exe_mod: *std.Build.Module) void {
+const KernelCompile = struct {
+    kernel: *std.Build.Step.Compile,
+    asm_lib_obj: std.Build.LazyPath,
+};
+
+fn addTests(b: *std.Build, kernelc: KernelCompile) void {
     const exe_unit_tests = b.addTest(.{
-        .root_module = exe_mod,
+        .root_module = kernelc.kernel.root_module,
     });
+    exe_unit_tests.linker_script = kernelc.kernel.linker_script;
+    exe_unit_tests.addObjectFile(kernelc.asm_lib_obj);
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

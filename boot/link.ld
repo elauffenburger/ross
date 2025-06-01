@@ -1,5 +1,3 @@
-ENTRY(_kmain)
-
 SECTIONS {
     __kernel_start = .;
 

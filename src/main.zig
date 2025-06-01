@@ -93,3 +93,7 @@ pub fn kmain() void {
         asm volatile ("hlt");
     }
 }
+
+test {
+    std.testing.refAllDeclsRecursive(@This());
+}

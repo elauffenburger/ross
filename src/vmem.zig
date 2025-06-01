@@ -220,20 +220,20 @@ const Page = packed struct(u32) {
             .addr = @intCast(args.addr >> 12),
         };
     }
+
+    test "0x00801004" {
+        const addr = VirtualAddress{ .addr = 0x00801004 };
+
+        try std.testing.expect(addr.table() == 0x2);
+        try std.testing.expect(addr.page() == 0x1);
+        try std.testing.expect(addr.offset() == 0x4);
+    }
+
+    test "0x00132251" {
+        const addr = VirtualAddress{ .addr = 0x00132251 };
+
+        try std.testing.expect(addr.table() == 0x000);
+        try std.testing.expect(addr.page() == 0x132);
+        try std.testing.expect(addr.offset() == 0x251);
+    }
 };
-
-test "virtual Address 0x00801004" {
-    const addr = VirtualAddress{ .addr = 0x00801004 };
-
-    try std.testing.expect(addr.table() == 0x2);
-    try std.testing.expect(addr.page() == 0x1);
-    try std.testing.expect(addr.offset() == 0x4);
-}
-
-test "virtual Address 0x00132251" {
-    const addr = VirtualAddress{ .addr = 0x00132251 };
-
-    try std.testing.expect(addr.table() == 0x000);
-    try std.testing.expect(addr.page() == 0x132);
-    try std.testing.expect(addr.offset() == 0x251);
-}
