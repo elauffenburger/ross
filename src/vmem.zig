@@ -40,7 +40,11 @@ pub fn init() !void {
         kernel_first_page_table[i] = @bitCast((i * 4096) | 3);
     }
 
-    kernel_page_directory[0] = @bitCast(@as(u32, @bitCast(@intFromPtr(&kernel_first_page_table))) | 3);
+    kernel_page_directory[0] = .{
+        .present = true,
+        .rw = true,
+        .addr = @as(u20, @truncate(@as(u32, @intFromPtr(&kernel_first_page_table)) >> 12)),
+    };
 
     // Enable paging!
     enablePaging();
@@ -64,15 +68,15 @@ pub const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).
     pub const NumBytesManaged: u32 = 0x400000;
 
-    present: bool,
-    rw: bool,
-    userAccessible: bool,
+    present: bool = false,
+    rw: bool = false,
+    userAccessible: bool = false,
     pwt: enum(u1) {
         writeBack = 0,
         writeThrough = 1,
-    },
-    cacheDisable: bool,
-    accessed: bool,
+    } = .writeBack,
+    cacheDisable: bool = false,
+    accessed: bool = false,
     _r1: u1 = 0,
     pageSize: PageSize = .@"4KiB",
     meta: u4 = 0,
