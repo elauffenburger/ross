@@ -12,19 +12,19 @@ pub const Header = extern struct {
     pub const Addresses = extern struct {
         header: u32,
         load: u32,
-        loadEnd: u32,
-        bssEnd: u32,
+        load_end: u32,
+        bss_end: u32,
         entry: u32,
     };
 
     pub const VideoMode = extern struct {
-        modeType: u32,
+        mode_type: u32,
         width: u32,
         height: u32,
         depth: u32,
     };
 
-    magicNumber: u32 = Self.Magic,
+    magic_number: u32 = Self.Magic,
     flags: u32,
     checksum: u32,
     addresses: Addresses = @bitCast(@as(u160, 0)),

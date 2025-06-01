@@ -3,44 +3,44 @@ const cpu = @import("cpu.zig");
 pub const GdtSegmentDescriptor = packed struct(u64) {
     const Self = @This();
 
-    limitLow: u16,
-    baseLow: u24,
+    limit_low: u16,
+    base_low: u24,
     access: Access,
-    limitHigh: u4,
+    limit_high: u4,
     flags: Flags,
-    baseHigh: u8,
+    base_high: u8,
 
     pub inline fn new(args: struct { base: u32, limit: u20, access: Access, flags: Flags }) Self {
         return .{
-            .limitLow = @intCast(args.limit & 0x0000_ffff),
-            .baseLow = @intCast(args.base & 0x00ff_ffff),
+            .limit_low = @intCast(args.limit & 0x0000_ffff),
+            .base_low = @intCast(args.base & 0x00ff_ffff),
             .access = args.access,
-            .limitHigh = @intCast(args.limit & 0x000f_0000 >> 16),
+            .limit_high = @intCast(args.limit & 0x000f_0000 >> 16),
             .flags = args.flags,
-            .baseHigh = @intCast(args.base & 0xff00_0000 >> 24),
+            .base_high = @intCast(args.base & 0xff00_0000 >> 24),
         };
     }
 
     // The linear address where the segment begins.
     pub fn base(self: Self) u32 {
-        return (self.baseHigh << 24) & self.baseLow;
+        return (self.base_high << 24) & self.base_low;
     }
 
     // The maximum addressable unit in either 1B units or 4KiB pages.
     pub fn limit(self: Self) u20 {
-        return (self.limitHigh << 16) & self.limitLow;
+        return (self.limit_high << 16) & self.limit_low;
     }
 
     pub const Access = packed union {
         system: packed struct(u8) {
             // Type information specific to System Segments.
-            sysSegmentType: SystemSegmentType,
+            sys_seg_type: SystemSegmentType,
 
             // The type of the segment.
             typ: SegmentType = .system,
 
             // The privilege level of the segment.
-            privilegeLevel: cpu.PrivilegeLevel,
+            priv_level: cpu.PrivilegeLevel,
 
             // True if this is a valid segment.
             present: bool = true,
@@ -58,7 +58,7 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
             exe: bool = true,
 
             typ: u1 = 1,
-            privilegeLevel: cpu.PrivilegeLevel,
+            priv_level: cpu.PrivilegeLevel,
             present: bool = true,
         },
         data: packed struct(u8) {
@@ -72,7 +72,7 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
 
             exe: bool = false,
             typ: u1 = 1,
-            privilegeLevel: cpu.PrivilegeLevel,
+            priv_level: cpu.PrivilegeLevel,
             present: bool = true,
         },
 
@@ -108,7 +108,7 @@ pub const GdtSegmentDescriptor = packed struct(u64) {
         _: bool = false,
 
         // If true, 64bit (we're not).
-        longMode: u1 = 0,
+        long_mode: bool = false,
 
         // The size mode of the segment (16-bit or 32-bit).
         size: SegmentSizeMode,
@@ -209,7 +209,7 @@ pub const InterruptDescriptor = packed struct(u64) {
     offset1: u16,
     selector: SegmentSelector,
     _r1: u8 = 0,
-    gateType: GateType,
+    gate_type: GateType,
     _r2: u1 = 0,
     dpl: cpu.PrivilegeLevel,
     present: bool = true,

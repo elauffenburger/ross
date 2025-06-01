@@ -22,7 +22,7 @@ pub fn init() void {
                 addIdtEntry(handler.int_num, .trap32bits, .kernel, handler.handler);
             },
             .irq => {
-                addIdtEntry(pic.irqOffset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
+                addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
             },
         }
     }
@@ -31,7 +31,7 @@ pub fn init() void {
     loadIdt();
 }
 
-fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
+fn addIdtEntry(index: u8, gate_type: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
     idt[index] = tables.InterruptDescriptor{
@@ -43,7 +43,7 @@ fn addIdtEntry(index: u8, gateType: tables.InterruptDescriptor.GateType, privile
             .rpl = .kernel,
             .ti = .gdt,
         },
-        .gateType = gateType,
+        .gate_type = gate_type,
         .dpl = privilegeLevel,
     };
 }

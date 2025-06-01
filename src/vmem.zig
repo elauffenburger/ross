@@ -65,7 +65,7 @@ fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: Vir
         vm.page_dir[page_table_i] = try PageDirectoryEntry.new(.{
             .present = true,
             .rw = true,
-            .pageTable = page_table,
+            .page_table = page_table,
         });
 
         // Fill the page table.
@@ -80,7 +80,7 @@ fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: Vir
             page_table[page_i] = try Page.new(.{
                 .present = true,
                 .rw = true,
-                .addr = start_phys_addr + (page_i * Page.NumBytesManaged),
+                .addr = start_phys_addr + (page_i * Page.NUM_BYES_MANAGED),
             });
 
             num_pages_mapped += 1;
@@ -126,19 +126,19 @@ const PageTable = [1024]Page;
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
 const PageDirectoryEntry = packed struct(u32) {
     // Each page in the page directory manages 4MiB (since there are 1024 entries to cover a 4GiB space).
-    pub const NumBytesManaged: u32 = 0x400000;
+    pub const NUM_BYTES_MANAGED: u32 = 0x400000;
 
     present: bool = false,
     rw: bool = false,
-    userAccessible: bool = false,
+    user_accessible: bool = false,
     pwt: enum(u1) {
         writeBack = 0,
         writeThrough = 1,
     } = .writeBack,
-    cacheDisable: bool = false,
+    cache_disable: bool = false,
     accessed: bool = false,
     _r1: u1 = 0,
-    pageSize: PageSize = .@"4KiB",
+    page_size: PageSize = .@"4KiB",
     meta: u4 = 0,
     addr: u20 = 0,
 
@@ -151,10 +151,10 @@ const PageDirectoryEntry = packed struct(u32) {
     pub fn new(
         args: types.And(
             types.Exclude(@This(), .{"addr"}),
-            struct { pageTable: *PageTable },
+            struct { page_table: *PageTable },
         ),
     ) !@This() {
-        const page_table_addr: u32 = @intFromPtr(args.pageTable);
+        const page_table_addr: u32 = @intFromPtr(args.page_table);
 
         // Make sure the PageTable address is properly aligned.
         std.debug.assert(try std.math.mod(u32, page_table_addr, 4096) == 0);
@@ -162,12 +162,12 @@ const PageDirectoryEntry = packed struct(u32) {
         return .{
             .present = args.present,
             .rw = args.rw,
-            .userAccessible = args.userAccessible,
+            .user_accessible = args.user_accessible,
             .pwt = args.pwt,
-            .cacheDisable = args.cacheDisable,
+            .cache_disable = args.cache_disable,
             .accessed = args.accessed,
             ._r1 = args._r1,
-            .pageSize = args.pageSize,
+            .page_size = args.page_size,
             .meta = args.meta,
             .addr = @intCast(page_table_addr >> 12),
         };
@@ -180,16 +180,16 @@ const PageDirectoryEntry = packed struct(u32) {
 
 const Page = packed struct(u32) {
     // Each page in the page table manages 4KiB (since there are 1024 entries to cover a 4MiB page dir entry).
-    pub const NumBytesManaged: u32 = 0x1000;
+    pub const NUM_BYES_MANAGED: u32 = 0x1000;
 
     present: bool = false,
     rw: bool = false,
-    userAccessible: bool = false,
+    user_accessible: bool = false,
     pwt: enum(u1) {
         writeBack = 0,
         writeThrough = 1,
     } = .writeBack,
-    cacheDisable: bool = false,
+    cache_disable: bool = false,
     accessed: bool = false,
     dirty: bool = false,
     pat: bool = false,
@@ -209,9 +209,9 @@ const Page = packed struct(u32) {
         return .{
             .present = args.present,
             .rw = args.rw,
-            .userAccessible = args.userAccessible,
+            .user_accessible = args.user_accessible,
             .pwt = args.pwt,
-            .cacheDisable = args.cacheDisable,
+            .cache_disable = args.cache_disable,
             .accessed = args.accessed,
             .dirty = args.dirty,
             .pat = args.pat,

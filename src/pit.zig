@@ -9,7 +9,7 @@ const IOPorts = struct {
 };
 
 pub const Mode = packed struct(u8) {
-    countMode: enum(u1) {
+    count_mode: enum(u1) {
         // 16-bit binary.
         @"16bit" = 0,
 
@@ -17,7 +17,7 @@ pub const Mode = packed struct(u8) {
         bcd = 1,
     },
 
-    operatingMode: enum(u3) {
+    operating_mode: enum(u3) {
         intOnTerminalCount = 0,
         oneShot = 1,
         rateGenerator = 2,
@@ -29,7 +29,7 @@ pub const Mode = packed struct(u8) {
         _mode3Alt = 7,
     },
 
-    accessMode: enum(u2) {
+    access_mode: enum(u2) {
         latchCountValueCmd = 0,
         lowByte = 1,
         highByte = 2,

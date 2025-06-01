@@ -1,6 +1,6 @@
 const io = @import("io.zig");
 
-pub const irqOffset = 0x20;
+pub const irq_offset = 0x20;
 
 const Pic = struct {
     const Self = @This();
@@ -32,9 +32,9 @@ pub fn init() void {
     io.wait();
 
     // ICW2: Set vector table offsets.
-    io.outb(pic1.data(), irqOffset);
+    io.outb(pic1.data(), irq_offset);
     io.wait();
-    io.outb(pic2.data(), irqOffset + 8);
+    io.outb(pic2.data(), irq_offset + 8);
     io.wait();
 
     // ICW3: Tell master PIC there's a secondary at IRQ2 (0000_0100).

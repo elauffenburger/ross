@@ -16,14 +16,14 @@ const IOPort = struct {
 
 const StatusRegister = packed struct(u8) {
     // Must be set before attempting to read from IO port.
-    outputBufferFull: bool,
+    output_buf_full: bool,
 
     // Must be clear before attempting to write to IO port.
-    inputBufferFull: bool,
+    input_buf_full: bool,
 
     _r1: u1,
 
-    inputFor: enum(u1) {
+    input_for: enum(u1) {
         // Data in input buffer is for ps/2 device.
         data = 0,
 
@@ -34,20 +34,20 @@ const StatusRegister = packed struct(u8) {
     _r2: u1,
     _r3: u1,
 
-    timeoutErr: bool,
-    parityError: bool,
+    timeout_err: bool,
+    parity_err: bool,
 };
 
 const ControllerConfig = packed struct(u8) {
-    port1InterruptsEnabled: bool,
-    port2InterruptsEnabled: bool,
-    systemPOSTed: bool,
+    port1_interrupts_enabled: bool,
+    port2_interrupts_enabled: bool,
+    systemd_posted: bool,
     _r1: u1,
-    port1ClockDisabled: bool,
-    port2ClockDisabled: bool,
+    port1_clock_disabled: bool,
+    port2_clock_disabled: bool,
 
     // Translates scan codes to scan code 1 for compatibility reasons.
-    port1TranslationEnabled: bool,
+    port_translation_enabled: bool,
 
     // NOTE: this must be zero. don't know why. Might be keylock?
     _r2: u1,
@@ -168,8 +168,8 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
     return struct {
         const Self = @This();
 
-        portNum: @TypeOf(port) = port,
-        devId: ?u8 = null,
+        port_num: @TypeOf(port) = port,
+        dev_id: ?u8 = null,
 
         verified: bool = assumeVerified,
         healthy: ?bool = null,
@@ -186,7 +186,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             }
 
             // Wait for the input buffer to be clear.
-            while (ctrl.status().inputBufferFull) {
+            while (ctrl.status().input_buf_full) {
                 dbgv("waiting on input buffer...\n", .{});
             }
 
@@ -230,22 +230,22 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
                     switch (health_code) {
                         0xaa => {
                             self.healthy = true;
-                            dbg("ps/2 port {s} OK!\n", .{@tagName(self.portNum)});
+                            dbg("ps/2 port {s} OK!\n", .{@tagName(self.port_num)});
                         },
                         else => {
-                            dbg("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.portNum), health_code });
+                            dbg("unexpected health code for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.port_num), health_code });
                         },
                     }
                 },
                 0xaa => {
                     self.healthy = true;
-                    dbg("ps/2 port {s} OK!\n", .{@tagName(self.portNum)});
+                    dbg("ps/2 port {s} OK!\n", .{@tagName(self.port_num)});
                 },
                 0xfc => {
-                    dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.portNum)});
+                    dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port_num)});
                 },
                 else => {
-                    dbg("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.portNum), ack });
+                    dbg("unexpected ack for ps/2 port {s}: 0x{x}\n", .{ @tagName(self.port_num), ack });
                 },
             }
         }
@@ -285,7 +285,7 @@ const ctrl = struct {
 
     pub fn pollData() u8 {
         // Wait for the controller to write the response.
-        while (!status().outputBufferFull) {
+        while (!status().output_buf_full) {
             dbgv("waiting for polled byte...\n", .{});
         }
 
@@ -303,7 +303,7 @@ const ctrl = struct {
     }
 
     pub fn flushData() void {
-        while (status().outputBufferFull) {
+        while (status().output_buf_full) {
             const byte = io.inb(IOPort.data);
             dbgv("flushing 0x{x}\n", .{byte});
         }
