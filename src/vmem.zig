@@ -36,7 +36,7 @@ pub fn init() !void {
     enablePaging(&kernel_proc.vm);
 }
 
-pub fn enablePaging(vm: *ProcessVirtualMemory) void {
+fn enablePaging(vm: *ProcessVirtualMemory) void {
     asm volatile (
         \\ mov %[pdt_addr], %%cr3
         \\
