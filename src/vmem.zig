@@ -32,12 +32,20 @@ pub fn init() !void {
 
     // Create page directory.
     for (0..kernel_page_directory.len) |i| {
-        kernel_page_directory[i] = @bitCast(@as(u32, 0x00000002));
+        kernel_page_directory[i] = .{
+            .rw = true,
+        };
     }
 
     // Create first page table.
     for (0..kernel_first_page_table.len) |i| {
-        kernel_first_page_table[i] = @bitCast((i * 4096) | 3);
+        const addr = @as(u32, @intCast(i)) * 4096;
+
+        kernel_first_page_table[i] = .{
+            .present = true,
+            .rw = true,
+            .addr = @as(u20, @intCast(addr >> 12)),
+        };
     }
 
     kernel_page_directory[0] = .{
@@ -80,7 +88,7 @@ pub const PageDirectoryEntry = packed struct(u32) {
     _r1: u1 = 0,
     pageSize: PageSize = .@"4KiB",
     meta: u4 = 0,
-    addr: u20,
+    addr: u20 = 0,
 
     // NOTE: Technically this could be a 4KiB or 4MiB entry, but we're just going to support 4KiB for now so we have a page table.
     pub const PageSize = enum(u1) {
@@ -97,18 +105,18 @@ pub const Page = packed struct(u32) {
     // Each page in the page table manages 4KiB (since there are 1024 entries to cover a 4MiB page dir entry).
     pub const NumBytesManaged: u32 = 0x1000;
 
-    present: bool,
-    rw: bool,
-    userAccessible: bool,
+    present: bool = false,
+    rw: bool = false,
+    userAccessible: bool = false,
     pwt: enum(u1) {
         writeBack = 0,
         writeThrough = 1,
-    },
-    cacheDisable: bool,
-    accessed: bool,
-    dirty: bool,
-    pat: bool,
-    global: bool,
+    } = .writeBack,
+    cacheDisable: bool = false,
+    accessed: bool = false,
+    dirty: bool = false,
+    pat: bool = false,
+    global: bool = false,
     meta: u3 = 0,
     addr: u20,
 };
