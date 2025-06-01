@@ -24,22 +24,23 @@ var kernel_proc: proc.Process = .{
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
+var kernel_page_directory: [1024]PageDirectoryEntry align(4096) = undefined;
+var kernel_first_page_table: [1024]Page align(4096) = undefined;
+
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
-    const num_kernel_pages: u32 = blk: {
-        const kernel_size: f32 = @floatFromInt(kernelSize());
-        const bytes_per_page: f32 = @floatFromInt(Page.NumBytesManaged);
+    // Create page directory.
+    for (0..kernel_page_directory.len) |i| {
+        kernel_page_directory[i] = @bitCast(@as(u32, 0x00000002));
+    }
 
-        break :blk @intFromFloat(@ceil(kernel_size / bytes_per_page));
-    };
-    _ = num_kernel_pages; // autofix
+    // Create first page table.
+    for (0..kernel_first_page_table.len) |i| {
+        kernel_first_page_table[i] = @bitCast((i * 4096) | 3);
+    }
 
-    // Identity-map the entire memory space into the kernel process.
-    try identityMapKernel();
-
-    // Map the kernel into the higher half of memory in the shared proc page dir for userspace programs.
-    // try mapPages(&shared_proc_vm, .kernel, kernelStartPhysAddr(), kernel_start_virt_addr, num_kernel_pages);
+    kernel_page_directory[0] = @bitCast(@as(u32, @bitCast(@intFromPtr(&kernel_first_page_table))) | 3);
 
     // Enable paging!
     enablePaging();
@@ -50,32 +51,12 @@ pub fn enablePaging() void {
         \\ mov %[pdt_addr], %%cr3
         \\
         \\ mov %%cr0, %%eax
-        \\ or $0x80000001, %%eax
+        \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&kernel_proc.vm.page_dir)),
+        : [pdt_addr] "r" (@intFromPtr(&kernel_page_directory)),
         : "eax", "cr0", "cr3"
     );
-}
-
-var kernel_page_directory: [1024]PageDirectoryEntry align(4096) = undefined;
-
-var kernel_page_table: [1024]Page align(4096) = undefined;
-
-fn identityMapKernel() !void {
-    kernel_proc.vm.page_dir[0] = @bitCast(3 & (@intFromPtr(&kernel_page_table) >> 12));
-    for (0..kernel_page_table.len) |i| {
-        kernel_page_table[i] = @bitCast(3 & (4096 * i));
-    }
-}
-
-pub fn mapKernelIntoProcessVM(vm: *ProcessVirtualMemory) void {
-    const kernel_start_dir = kernel_start_virt_addr.dir();
-
-    for (kernel_start_dir..shared_proc_vm.page_dir.len) |i| {
-        // Map in the existing kernel table from the shared page dir.
-        vm.page_dir[i] = shared_proc_vm.page_dir[i];
-    }
 }
 
 // See https://wiki.osdev.org/Paging#32-bit_Paging_(Protected_Mode) for more info!
