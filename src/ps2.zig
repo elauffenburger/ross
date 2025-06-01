@@ -1,3 +1,5 @@
+// TODO: use enums/consts for command codes.
+
 const std = @import("std");
 
 const io = @import("io.zig");
@@ -176,7 +178,9 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
         verified: bool = assumeVerified,
         healthy: ?bool = null,
 
-        buffer: ?u8 = null,
+        // NOTE: this is kinda weird but works well with unsigned nums: the head start at the max address and works its way back to 0: if the head is 0, the buffer is full; if the head is 128 the buffer is empty.
+        buffer: [128]u8 = undefined,
+        buffer_head: u8 = 128,
 
         pub fn writeData(_: *Self, byte: u8) void {
             switch (port) {
@@ -197,12 +201,12 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
         }
 
         pub fn waitForByte(self: *Self) u8 {
-            while (self.buffer == null) {
+            while (self.buffer_head == self.buffer.len) {
                 dbgv("waiting for byte in buffer...\n", .{});
             }
 
-            const result = self.buffer.?;
-            self.buffer = null;
+            const result = self.buffer[self.buffer_head];
+            self.buffer_head += 1;
 
             return result;
         }
@@ -213,11 +217,15 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
         }
 
         pub fn recv(self: *Self) void {
-            if (self.buffer != null) {
-                // TODO: what do?
+            const byte = io.inb(IOPort.data);
+
+            // TODO: is it okay to just drop a byte like this?
+            if (self.buffer_head == 0) {
+                return;
             }
 
-            self.buffer = io.inb(IOPort.data);
+            self.buffer_head -= 1;
+            self.buffer[self.buffer_head] = byte;
         }
 
         // TODO: surface errors better.
