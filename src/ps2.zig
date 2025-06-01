@@ -80,27 +80,27 @@ pub fn init() void {
         ctrl.writeConfig(config);
     }
 
-    // // Perform controller self-test.
-    // {
-    //     io.outb(IOPort.cmd, 0xaa);
+    // Perform controller self-test.
+    {
+        io.outb(IOPort.cmd, 0xaa);
 
-    //     const res = ctrlr.pollData();
-    //     if (res == 0x55) {
-    //         vga.printf("ps/2 self-test: pass!\n", .{});
-    //     } else {
-    //         vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
-    //     }
-    // }
+        const res = ctrl.pollData();
+        if (res == 0x55) {
+            vga.printf("ps/2 self-test: pass!\n", .{});
+        } else {
+            vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
+        }
+    }
 
-    // // Check if there's a second channel.
-    // {
-    //     // Enable the second port.
-    //     io.outb(IOPort.cmd, 0xa8);
+    // Check if there's a second channel.
+    {
+        // Enable the second port.
+        io.outb(IOPort.cmd, 0xa8);
 
-    //     // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
-    //     const config = ctrlr.pollConfig();
-    //     port2.verified = !config.port2ClockDisabled;
-    // }
+        // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
+        const config = ctrl.pollConfig();
+        port2.verified = !config.port2_clock_disabled;
+    }
 
     // // Perform interface test.
     // {
