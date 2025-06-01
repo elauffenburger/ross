@@ -9,14 +9,14 @@ const vga = @import("vga.zig");
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
 //
 // NOTE: there's a bunch of stuff we _should_ do...and we're not going to do any of it for now because it requires ACPI and stuff :)
-pub fn init() void {
+pub fn init() !void {
     // TODO: initialize USB controllers.
 
     // TODO: make sure PS/2 controller exists.
 
     // Disable both ports.
-    io.outb(IOPort.cmd, Ctrl.DisablePort1.C);
-    io.outb(IOPort.cmd, Ctrl.DisablePort2.C);
+    ctrl.sendCmd(Ctrl.DisablePort1.C);
+    ctrl.sendCmd(Ctrl.DisablePort2.C);
 
     // Flush output buffer.
     _ = io.inb(IOPort.data);
@@ -35,7 +35,7 @@ pub fn init() void {
 
     // Perform controller self-test.
     {
-        io.outb(IOPort.cmd, Ctrl.TestCtrl.C);
+        ctrl.sendCmd(Ctrl.TestCtrl.C);
 
         const res = ctrl.pollData();
         if (res == @intFromEnum(Ctrl.TestCtrl.R.passed)) {
@@ -48,7 +48,7 @@ pub fn init() void {
     // Check if there's a second channel.
     {
         // Enable the second port.
-        io.outb(IOPort.cmd, Ctrl.EnablePort2.C);
+        ctrl.sendCmd(Ctrl.EnablePort2.C);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
         const config = ctrl.pollConfig();
@@ -59,7 +59,7 @@ pub fn init() void {
     {
         // Test Port 1.
         {
-            io.outb(IOPort.cmd, Ctrl.TestPort1.C);
+            ctrl.sendCmd(Ctrl.TestPort1.C);
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort1.R.passed)) {
@@ -71,7 +71,7 @@ pub fn init() void {
 
         // Test Port 2.
         if (port2.verified) {
-            io.outb(IOPort.cmd, Ctrl.TestPort2.C);
+            ctrl.sendCmd(Ctrl.TestPort2.C);
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort2.R.passed)) {
@@ -85,11 +85,11 @@ pub fn init() void {
     // Re-enable devices and reset.
     {
         // Enable port 1.
-        io.outb(IOPort.cmd, Ctrl.EnablePort1.C);
+        ctrl.sendCmd(Ctrl.EnablePort1.C);
 
         // Enable port 2 if it exists.
         if (port2.verified) {
-            io.outb(IOPort.cmd, Ctrl.EnablePort2.C);
+            ctrl.sendCmd(Ctrl.EnablePort2.C);
         }
 
         // Get the PS/2 controller config and re-enable interrupts
@@ -116,7 +116,7 @@ pub fn init() void {
     // Enable scan codes for port1.
     dbg("enabling port1 scan codes\n", .{});
     port1.writeData(Device.EnableScanning.C);
-    port1.waitAck();
+    try port1.waitAck();
 }
 
 fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
@@ -138,7 +138,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
                 .one => {},
                 .two => {
                     // Tell the controller we're going to write to port two.
-                    io.outb(IOPort.cmd, Ctrl.WritePort2InputBuf.C);
+                    ctrl.sendCmd(Ctrl.WritePort2InputBuf.C);
                 },
             }
 
@@ -162,9 +162,11 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
             return result;
         }
 
-        pub fn waitAck(self: *Self) void {
-            // TODO: handle non-ACK byte.
-            _ = self.waitForByte();
+        pub fn waitAck(self: *Self) error{NotAck}!void {
+            const byte = self.waitForByte();
+            if (byte != 0xfa) {
+                return error.NotAck;
+            }
         }
 
         pub fn recv(self: *Self) void {
@@ -225,7 +227,7 @@ const ctrl = struct {
 
     pub fn pollConfig() CtrlConfig {
         // Request config byte.
-        io.outb(IOPort.cmd, 0x20);
+        sendCmd(Ctrl.ReadByte0.C);
 
         // Poll until we get a response.
         return @bitCast(pollData());
@@ -233,14 +235,14 @@ const ctrl = struct {
 
     pub fn waitConfig() CtrlConfig {
         // Request config byte.
-        io.outb(IOPort.cmd, 0x20);
+        sendCmd(Ctrl.ReadByte0.C);
 
         // Steal the byte off the dev1 IRQ buffer.
         return @bitCast(port1.waitForByte());
     }
 
     pub fn writeConfig(config: CtrlConfig) void {
-        io.outb(IOPort.cmd, 0x60);
+        sendCmd(Ctrl.writeToByteN(0));
         io.outb(IOPort.data, @as(u8, @bitCast(config)));
     }
 
@@ -254,13 +256,8 @@ const ctrl = struct {
         return io.inb(IOPort.data);
     }
 
-    pub fn sendCmd(cmd: u8) error{bad_ack}!void {
+    pub fn sendCmd(cmd: u8) void {
         io.outb(IOPort.cmd, cmd);
-
-        const ack = port1.waitForByte();
-        if (ack != 0xfa) {
-            return error.bad_ack;
-        }
     }
 
     pub fn flushData() void {
@@ -493,8 +490,8 @@ pub const Ctrl = struct {
         return 0xf0 | mask;
     }
 
-    pub fn writeNextByteToN(n: u5) u8 {
-        return n + 0x60;
+    pub fn writeToByteN(n: u5) u8 {
+        return @as(u8, n) + 0x60;
     }
 };
 

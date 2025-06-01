@@ -75,7 +75,9 @@ pub fn kmain() void {
     cmos.unmaskNMIs();
 
     // Enable PS/2 interfaces.
-    ps2.init();
+    ps2.init() catch {
+        @panic("failed to init ps/2 interfaces");
+    };
 
     // Set up virtual memory.
     //
