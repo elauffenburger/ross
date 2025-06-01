@@ -102,32 +102,32 @@ pub fn init() void {
         port2.verified = !config.port2_clock_disabled;
     }
 
-    // // Perform interface test.
-    // {
-    //     // Test Port 1.
-    //     {
-    //         io.outb(IOPort.cmd, 0xab);
+    // Perform interface test.
+    {
+        // Test Port 1.
+        {
+            io.outb(IOPort.cmd, 0xab);
 
-    //         const res = ctrlr.pollData();
-    //         if (res == 0) {
-    //             vga.printf("ps/2 interface 1 test: pass!\n", .{});
-    //         } else {
-    //             vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
-    //         }
-    //     }
+            const res = ctrl.pollData();
+            if (res == 0) {
+                vga.printf("ps/2 interface 1 test: pass!\n", .{});
+            } else {
+                vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
+            }
+        }
 
-    //     // Test Port 2.
-    //     if (port2.verified) {
-    //         io.outb(IOPort.cmd, 0xa9);
+        // Test Port 2.
+        if (port2.verified) {
+            io.outb(IOPort.cmd, 0xa9);
 
-    //         const res = ctrlr.pollData();
-    //         if (res == 0) {
-    //             vga.printf("ps/2 interface 2 test: pass!\n", .{});
-    //         } else {
-    //             vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
-    //         }
-    //     }
-    // }
+            const res = ctrl.pollData();
+            if (res == 0) {
+                vga.printf("ps/2 interface 2 test: pass!\n", .{});
+            } else {
+                vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
+            }
+        }
+    }
 
     // Re-enable devices and reset.
     {
