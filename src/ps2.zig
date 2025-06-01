@@ -9,8 +9,8 @@ const vga = @import("vga.zig");
 const Cmd = struct {
     pub const Ctrl = struct {
         pub const ReadByte0 = struct {
-            pub const cmd: u8 = 0x20;
-            pub const Response = CtrlConfig;
+            pub const C: u8 = 0x20;
+            pub const R = CtrlConfig;
         };
 
         pub const DisablePort2 = CtrlCmd(0xa7, null);
@@ -57,9 +57,9 @@ const Cmd = struct {
         pub const CopyInputPortNibble2ToStatusNibble2 = CtrlCmd(0xc2, null);
 
         pub const ReadCtrlOutputPort = struct {
-            pub const cmd: u8 = 0xd0;
+            pub const C: u8 = 0xd0;
 
-            pub const Response = CtrlOutputPort;
+            pub const R = CtrlOutputPort;
         };
 
         pub const WriteCtrlOutputPort = CtrlCmd(0xd1, null);
@@ -235,8 +235,8 @@ pub fn init() void {
     // TODO: make sure PS/2 controller exists.
 
     // Disable both ports.
-    io.outb(IOPort.cmd, 0xad);
-    io.outb(IOPort.cmd, 0xa7);
+    io.outb(IOPort.cmd, Cmd.Ctrl.DisablePort1.C);
+    io.outb(IOPort.cmd, Cmd.Ctrl.DisablePort2.C);
 
     // Flush output buffer.
     _ = io.inb(IOPort.data);
@@ -255,10 +255,10 @@ pub fn init() void {
 
     // Perform controller self-test.
     {
-        io.outb(IOPort.cmd, 0xaa);
+        io.outb(IOPort.cmd, Cmd.Ctrl.TestCtrl.C);
 
         const res = ctrl.pollData();
-        if (res == 0x55) {
+        if (res == @intFromEnum(Cmd.Ctrl.TestCtrl.R.passed)) {
             vga.printf("ps/2 self-test: pass!\n", .{});
         } else {
             vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
@@ -268,7 +268,7 @@ pub fn init() void {
     // Check if there's a second channel.
     {
         // Enable the second port.
-        io.outb(IOPort.cmd, 0xa8);
+        io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort2.C);
 
         // Get the config byte to see if the second port clock is disabled; if it is, then there isn't a second port.
         const config = ctrl.pollConfig();
@@ -279,10 +279,10 @@ pub fn init() void {
     {
         // Test Port 1.
         {
-            io.outb(IOPort.cmd, 0xab);
+            io.outb(IOPort.cmd, Cmd.Ctrl.TestPort1.C);
 
             const res = ctrl.pollData();
-            if (res == 0) {
+            if (res == @intFromEnum(Cmd.Ctrl.TestPort1.R.passed)) {
                 vga.printf("ps/2 interface 1 test: pass!\n", .{});
             } else {
                 vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
@@ -291,10 +291,10 @@ pub fn init() void {
 
         // Test Port 2.
         if (port2.verified) {
-            io.outb(IOPort.cmd, 0xa9);
+            io.outb(IOPort.cmd, Cmd.Ctrl.TestPort2.C);
 
             const res = ctrl.pollData();
-            if (res == 0) {
+            if (res == @intFromEnum(Cmd.Ctrl.TestPort2.R.passed)) {
                 vga.printf("ps/2 interface 2 test: pass!\n", .{});
             } else {
                 vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
@@ -305,11 +305,11 @@ pub fn init() void {
     // Re-enable devices and reset.
     {
         // Enable port 1.
-        io.outb(IOPort.cmd, 0xae);
+        io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort1.C);
 
         // Enable port 2 if it exists.
         if (port2.verified) {
-            io.outb(IOPort.cmd, 0xa8);
+            io.outb(IOPort.cmd, Cmd.Ctrl.EnablePort2.C);
         }
 
         // Get the PS/2 controller config and re-enable interrupts
@@ -335,7 +335,7 @@ pub fn init() void {
 
     // Enable scan codes for port1.
     dbg("enabling port1 scan codes\n", .{});
-    port1.writeData(0xf4);
+    port1.writeData(Cmd.Device.EnableScanning.C);
     port1.waitAck();
 }
 
@@ -358,7 +358,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
                 .one => {},
                 .two => {
                     // Tell the controller we're going to write to port two.
-                    io.outb(IOPort.cmd, 0xd4);
+                    io.outb(IOPort.cmd, Cmd.Ctrl.WritePort2InputBuf.C);
                 },
             }
 
@@ -402,7 +402,7 @@ fn Port(comptime port: enum { one, two }, assumeVerified: bool) type {
         // TODO: surface errors better.
         pub fn reset(self: *Self) void {
             // Send reset.
-            self.writeData(0xff);
+            self.writeData(Cmd.Device.ResetAndSelfTest.C);
 
             const ack = self.waitForByte();
             switch (ack) {
@@ -520,13 +520,13 @@ fn CtrlCmd(command: u8, response: ?type) type {
 
     if (response) |res| {
         return struct {
-            pub const cmd: u8 = command;
-            pub const Response = helpers.assertByteEnum("response", res);
+            pub const C: u8 = command;
+            pub const R = helpers.assertByteEnum("response", res);
         };
     }
 
     return struct {
-        pub const cmd: u8 = command;
+        pub const C: u8 = command;
     };
 }
 
@@ -552,16 +552,16 @@ fn DevCmd(command: u8, data: ?type, response: ?type) type {
     if (data) |dat| {
         if (response) |res| {
             return struct {
-                pub const cmd: u8 = command;
-                pub const Data = helpers.assertByteEnum("data", dat);
-                pub const Response = helpers.assertByteEnum("response", res);
+                pub const C: u8 = command;
+                pub const D = helpers.assertByteEnum("data", dat);
+                pub const R = helpers.assertByteEnum("response", res);
             };
         }
 
         return struct {
-            pub const cmd: u8 = command;
-            pub const Data = helpers.assertByteEnum("data", dat);
-            pub const Response = enum(u8) {
+            pub const C: u8 = command;
+            pub const D = helpers.assertByteEnum("data", dat);
+            pub const R = enum(u8) {
                 ack = 0xfa,
                 resend = 0xfe,
                 err = 0xff,
@@ -571,14 +571,14 @@ fn DevCmd(command: u8, data: ?type, response: ?type) type {
 
     if (response) |res| {
         return struct {
-            pub const cmd: u8 = command;
-            pub const Response = helpers.assertByteEnum("response", res);
+            pub const C: u8 = command;
+            pub const R = helpers.assertByteEnum("response", res);
         };
     }
 
     return struct {
-        pub const cmd: u8 = command;
-        pub const Response = enum(u8) {
+        pub const C: u8 = command;
+        pub const R = enum(u8) {
             ack = 0xfa,
             resend = 0xfe,
             err = 0xff,
