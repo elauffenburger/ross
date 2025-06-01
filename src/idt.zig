@@ -18,7 +18,6 @@ pub fn init() void {
     for (int_handlers) |handler| {
         switch (handler.kind) {
             .exc => {
-                @import("vga.zig").printf("registering {d} @ 0x{x}\n", .{ handler.int_num, @intFromPtr(&handler.handler) });
                 addIdtEntry(handler.int_num, .trap32bits, .kernel, handler.handler);
             },
             .irq => {

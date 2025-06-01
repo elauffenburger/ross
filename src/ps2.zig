@@ -47,10 +47,10 @@ const ControllerConfig = packed struct(u8) {
     port2_clock_disabled: bool,
 
     // Translates scan codes to scan code 1 for compatibility reasons.
-    port_translation_enabled: bool,
+    port1_translation_enabled: bool,
 
     // NOTE: this must be zero. don't know why. Might be keylock?
-    _r2: u1,
+    _r2: u1 = 0,
 };
 
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
@@ -61,12 +61,12 @@ pub fn init() void {
 
     // TODO: make sure PS/2 controller exists.
 
-    // // Disable both ports.
-    // io.outb(IOPort.cmd, 0xad);
-    // io.outb(IOPort.cmd, 0xa7);
+    // Disable both ports.
+    io.outb(IOPort.cmd, 0xad);
+    io.outb(IOPort.cmd, 0xa7);
 
-    // // Flush output buffer.
-    // _ = io.inb(IOPort.data);
+    // Flush output buffer.
+    _ = io.inb(IOPort.data);
 
     // // Set controller config.
     // {
@@ -129,34 +129,36 @@ pub fn init() void {
     //     }
     // }
 
-    // // Re-enable devices and reset.
-    // {
-    //     // Enable port 1.
-    //     io.outb(IOPort.cmd, 0xae);
+    // Re-enable devices and reset.
+    {
+        // Enable port 1.
+        io.outb(IOPort.cmd, 0xae);
 
-    //     // Enable port 2 if it exists.
-    //     if (port2.verified) {
-    //         io.outb(IOPort.cmd, 0xa8);
-    //     }
+        // Enable port 2 if it exists.
+        if (port2.verified) {
+            io.outb(IOPort.cmd, 0xa8);
+        }
 
-    //     // Get the PS/2 controller config and re-enable interrupts
-    //     var config = ctrl.pollConfig();
-    //     config.port1InterruptsEnabled = true;
-    //     config.port2InterruptsEnabled = true;
-    //     config.port1ClockDisabled = false;
-    //     config.port2ClockDisabled = false;
-    //     config.port1TranslationEnabled = false;
-    //     config._r2 = 0;
+        // Get the PS/2 controller config and re-enable interrupts
+        var config = ctrl.waitConfig();
+        config.port1_interrupts_enabled = true;
+        config.port2_interrupts_enabled = true;
+        config.port1_clock_disabled = false;
+        config.port2_clock_disabled = false;
+        config.port1_translation_enabled = false;
 
-    //     // Write the config back
-    //     ctrl.writeConfig(config);
-    // }
+        // Write the config back
+        ctrl.writeConfig(config);
+    }
 
-    // // Reset devices.
-    // {
-    //     port1.reset();
-    //     port2.reset();
-    // }
+    // Reset devices.
+    {
+        port1.reset();
+
+        if (port2.verified) {
+            port2.reset();
+        }
+    }
 
     // Enable scan codes for port1.
     dbg("enabling port1 scan codes\n", .{});
