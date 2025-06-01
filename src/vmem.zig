@@ -29,7 +29,7 @@ pub fn init() !void {
 
     var kernel_page_dir = &kernel_proc.vm.page_dir;
 
-    kernel_proc.vm.page_tables[0] = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
+    kernel_proc.vm.page_tables[0] = &(try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
     var kernel_first_page_table = kernel_proc.vm.page_tables[0];
 
     // Create page directory.
