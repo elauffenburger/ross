@@ -22,7 +22,7 @@ var kernel_proc: proc.Process = .{
     .vm = .{},
 };
 
-var shared_proc_vm align(4096) = ProcessVirtualMemory{};
+var shared_proc_vm = ProcessVirtualMemory{};
 
 var kernel_page_dir: [1024]PageDirectoryEntry align(4096) = undefined;
 var kernel_first_page_table: [1024]Page align(4096) = undefined;
