@@ -68,17 +68,17 @@ pub fn init() void {
     // Flush output buffer.
     _ = io.inb(IOPort.data);
 
-    // // Set controller config.
-    // {
-    //     // Get the PS/2 controller config and set things up so we can run tests.
-    //     var config = ctrl.pollConfig();
-    //     config.port1InterruptsEnabled = false;
-    //     config.port1ClockDisabled = false;
-    //     config.port1TranslationEnabled = false;
+    // Set controller config up for testing.
+    {
+        // Get the PS/2 controller config and set things up so we can run tests.
+        var config = ctrl.pollConfig();
+        config.port1_interrupts_enabled = false;
+        config.port1_clock_disabled = false;
+        config.port1_translation_enabled = false;
 
-    //     // Write the config back
-    //     ctrl.writeConfig(config);
-    // }
+        // Write the config back
+        ctrl.writeConfig(config);
+    }
 
     // // Perform controller self-test.
     // {
@@ -140,7 +140,7 @@ pub fn init() void {
         }
 
         // Get the PS/2 controller config and re-enable interrupts
-        var config = ctrl.waitConfig();
+        var config = ctrl.pollConfig();
         config.port1_interrupts_enabled = true;
         config.port2_interrupts_enabled = true;
         config.port1_clock_disabled = false;
