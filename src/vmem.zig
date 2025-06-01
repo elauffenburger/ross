@@ -15,7 +15,7 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
-var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xC0000000 };
+var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xc0000000 };
 
 // HACK: this should just be proc 0 in our processes lookup!
 var kernel_proc: proc.Process = .{
@@ -26,10 +26,11 @@ var kernel_proc: proc.Process = .{
 var shared_proc_vm = ProcessVirtualMemory{};
 
 pub fn init() !void {
-    vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
-
     // Identity-map the kernel into the kernel_proc.
     try mapPages(&kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
+
+    // Map the kernel into the shared process virtual memory.
+    try mapPages(&shared_proc_vm, 0, kernel_start_virt_addr, 0xffffffff - kernel_start_virt_addr.addr);
 
     // Enable paging!
     enablePaging(&kernel_proc.vm);
