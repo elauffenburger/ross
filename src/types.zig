@@ -1,29 +1,38 @@
 const std = @import("std");
 
-pub fn Exclude(T: type, exclude: anytype) type {
+// Excludes the fields in exclude_fields from the type T.
+//
+// The resulting type will have the following qualities:
+//   - Any decls from T will be removed
+//   - The layout will be converted to .auto
+//   - Any backing integer will be removed
+//
+// Because of these restrictions, this is really only useful for "constructor args" types
+// that use `Exclude` to exclude some properties and `And` to override them with a different type.
+pub fn Exclude(T: type, exclude_fields: anytype) type {
     // Make sure T is a struct.
     switch (@typeInfo(T)) {
         .@"struct" => {},
         else => @compileError(std.fmt.comptimePrint("T must be a struct but was {any}", .{@TypeOf(T)})),
     }
-    const t = @typeInfo(T).@"struct";
+    const typ = @typeInfo(T).@"struct";
 
     // Make sure exclude is a tuple of strings.
-    switch (@typeInfo(@TypeOf(exclude))) {
+    switch (@typeInfo(@TypeOf(exclude_fields))) {
         .@"struct" => |s| {
             if (!s.is_tuple) {
                 @compileError("exclude must be a tuple of strings");
             }
         },
-        else => @compileError(std.fmt.comptimePrint("exclude must be a tuple of strings but was {any}", .{@TypeOf(exclude)})),
+        else => @compileError(std.fmt.comptimePrint("exclude must be a tuple of strings but was {any}", .{@TypeOf(exclude_fields)})),
     }
-    const excl = @typeInfo(@TypeOf(exclude)).@"struct";
+    const excl_fields = @typeInfo(@TypeOf(exclude_fields)).@"struct";
 
     // Copy over fields that aren't defined in exclude.
-    var fields: [t.fields.len - excl.fields.len]std.builtin.Type.StructField = undefined;
+    var fields: [typ.fields.len - excl_fields.fields.len]std.builtin.Type.StructField = undefined;
     var field_i = 0;
-    fields_loop: for (t.fields) |f| {
-        for (exclude) |exclude_field_name| {
+    fields_loop: for (typ.fields) |f| {
+        for (exclude_fields) |exclude_field_name| {
             if (std.mem.eql(u8, f.name, exclude_field_name)) {
                 continue :fields_loop;
             }
@@ -44,6 +53,15 @@ pub fn Exclude(T: type, exclude: anytype) type {
     });
 }
 
+// Adds the fields in `and` to `T`.
+//
+// The resulting type will have the following qualities:
+//   - Any decls from T will be removed
+//   - The layout will be converted to .auto
+//   - Any backing integer will be removed
+//
+// Because of these restrictions, this is really only useful for "constructor args" types
+// that use `Exclude` to exclude some properties and `And` to override them with a different type.
 pub fn And(T: type, @"and": type) type {
     // Make sure T is a struct.
     switch (@typeInfo(T)) {
