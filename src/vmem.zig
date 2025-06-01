@@ -30,8 +30,10 @@ var kernel_first_page_table: [1024]Page align(4096) = undefined;
 pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
-    // Create page directory.
     kernel_proc.vm.page_dir = &kernel_page_dir;
+    kernel_proc.vm.page_tables[0] = &kernel_first_page_table;
+
+    // Create page directory.
     for (0..kernel_page_dir.len) |i| {
         kernel_page_dir[i] = .{
             .rw = true,
@@ -98,10 +100,8 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn pageTable(self: @This()) PageTable {
-        return .{
-            .pages = @ptrFromInt(@as(u32, self.addr) << 12),
-        };
+    pub fn pageTable(self: @This()) *[1024]Page {
+        return @ptrFromInt(@as(u32, self.addr) << 12);
     }
 };
 
@@ -132,10 +132,7 @@ pub const ProcessVirtualMemory = struct {
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
     page_dir: *[1024]PageDirectoryEntry = undefined,
-};
-
-const PageTable = struct {
-    pages: *[1024]Page = undefined,
+    page_tables: [1024]*[1024]Page = undefined,
 };
 
 pub const VirtualAddress = packed struct(u32) {
