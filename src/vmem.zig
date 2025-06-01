@@ -33,9 +33,10 @@ pub fn init() !void {
 
         break :blk @intFromFloat(@ceil(kernel_size / bytes_per_page));
     };
+    _ = num_kernel_pages; // autofix
 
     // Identity-map the entire memory space into the kernel process.
-    try mapPages(&kernel_proc.vm, .kernel, 0, .{ .addr = 0 }, num_kernel_pages);
+    try identityMapKernel();
 
     // Map the kernel into the higher half of memory in the shared proc page dir for userspace programs.
     // try mapPages(&shared_proc_vm, .kernel, kernelStartPhysAddr(), kernel_start_virt_addr, num_kernel_pages);
@@ -57,96 +58,23 @@ pub fn enablePaging() void {
     );
 }
 
+var kernel_page_directory: [1024]PageDirectoryEntry align(4096) = undefined;
+
+var kernel_page_table: [1024]Page align(4096) = undefined;
+
+fn identityMapKernel() !void {
+    kernel_proc.vm.page_dir[0] = @bitCast(3 & (@intFromPtr(&kernel_page_table) >> 12));
+    for (0..kernel_page_table.len) |i| {
+        kernel_page_table[i] = @bitCast(3 & (4096 * i));
+    }
+}
+
 pub fn mapKernelIntoProcessVM(vm: *ProcessVirtualMemory) void {
     const kernel_start_dir = kernel_start_virt_addr.dir();
 
     for (kernel_start_dir..shared_proc_vm.page_dir.len) |i| {
         // Map in the existing kernel table from the shared page dir.
         vm.page_dir[i] = shared_proc_vm.page_dir[i];
-    }
-}
-
-pub fn mapPages(vm: *ProcessVirtualMemory, privilege: enum { kernel, userspace }, start_phys_addr: u32, start_virt_addr: VirtualAddress, num_pages: u32) !void {
-    var curr_dir = start_virt_addr.dir();
-    var curr_page = start_virt_addr.page();
-
-    const end_phys_address = start_phys_addr + (num_pages * Page.NumBytesManaged);
-    _ = end_phys_address; // autofix
-    // vga.printf("paging from phys addresses 0x{x} to 0x{x}\n", .{ start_phys_addr, end_phys_address });
-
-    var num_pages_written: usize = 0;
-    dir_loop: while (true) {
-        const page_table: *PageTable = @ptrCast((try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1)).ptr);
-
-        const page_table_real_addr: u32 = @intFromPtr(page_table);
-        const page_table_addr: u20 = @truncate(page_table_real_addr >> 12);
-
-        const dir_entry = &vm.page_dir[curr_dir];
-        dir_entry.* = switch (privilege) {
-            .kernel => .{
-                .present = true,
-                .rw = true,
-                .userAccessible = true,
-                .pwt = .writeBack,
-                .cacheDisable = false,
-                .accessed = false,
-                .pageSize = .@"4KiB",
-                .addr = page_table_addr,
-            },
-            .userspace => .{
-                .present = true,
-                .rw = false,
-                .userAccessible = true,
-                .pwt = .writeThrough,
-                .cacheDisable = false,
-                .accessed = false,
-                .pageSize = .@"4KiB",
-                .addr = page_table_addr,
-            },
-        };
-
-        for (curr_page..PageTable.NumPages) |page_i| {
-            // If we've written the number of pages we were supposed to, bail!
-            if (num_pages_written == num_pages) {
-                break :dir_loop;
-            }
-
-            const addr = start_phys_addr + (num_pages_written * Page.NumBytesManaged);
-            const addr_trunc: u20 = @truncate(addr >> 12);
-
-            page_table.pages[page_i] = switch (privilege) {
-                .kernel => .{
-                    .present = true,
-                    .rw = true,
-                    .userAccessible = true,
-                    .pwt = .writeBack,
-                    .cacheDisable = false,
-                    .accessed = false,
-                    .dirty = false,
-                    .pat = false,
-                    .global = false,
-                    .addr = addr_trunc,
-                },
-                .userspace => .{
-                    .present = true,
-                    .rw = false,
-                    .userAccessible = true,
-                    .pwt = .writeThrough,
-                    .cacheDisable = false,
-                    .accessed = false,
-                    .dirty = false,
-                    .pat = false,
-                    .global = true,
-                    .addr = addr_trunc,
-                },
-            };
-
-            num_pages_written += 1;
-        }
-
-        // Looks like we wrote the entire page table; go to the next one!
-        curr_dir += 1;
-        curr_page = 0;
     }
 }
 
@@ -175,7 +103,7 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn pageTable(self: @This()) *PageTable {
+    pub fn pageTable(self: @This()) [num_pages_in_table]Page {
         return @ptrFromInt(@as(u32, self.addr) << 12);
     }
 };
@@ -200,6 +128,8 @@ pub const Page = packed struct(u32) {
     addr: u20,
 };
 
+const num_pages_in_table = 1024;
+
 pub const ProcessVirtualMemory = struct {
     // Each process gets its own page directory and each page dir entry has an associated page table.
     //
@@ -210,14 +140,7 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: [1024]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** 1024,
-};
-
-pub const PageTable = struct {
-    pub const NumPages = 1024;
-
-    // Each entry in a page table is initially marked not present.
-    pages: [1024]Page = [_]Page{@bitCast(@as(u32, 0))} ** 1024,
+    page_dir: [num_pages_in_table]PageDirectoryEntry = [_]PageDirectoryEntry{@bitCast(@as(u32, 0))} ** num_pages_in_table,
 };
 
 pub const VirtualAddress = packed struct(u32) {
