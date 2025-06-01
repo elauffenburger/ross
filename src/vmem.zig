@@ -29,7 +29,7 @@ pub fn init() !void {
     vga.printf("page_dir_addr: 0x{x}.....................\n", .{@intFromPtr(&kernel_proc.vm.page_dir)});
 
     // Identity-map the kernel into the kernel_proc.
-    try identityMapKernel(&kernel_proc.vm);
+    try mapPages(&kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
 
     // Enable paging!
     enablePaging(&kernel_proc.vm);
@@ -48,20 +48,15 @@ pub fn enablePaging(vm: *ProcessVirtualMemory) void {
     );
 }
 
-fn identityMapKernel(vm: *ProcessVirtualMemory) !void {
-    // Init page directory.
-    for (0..vm.page_dir.len) |i| {
-        vm.page_dir[i] = .{
-            .rw = true,
-        };
-    }
+fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: VirtualAddress, num_bytes: u32) !void {
+    const num_pages: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_bytes)) / @as(f32, 4096)));
+    const num_tables: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_pages)) / @as(f32, 1024)));
 
-    const kernel_size = kernelSize();
+    const start_table, const end_table = .{ start_virt_add.table(), start_virt_add.table() + num_tables };
 
-    // Map page tables into the page dir until we've mapped the entire kernel.
-    var bytes_mapped: u32 = 0;
-    var page_table_i: u32 = 0;
-    fill_page_dir: while (true) {
+    // Map page tables into the page dir until we've mapped all the bytes.
+    var num_pages_mapped: u32 = 0;
+    for (start_table..end_table) |page_table_i| {
         // Create a new page table and add it to the page dir.
         const page_table = try newPageTable();
 
@@ -73,21 +68,22 @@ fn identityMapKernel(vm: *ProcessVirtualMemory) !void {
         });
 
         // Fill the page table.
-        for (0..1024) |page_i| {
-            if (bytes_mapped >= kernel_size) {
-                break :fill_page_dir;
+        for (0..page_table.len) |page_i| {
+            // If we're done mapping pages, we still need to zero out the rest of the pages in the table.
+            if (num_pages_mapped >= num_pages) {
+                page_table[page_i] = .{ .present = false };
+                continue;
             }
 
+            // ...Otherwise, add a new page!
             page_table[page_i] = try Page.new(.{
                 .present = true,
                 .rw = true,
-                .addr = page_i * 4096,
+                .addr = start_phys_addr + (page_i * Page.NumBytesManaged),
             });
 
-            bytes_mapped += 4096;
+            num_pages_mapped += 1;
         }
-
-        page_table_i += 1;
     }
 }
 
@@ -101,7 +97,7 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: PageDirectory align(4096) = undefined,
+    page_dir: PageDirectory align(4096) = [_]PageDirectoryEntry{PageDirectoryEntry{ .rw = true }} ** 1024,
     page_tables: [1024]*PageTable = undefined,
 };
 
@@ -110,7 +106,7 @@ const VirtualAddress = packed struct(u32) {
 
     addr: u32,
 
-    pub fn dir(self: Self) u10 {
+    pub fn table(self: Self) u10 {
         return @truncate(self.addr >> 22);
     }
 
@@ -198,7 +194,7 @@ const Page = packed struct(u32) {
     pat: bool = false,
     global: bool = false,
     meta: u3 = 0,
-    addr: u20,
+    addr: u20 = 0,
 
     pub fn new(
         args: types.And(
@@ -228,7 +224,7 @@ const Page = packed struct(u32) {
 test "virtual Address 0x00801004" {
     const addr = VirtualAddress{ .addr = 0x00801004 };
 
-    try std.testing.expect(addr.dir() == 0x2);
+    try std.testing.expect(addr.table() == 0x2);
     try std.testing.expect(addr.page() == 0x1);
     try std.testing.expect(addr.offset() == 0x4);
 }
@@ -236,7 +232,7 @@ test "virtual Address 0x00801004" {
 test "virtual Address 0x00132251" {
     const addr = VirtualAddress{ .addr = 0x00132251 };
 
-    try std.testing.expect(addr.dir() == 0x000);
+    try std.testing.expect(addr.table() == 0x000);
     try std.testing.expect(addr.page() == 0x132);
     try std.testing.expect(addr.offset() == 0x251);
 }
