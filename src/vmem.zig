@@ -99,7 +99,7 @@ pub const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn pageTable(self: @This()) PageTable {
+    pub fn pageTable(self: @This()) *PageTable {
         return @ptrFromInt(@as(u32, self.addr) << 12);
     }
 };
@@ -130,11 +130,12 @@ pub const ProcessVirtualMemory = struct {
     //   Page Directory -> Page Table Entry (Page) -> Offset in Page
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
-    page_dir: [1024]PageDirectoryEntry align(4096) = undefined,
-    page_tables: [1024]PageTable = undefined,
+    page_dir: PageDirectory align(4096) = undefined,
+    page_tables: [1024]*PageTable = undefined,
 };
 
-const PageTable = *[1024]Page;
+const PageDirectory = [1024]PageDirectoryEntry;
+const PageTable = [1024]Page;
 
 pub const VirtualAddress = packed struct(u32) {
     const Self = @This();
