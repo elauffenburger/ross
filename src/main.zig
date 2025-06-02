@@ -11,6 +11,7 @@ const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const stack = @import("stack.zig");
 const tables = @import("tables.zig");
+const term = @import("term.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
 
@@ -89,10 +90,17 @@ pub fn kmain() void {
         @panic("failed to init vmem");
     };
 
+    // Init terminal.
+    term.init();
+
     vga.writeStr("hello, zig!\n");
 
     while (true) {
         asm volatile ("hlt");
+
+        term.tick() catch |e| {
+            vga.printf("error ticking term: {any}\n", .{e});
+        };
     }
 }
 
