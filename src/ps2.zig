@@ -731,57 +731,138 @@ const @"cursor right" = Key([_]u8{ 0xE0, 0x74 }, "cursor right", null);
 const @"cursor down" = Key([_]u8{ 0xE0, 0x72 }, "cursor down", null);
 const @"cursor left" = Key([_]u8{ 0xE0, 0x6B }, "cursor left", null);
 
-// const NumberLock = Key([_]u8{0x77}, "NumberLock", null);
-// const ScrollLock = Key([_]u8{0x7E}, "ScrollLock", null);
-// const CapsLock = Key([_]u8{0x58}, "CapsLock", null);
+const KeyName = enum {
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
 
-// const @"(keypad) ." = Key([_]u8{0x71}, "(keypad) .", "");
-// const @"(keypad) 0" = Key([_]u8{0x70}, "(keypad) 0", "");
-// const @"(keypad) 1" = Key([_]u8{0x69}, "(keypad) 1", "");
-// const @"(keypad) 2" = Key([_]u8{0x72}, "(keypad) 2", "");
-// const @"(keypad) 3" = Key([_]u8{0x7A}, "(keypad) 3", "");
-// const @"(keypad) 4" = Key([_]u8{0x6B}, "(keypad) 4", "");
-// const @"(keypad) 5" = Key([_]u8{0x73}, "(keypad) 5", "");
-// const @"(keypad) 6" = Key([_]u8{0x74}, "(keypad) 6", "");
-// const @"(keypad) 7" = Key([_]u8{0x6C}, "(keypad) 7", "");
-// const @"(keypad) 8" = Key([_]u8{0x75}, "(keypad) 8", "");
-// const @"(keypad) 9" = Key([_]u8{0x7D}, "(keypad) 9", "");
-// const @"(keypad) +" = Key([_]u8{0x79}, "(keypad) +", "");
-// const @"(keypad) -" = Key([_]u8{0x7B}, "(keypad) -", "");
-// const @"(keypad) *" = Key([_]u8{0x7C}, "(keypad) *", "");
-// const @"(keypad) /" = Key([_]u8{ 0xE0, 0x4A }, "(keypad) /", "");
-// const @"(keypad) enter" = Key([_]u8{ 0xE0, 0x5A }, "(keypad) enter", "");
+    @"`",
+    @"1",
+    @"2",
+    @"3",
+    @"4",
+    @"5",
+    @"6",
+    @"7",
+    @"8",
+    @"9",
+    @"0",
+    @"-",
+    @"=",
 
-// const @"(multimedia) mute" = Key([_]u8{ 0xE0, 0x23 }, "(multimedia) mute", null);
-// const @"(multimedia) calculator" = Key([_]u8{ 0xE0, 0x2B }, "(multimedia) calculator", null);
-// const @"(multimedia) WWW stop" = Key([_]u8{ 0xE0, 0x28 }, "(multimedia) WWW stop", null);
-// const @"(multimedia) WWW favourites" = Key([_]u8{ 0xE0, 0x18 }, "(multimedia) WWW favourites", null);
-// const @"(multimedia) WWW search" = Key([_]u8{ 0xE0, 0x10 }, "(multimedia) WWW search", null);
-// const @"(multimedia) WWW forward" = Key([_]u8{ 0xE0, 0x30 }, "(multimedia) WWW forward", null);
-// const @"(multimedia) WWW back" = Key([_]u8{ 0xE0, 0x38 }, "(multimedia) WWW back", null);
-// const @"(multimedia) WWW home" = Key([_]u8{ 0xE0, 0x3A }, "(multimedia) WWW home", null);
-// const @"(multimedia) WWW refresh" = Key([_]u8{ 0xE0, 0x20 }, "(multimedia) WWW refresh", null);
-// const @"(multimedia) volume up" = Key([_]u8{ 0xE0, 0x32 }, "(multimedia) volume up", null);
-// const @"(multimedia) volume down" = Key([_]u8{ 0xE0, 0x21 }, "(multimedia) volume down", null);
-// const @"(multimedia) play/pause" = Key([_]u8{ 0xE0, 0x34 }, "(multimedia) play/pause", null);
-// const @"(multimedia) stop" = Key([_]u8{ 0xE0, 0x3B }, "(multimedia) stop", null);
-// const @"(multimedia) next track" = Key([_]u8{ 0xE0, 0x4D }, "(multimedia) next track", null);
-// const @"(multimedia) previous track" = Key([_]u8{ 0xE0, 0x15 }, "(multimedia) previous track", null);
-// const @"(multimedia) media select" = Key([_]u8{ 0xE0, 0x50 }, "(multimedia) media select", null);
-// const @"(multimedia) my computer" = Key([_]u8{ 0xE0, 0x40 }, "(multimedia) my computer", null);
-// const @"(multimedia) email" = Key([_]u8{ 0xE0, 0x48 }, "(multimedia) email", null);
+    space,
+    tab,
+    enter,
+    escape,
+    backspace,
 
-// const @"(ACPI) power" = Key([_]u8{ 0xE0, 0x37 }, "(ACPI) power", null);
-// const @"(ACPI) sleep" = Key([_]u8{ 0xE0, 0x3F }, "(ACPI) sleep", null);
-// const @"(ACPI) wake" = Key([_]u8{ 0xE0, 0x5E }, "(ACPI) wake", null);
+    @"[",
+    @"]",
+    @"\\",
+    @";",
+    @"'",
+    @",",
+    @".",
+    @"/",
 
-// const end = Key([_]u8{ 0xE0, 0x69 }, "end", null);
-// const home = Key([_]u8{ 0xE0, 0x6C }, "home", null);
-// const insert = Key([_]u8{ 0xE0, 0x70 }, "insert", null);
-// const delete = Key([_]u8{ 0xE0, 0x71 }, "delete", null);
-// const @"page up" = Key([_]u8{ 0xE0, 0x7D }, "page up", null);
-// const @"page down" = Key([_]u8{ 0xE0, 0x7A }, "page down", null);
-// const pause = Key([_]u8{ 0xE1, 0x14, 0x77, 0xE1, 0xF0, 0x14, 0xF0, 0x77 }, "pause", null);
-// const @"print screen" = Key([_]u8{ 0xE0, 0x12, 0xE0, 0x7C }, "print screen", null);
+    a,
+    b,
+    c,
+    d,
+    e,
+    f,
+    g,
+    h,
+    i,
+    j,
+    k,
+    l,
+    m,
+    n,
+    o,
+    p,
+    q,
+    r,
+    s,
+    t,
+    u,
+    v,
+    w,
+    x,
+    y,
+    z,
 
-// const apps = Key([_]u8{ 0xE0, 0x2F }, "apps", null);
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+    K,
+    L,
+    M,
+    N,
+    O,
+    P,
+    Q,
+    R,
+    S,
+    T,
+    U,
+    V,
+    W,
+    X,
+    Y,
+    Z,
+
+    @"right alt",
+    @"right shift",
+    @"right control",
+    @"right GUI",
+
+    @"left alt",
+    @"left shift",
+    @"left control",
+    @"left GUI",
+
+    @"cursor up",
+    @"cursor right",
+    @"cursor down",
+    @"cursor left",
+
+    @"~",
+    @"!",
+    @"@",
+    @"#",
+    @"$",
+    @"%",
+    @"^",
+    @"&",
+    @"*",
+    @"(",
+    @")",
+    @"_",
+    @"+",
+
+    @"{",
+    @"}",
+    @"|",
+    @":",
+    @"\"",
+    @"<",
+    @">",
+    @"?",
+};
