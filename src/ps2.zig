@@ -705,7 +705,7 @@ const Keys = KeyMap(&[_]Key{
     Key.new("escape", null, &[_]u8{0x76}),
     Key.new("backspace", null, &[_]u8{0x66}),
 
-    Key.new("&[", "{", &[_]u8{0x54}),
+    Key.new("[", "{", &[_]u8{0x54}),
     Key.new("]", "}", &[_]u8{0x5B}),
     Key.new("\\", "|", &[_]u8{0x5D}),
     Key.new(";", ":", &[_]u8{0x4C}),
