@@ -647,222 +647,195 @@ pub const Device = struct {
     );
 };
 
-const F1 = Key([_]u8{0x05}, "F1", null);
-const F2 = Key([_]u8{0x06}, "F2", null);
-const F3 = Key([_]u8{0x04}, "F3", null);
-const F4 = Key([_]u8{0x0C}, "F4", null);
-const F5 = Key([_]u8{0x03}, "F5", null);
-const F6 = Key([_]u8{0x0B}, "F6", null);
-const F7 = Key([_]u8{0x83}, "F7", null);
-const F8 = Key([_]u8{0x0A}, "F8", null);
-const F9 = Key([_]u8{0x01}, "F9", null);
-const F10 = Key([_]u8{0x09}, "F10", null);
-const F11 = Key([_]u8{0x78}, "F11", null);
-const F12 = Key([_]u8{0x07}, "F12", null);
+const Key = struct {
+    key_name: []const u8,
+    shift_key_name: ?[]const u8,
+    key_code: []const u8,
+    released_key_code: []const u8,
 
-const @"`" = Key([_]u8{0x0E}, "`", "~");
-const @"1" = Key([_]u8{0x16}, "1", "!");
-const @"2" = Key([_]u8{0x1E}, "2", "@");
-const @"3" = Key([_]u8{0x26}, "3", "#");
-const @"4" = Key([_]u8{0x25}, "4", "$");
-const @"5" = Key([_]u8{0x2E}, "5", "%");
-const @"6" = Key([_]u8{0x36}, "6", "^");
-const @"7" = Key([_]u8{0x3D}, "7", "&");
-const @"8" = Key([_]u8{0x3E}, "8", "*");
-const @"9" = Key([_]u8{0x46}, "9", "(");
-const @"0" = Key([_]u8{0x45}, "0", ")");
-const @"-" = Key([_]u8{0x4E}, "-", "_");
-const @"=" = Key([_]u8{0x55}, "=", "+");
+    pub fn new(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) @This() {
+        const released_key_code = blk: {
+            switch (key_code.len) {
+                1 => break :blk &[_]u8{ 0xf0, key_code[0] },
+                2 => break :blk &[_]u8{ key_code[0], 0xf0, key_code[1] },
+                else => @compileError(std.fmt.comptimePrint("not implemented: key code with len {d} ({s})", .{ key_code.len, key_name })),
+            }
+        };
 
-const space = Key([_]u8{0x29}, "space", null);
-const tab = Key([_]u8{0x0D}, "tab", null);
-const enter = Key([_]u8{0x5A}, "enter", null);
-const escape = Key([_]u8{0x76}, "escape", null);
-const backspace = Key([_]u8{0x66}, "backspace", null);
-
-const @"[" = Key([_]u8{0x54}, "[", "{");
-const @"]" = Key([_]u8{0x5B}, "]", "}");
-const @"\\" = Key([_]u8{0x5D}, "\\", "|");
-const @";" = Key([_]u8{0x4C}, ";", ":");
-const @"'" = Key([_]u8{0x52}, "'", "\"");
-const @"," = Key([_]u8{0x41}, ",", "<");
-const @"." = Key([_]u8{0x49}, ".", ">");
-const @"/" = Key([_]u8{0x4A}, "/", "?");
-
-const a = Key([_]u8{0x1C}, "a", "A");
-const b = Key([_]u8{0x32}, "b", "B");
-const c = Key([_]u8{0x21}, "c", "C");
-const d = Key([_]u8{0x23}, "d", "D");
-const e = Key([_]u8{0x24}, "e", "E");
-const f = Key([_]u8{0x2B}, "f", "F");
-const g = Key([_]u8{0x34}, "g", "G");
-const h = Key([_]u8{0x33}, "h", "H");
-const i = Key([_]u8{0x43}, "i", "I");
-const j = Key([_]u8{0x3B}, "j", "J");
-const k = Key([_]u8{0x42}, "k", "K");
-const l = Key([_]u8{0x4B}, "l", "L");
-const m = Key([_]u8{0x3A}, "m", "M");
-const n = Key([_]u8{0x31}, "n", "N");
-const o = Key([_]u8{0x44}, "o", "O");
-const p = Key([_]u8{0x4D}, "p", "P");
-const q = Key([_]u8{0x15}, "q", "Q");
-const r = Key([_]u8{0x2D}, "r", "R");
-const s = Key([_]u8{0x1B}, "s", "S");
-const t = Key([_]u8{0x2C}, "t", "T");
-const u = Key([_]u8{0x3C}, "u", "U");
-const v = Key([_]u8{0x2A}, "v", "V");
-const w = Key([_]u8{0x1D}, "w", "W");
-const x = Key([_]u8{0x22}, "x", "X");
-const y = Key([_]u8{0x35}, "y", "Y");
-const z = Key([_]u8{0x1A}, "z", "Z");
-
-const @"right alt" = Key([_]u8{ 0xE0, 0x11 }, "right alt", null);
-const @"right shift" = Key([_]u8{0x59}, "right shift", null);
-const @"right control" = Key([_]u8{ 0xE0, 0x14 }, "right control", null);
-const @"right GUI" = Key([_]u8{ 0xE0, 0x27 }, "right GUI", null);
-
-const @"left alt" = Key([_]u8{0x11}, "left alt", null);
-const @"left shift" = Key([_]u8{0x12}, "left shift", null);
-const @"left control" = Key([_]u8{0x14}, "left control", null);
-const @"left GUI" = Key([_]u8{ 0xE0, 0x1F }, "left GUI", null);
-
-const @"cursor up" = Key([_]u8{ 0xE0, 0x75 }, "cursor up", null);
-const @"cursor right" = Key([_]u8{ 0xE0, 0x74 }, "cursor right", null);
-const @"cursor down" = Key([_]u8{ 0xE0, 0x72 }, "cursor down", null);
-const @"cursor left" = Key([_]u8{ 0xE0, 0x6B }, "cursor left", null);
-
-const KeyName = enum {
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-
-    @"`",
-    @"1",
-    @"2",
-    @"3",
-    @"4",
-    @"5",
-    @"6",
-    @"7",
-    @"8",
-    @"9",
-    @"0",
-    @"-",
-    @"=",
-
-    space,
-    tab,
-    enter,
-    escape,
-    backspace,
-
-    @"[",
-    @"]",
-    @"\\",
-    @";",
-    @"'",
-    @",",
-    @".",
-    @"/",
-
-    a,
-    b,
-    c,
-    d,
-    e,
-    f,
-    g,
-    h,
-    i,
-    j,
-    k,
-    l,
-    m,
-    n,
-    o,
-    p,
-    q,
-    r,
-    s,
-    t,
-    u,
-    v,
-    w,
-    x,
-    y,
-    z,
-
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-
-    @"right alt",
-    @"right shift",
-    @"right control",
-    @"right GUI",
-
-    @"left alt",
-    @"left shift",
-    @"left control",
-    @"left GUI",
-
-    @"cursor up",
-    @"cursor right",
-    @"cursor down",
-    @"cursor left",
-
-    @"~",
-    @"!",
-    @"@",
-    @"#",
-    @"$",
-    @"%",
-    @"^",
-    @"&",
-    @"*",
-    @"(",
-    @")",
-    @"_",
-    @"+",
-
-    @"{",
-    @"}",
-    @"|",
-    @":",
-    @"\"",
-    @"<",
-    @">",
-    @"?",
+        return .{
+            .key_name = key_name,
+            .shift_key_name = shift_key_name,
+            .key_code = key_code,
+            .released_key_code = released_key_code,
+        };
+    }
 };
+
+const Keys = KeyMap(&[_]Key{
+    Key.new("F1", null, &[_]u8{0x05}),
+    Key.new("F2", null, &[_]u8{0x06}),
+    Key.new("F3", null, &[_]u8{0x04}),
+    Key.new("F4", null, &[_]u8{0x0C}),
+    Key.new("F5", null, &[_]u8{0x03}),
+    Key.new("F6", null, &[_]u8{0x0B}),
+    Key.new("F7", null, &[_]u8{0x83}),
+    Key.new("F8", null, &[_]u8{0x0A}),
+    Key.new("F9", null, &[_]u8{0x01}),
+    Key.new("F10", null, &[_]u8{0x09}),
+    Key.new("F11", null, &[_]u8{0x78}),
+    Key.new("F12", null, &[_]u8{0x07}),
+
+    Key.new("`", "~", &[_]u8{0x0E}),
+    Key.new("1", "!", &[_]u8{0x16}),
+    Key.new("2", "@", &[_]u8{0x1E}),
+    Key.new("3", "#", &[_]u8{0x26}),
+    Key.new("4", "$", &[_]u8{0x25}),
+    Key.new("5", "%", &[_]u8{0x2E}),
+    Key.new("6", "^", &[_]u8{0x36}),
+    Key.new("7", "&", &[_]u8{0x3D}),
+    Key.new("8", "*", &[_]u8{0x3E}),
+    Key.new("9", "(", &[_]u8{0x46}),
+    Key.new("0", ")", &[_]u8{0x45}),
+    Key.new("-", "_", &[_]u8{0x4E}),
+    Key.new("=", "+", &[_]u8{0x55}),
+
+    Key.new("space", null, &[_]u8{0x29}),
+    Key.new("tab", null, &[_]u8{0x0D}),
+    Key.new("enter", null, &[_]u8{0x5A}),
+    Key.new("escape", null, &[_]u8{0x76}),
+    Key.new("backspace", null, &[_]u8{0x66}),
+
+    Key.new("&[", "{", &[_]u8{0x54}),
+    Key.new("]", "}", &[_]u8{0x5B}),
+    Key.new("\\", "|", &[_]u8{0x5D}),
+    Key.new(";", ":", &[_]u8{0x4C}),
+    Key.new("'", "\"", &[_]u8{0x52}),
+    Key.new(",", "<", &[_]u8{0x41}),
+    Key.new(".", ">", &[_]u8{0x49}),
+    Key.new("/", "?", &[_]u8{0x4A}),
+
+    Key.new("a", "A", &[_]u8{0x1C}),
+    Key.new("b", "B", &[_]u8{0x32}),
+    Key.new("c", "C", &[_]u8{0x21}),
+    Key.new("d", "D", &[_]u8{0x23}),
+    Key.new("e", "E", &[_]u8{0x24}),
+    Key.new("f", "F", &[_]u8{0x2B}),
+    Key.new("g", "G", &[_]u8{0x34}),
+    Key.new("h", "H", &[_]u8{0x33}),
+    Key.new("i", "I", &[_]u8{0x43}),
+    Key.new("j", "J", &[_]u8{0x3B}),
+    Key.new("k", "K", &[_]u8{0x42}),
+    Key.new("l", "L", &[_]u8{0x4B}),
+    Key.new("m", "M", &[_]u8{0x3A}),
+    Key.new("n", "N", &[_]u8{0x31}),
+    Key.new("o", "O", &[_]u8{0x44}),
+    Key.new("p", "P", &[_]u8{0x4D}),
+    Key.new("q", "Q", &[_]u8{0x15}),
+    Key.new("r", "R", &[_]u8{0x2D}),
+    Key.new("s", "S", &[_]u8{0x1B}),
+    Key.new("t", "T", &[_]u8{0x2C}),
+    Key.new("u", "U", &[_]u8{0x3C}),
+    Key.new("v", "V", &[_]u8{0x2A}),
+    Key.new("w", "W", &[_]u8{0x1D}),
+    Key.new("x", "X", &[_]u8{0x22}),
+    Key.new("y", "Y", &[_]u8{0x35}),
+    Key.new("z", "Z", &[_]u8{0x1A}),
+
+    Key.new("right alt", null, &[_]u8{ 0xE0, 0x11 }),
+    Key.new("right shift", null, &[_]u8{0x59}),
+    Key.new("right control", null, &[_]u8{ 0xE0, 0x14 }),
+    Key.new("right GUI", null, &[_]u8{ 0xE0, 0x27 }),
+
+    Key.new("left alt", null, &[_]u8{0x11}),
+    Key.new("left shift", null, &[_]u8{0x12}),
+    Key.new("left control", null, &[_]u8{0x14}),
+    Key.new("left GUI", null, &[_]u8{ 0xE0, 0x1F }),
+
+    Key.new("cursor up", null, &[_]u8{ 0xE0, 0x75 }),
+    Key.new("cursor right", null, &[_]u8{ 0xE0, 0x74 }),
+    Key.new("cursor down", null, &[_]u8{ 0xE0, 0x72 }),
+    Key.new("cursor left", null, &[_]u8{ 0xE0, 0x6B }),
+});
+
+fn KeyMap(keys: []const Key) type {
+    // Get the total number of key codes (including shift codes).
+    var num_key_codes = 0;
+    for (keys) |k| {
+        num_key_codes += 1;
+
+        if (k.shift_key_name != null) {
+            num_key_codes += 1;
+        }
+    }
+
+    var key_code_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_key_codes;
+    {
+        var i = 0;
+        for (keys) |k| {
+            key_code_t_fields[i] = .{
+                .name = std.fmt.comptimePrint("{s}", .{k.key_name}),
+                .value = i,
+            };
+            i += 1;
+
+            if (k.shift_key_name) |shift_key_name| {
+                key_code_t_fields[i] = .{
+                    .name = std.fmt.comptimePrint("{s}", .{shift_key_name}),
+                    .value = i,
+                };
+                i += 1;
+            }
+        }
+    }
+
+    const key_code_t = @Type(.{
+        .@"enum" = std.builtin.Type.Enum{
+            .fields = &key_code_t_fields,
+            .decls = &[_]std.builtin.Type.Declaration{},
+            .tag_type = u8,
+            .is_exhaustive = true,
+        },
+    });
+
+    const key_press_t = struct {
+        key: key_code_t,
+        state: enum {
+            pressed,
+            released,
+        },
+    };
+
+    return struct {
+        pub const KeyCode = @FieldType(key_press_t, "key");
+        pub const KeyState = @FieldType(key_press_t, "state");
+
+        pub const KeyPress = key_press_t;
+
+        pub fn keyFromKeyCodes(key_code: []const u8) ?KeyPress {
+            inline for (keys) |k| {
+                if (std.mem.eql(u8, key_code, k.key_code)) {
+                    return .{
+                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
+                        .state = .pressed,
+                    };
+                }
+
+                if (std.mem.eql(u8, key_code, k.released_key_code)) {
+                    return .{
+                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
+                        .state = .pressed,
+                    };
+                }
+            }
+
+            return null;
+        }
+    };
+}
+
+test "keymap: k" {
+    const key = Keys.keyFromKeyCodes(&[_]u8{0x42}).?;
+
+    std.debug.assert(key.key == .k);
+    std.debug.assert(key.state == .pressed);
+}
