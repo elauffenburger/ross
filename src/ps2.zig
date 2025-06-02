@@ -148,8 +148,9 @@ fn Port(comptime port: enum { one, two }) type {
         // HACK: okay, I'm not even sure this is what's happening, but port2 seems to send a null terminator after it sends the health codes; this is basically a hack to still have it report healthy.
         health_check_sends_null_terminator: bool = false,
 
+        // NOTE: this operates as a downwards-growing stack.
         buffer: [128]u8 = undefined,
-        buffer_head: u8 = 0,
+        buffer_head: usize = @typeInfo(@FieldType(Self, "buffer")).array.len,
 
         buf_reader: std.io.AnyReader = undefined,
 
@@ -193,19 +194,19 @@ fn Port(comptime port: enum { one, two }) type {
             const byte = io.inb(IOPort.data);
 
             // TODO: is it okay to just drop a byte like this?
-            if (self.buffer_head == self.buffer.len) {
+            if (self.buffer_head == 0) {
                 return;
             }
 
+            self.buffer_head -= 1;
             self.buffer[self.buffer_head] = byte;
-            self.buffer_head += 1;
         }
 
         const AckErr = error{NotAck};
 
         pub fn waitAck(self: *Self) !void {
             // Wait for some data to become available.
-            while (self.buffer_head == 0) {}
+            while (self.buffer_head == self.buffer.len) {}
 
             // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
             var buf: @TypeOf(self.buffer) = undefined;
@@ -236,12 +237,12 @@ fn Port(comptime port: enum { one, two }) type {
                     const options = if (self.health_check_sends_null_terminator)
                         &[_][]const u8{
                             &[_]u8{ 0xfa, 0xaa, 0x00 },
-                            &[_]u8{ 0xaa, 0xaa, 0x00 },
+                            &[_]u8{ 0xaa, 0xfa, 0x00 },
                         }
                     else
                         &[_][]const u8{
                             &[_]u8{ 0xfa, 0xaa },
-                            &[_]u8{ 0xaa, 0xaa },
+                            &[_]u8{ 0xaa, 0xfa },
                         };
 
                     for (options) |opt| {
@@ -257,7 +258,7 @@ fn Port(comptime port: enum { one, two }) type {
             }
 
             dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port_num)});
-            for (buf) |byte| {
+            for (buf[0..n]) |byte| {
                 dbg(" 0x{x}", .{byte});
             }
             dbg("\n", .{});
@@ -266,14 +267,14 @@ fn Port(comptime port: enum { one, two }) type {
         pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
             var self: *Self = @constCast(@ptrCast(@alignCast(context)));
 
-            // Copy buffer to the destination.
-            @memcpy(buffer[0..self.buffer_head], self.buffer[0..self.buffer_head]);
+            const self_buf_len: usize = self.buffer.len - self.buffer_head;
+            const n = if (buffer.len > self_buf_len) self_buf_len else buffer.len;
 
-            // The number of bytes we copied is whatever the buffer head position was.
-            const n = self.buffer_head;
+            const result = self.buffer[self.buffer_head .. self.buffer_head + n];
+            std.mem.reverse(u8, result);
 
-            // Reset the buffer head.
-            self.buffer_head = 0;
+            @memcpy(buffer[0..n], result);
+            self.buffer_head += n;
 
             return n;
         }
