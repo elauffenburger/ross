@@ -53,7 +53,28 @@ pub export fn _kmain() callconv(.naked) noreturn {
     );
 }
 
-pub fn kmain() void {
+pub const panic = std.debug.FullPanic(panicHandler);
+
+fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
+    vga.writeStr("panic @ ");
+    if (first_trace_addr != null) {
+        vga.printf("0x{x}\n", .{first_trace_addr.?});
+    } else {
+        vga.writeStr("??\n");
+    }
+
+    vga.writeStr(msg);
+    vga.writeCh('\n');
+
+    asm volatile ("cli");
+    while (true) {
+        asm volatile ("hlt");
+    }
+
+    unreachable;
+}
+
+pub fn kmain() !void {
     // Init VGA first so we can debug to screen.
     vga.init();
 
@@ -76,9 +97,7 @@ pub fn kmain() void {
     cmos.unmaskNMIs();
 
     // Enable PS/2 interfaces.
-    ps2.init() catch {
-        @panic("failed to init ps/2 interfaces");
-    };
+    try ps2.init();
 
     // Set up virtual memory.
     //
@@ -86,9 +105,7 @@ pub fn kmain() void {
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
     //
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
-    vmem.init() catch {
-        @panic("failed to init vmem");
-    };
+    try vmem.init();
 
     // Init terminal.
     term.init();
