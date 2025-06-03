@@ -6,6 +6,8 @@ const vga = @import("vga.zig");
 var kb_reader: *std.io.AnyReader = undefined;
 var shift_pressed = false;
 
+var kb_buf: @TypeOf(ps2.port1.buffer) = undefined;
+
 pub fn init() void {
     // Enable scan codes for port1.
     vga.dbg("enabling port1 scan codes...", .{});
@@ -25,11 +27,12 @@ pub fn init() void {
 }
 
 pub fn tick() !void {
-    var buffer: @TypeOf(ps2.port1.buffer) = undefined;
-    const n = try kb_reader.readAll(&buffer);
-
+    const n = try kb_reader.readAll(&kb_buf);
     if (n != 0) {
-        vga.printf("{s}\n", .{std.fmt.fmtSliceHexLower(buffer[0..n])});
+        const key_code = kb_buf[0..n];
+        if (Keys.keyFromKeyCodes(key_code)) |key| {
+            vga.dbg("key_name: {s}, shift_key_name: {s}, state: {s}\n", .{ key.key.key_name, if (key.key.shift_key_name) |shift_key_name| shift_key_name else "none", @tagName(key.state) });
+        }
     }
 }
 
@@ -145,27 +148,27 @@ const Keys = KeyMap(&[_]Key{
 
 fn KeyMap(keys: []const Key) type {
     // Get the total number of key codes (including shift codes).
-    var num_key_codes = 0;
+    var num_keys = 0;
     for (keys) |k| {
-        num_key_codes += 1;
+        num_keys += 1;
 
         if (k.shift_key_name != null) {
-            num_key_codes += 1;
+            num_keys += 1;
         }
     }
 
-    var key_code_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_key_codes;
+    var key_name_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_keys;
     {
         var i = 0;
         for (keys) |k| {
-            key_code_t_fields[i] = .{
+            key_name_t_fields[i] = .{
                 .name = std.fmt.comptimePrint("{s}", .{k.key_name}),
                 .value = i,
             };
             i += 1;
 
             if (k.shift_key_name) |shift_key_name| {
-                key_code_t_fields[i] = .{
+                key_name_t_fields[i] = .{
                     .name = std.fmt.comptimePrint("{s}", .{shift_key_name}),
                     .value = i,
                 };
@@ -174,9 +177,9 @@ fn KeyMap(keys: []const Key) type {
         }
     }
 
-    const key_code_t = @Type(.{
+    const key_name_t = @Type(.{
         .@"enum" = std.builtin.Type.Enum{
-            .fields = &key_code_t_fields,
+            .fields = &key_name_t_fields,
             .decls = &[_]std.builtin.Type.Declaration{},
             .tag_type = u8,
             .is_exhaustive = true,
@@ -184,7 +187,8 @@ fn KeyMap(keys: []const Key) type {
     });
 
     const key_press_t = struct {
-        key: key_code_t,
+        key_name: key_name_t,
+        key: Key,
         state: enum {
             pressed,
             released,
@@ -192,7 +196,7 @@ fn KeyMap(keys: []const Key) type {
     };
 
     return struct {
-        pub const KeyCode = @FieldType(key_press_t, "key");
+        pub const KeyName = key_name_t;
         pub const KeyState = @FieldType(key_press_t, "state");
 
         pub const KeyPress = key_press_t;
@@ -201,15 +205,17 @@ fn KeyMap(keys: []const Key) type {
             inline for (keys) |k| {
                 if (std.mem.eql(u8, key_code, k.key_code)) {
                     return .{
-                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
+                        .key_name = std.meta.stringToEnum(KeyName, k.key_name).?,
+                        .key = k,
                         .state = .pressed,
                     };
                 }
 
                 if (std.mem.eql(u8, key_code, k.released_key_code)) {
                     return .{
-                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
-                        .state = .pressed,
+                        .key_name = std.meta.stringToEnum(KeyName, k.key_name).?,
+                        .key = k,
+                        .state = .released,
                     };
                 }
             }
@@ -222,6 +228,6 @@ fn KeyMap(keys: []const Key) type {
 test "keymap: k" {
     const key = Keys.keyFromKeyCodes(&[_]u8{0x42}).?;
 
-    std.debug.assert(key.key == .k);
+    std.debug.assert(key.key_name == .k);
     std.debug.assert(key.state == .pressed);
 }

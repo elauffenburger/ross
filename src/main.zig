@@ -4,6 +4,7 @@ const cmos = @import("cmos.zig");
 const cpu = @import("cpu.zig");
 const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
+const kb = @import("keyboard.zig");
 const kstd = @import("kstd.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
@@ -107,18 +108,26 @@ pub fn kmain() !void {
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
     try vmem.init();
 
+    // Init keyboard interface.
+    kb.init();
+
     // Init terminal.
     term.init();
 
     vga.writeStr("hello, zig!\n");
 
     while (true) {
-        asm volatile ("hlt");
-
-        term.tick() catch |e| {
-            vga.printf("error ticking term: {any}\n", .{e});
+        tick() catch |e| {
+            vga.dbg("error ticking {any}\n", .{e});
         };
+
+        asm volatile ("hlt");
     }
+}
+
+fn tick() !void {
+    try kb.tick();
+    try term.tick();
 }
 
 test {
