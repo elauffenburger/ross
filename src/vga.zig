@@ -131,3 +131,19 @@ fn newline() void {
         curr_y = 0;
     }
 }
+
+pub var debugVerbosity: enum(u8) { none, debug, v } = .v;
+
+pub fn dbg(comptime format: []const u8, args: anytype) void {
+    debugLog(format, args, .debug);
+}
+
+pub fn dbgv(comptime format: []const u8, args: anytype) void {
+    debugLog(format, args, .v);
+}
+
+pub fn debugLog(comptime format: []const u8, args: anytype, verbosity: @TypeOf(debugVerbosity)) void {
+    if (@intFromEnum(debugVerbosity) >= @intFromEnum(verbosity)) {
+        printf(format, args);
+    }
+}

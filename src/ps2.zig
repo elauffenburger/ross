@@ -18,20 +18,6 @@ pub fn init() !void {
 
     // Run tests.
     try testInterface();
-
-    // Enable scan codes for port1.
-    dbg("enabling port1 scan codes...", .{});
-    port1.writeData(Device.EnableScanning.C);
-
-    // Enable typematic for port1.
-    dbg("enabling port1 typematic settings...", .{});
-    port1.writeData(Device.SetTypematic.C);
-    port1.writeData(@bitCast(
-        Device.SetTypematic.D{
-            .repeat_rate = 31,
-            .delay = .@"750ms",
-        },
-    ));
 }
 
 fn testInterface() !void {
@@ -60,9 +46,9 @@ fn testInterface() !void {
 
         const res = ctrl.pollData();
         if (res == @intFromEnum(Ctrl.TestCtrl.R.passed)) {
-            vga.printf("ps/2 self-test: pass!\n", .{});
+            vga.dbg("ps/2 self-test: pass!\n", .{});
         } else {
-            vga.printf("ps/2 self-test: fail! ({b})\n", .{res});
+            vga.dbg("ps/2 self-test: fail! ({b})\n", .{res});
         }
     }
 
@@ -84,9 +70,9 @@ fn testInterface() !void {
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort1.R.passed)) {
-                vga.printf("ps/2 interface 1 test: pass!\n", .{});
+                vga.dbg("ps/2 interface 1 test: pass!\n", .{});
             } else {
-                vga.printf("ps/2 interface 1 test: fail! ({b})\n", .{res});
+                vga.dbg("ps/2 interface 1 test: fail! ({b})\n", .{res});
             }
         }
 
@@ -96,9 +82,9 @@ fn testInterface() !void {
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort2.R.passed)) {
-                vga.printf("ps/2 interface 2 test: pass!\n", .{});
+                vga.dbg("ps/2 interface 2 test: pass!\n", .{});
             } else {
-                vga.printf("ps/2 interface 2 test: fail! ({b})\n", .{res});
+                vga.dbg("ps/2 interface 2 test: fail! ({b})\n", .{res});
             }
         }
     }
@@ -172,7 +158,7 @@ fn Port(comptime port: enum { one, two }) type {
 
             // Wait for the input buffer to be clear.
             while (ctrl.status().input_buf_full) {
-                dbgv("waiting on input buffer...\n", .{});
+                vga.dbgv("waiting on input buffer...\n", .{});
             }
 
             // Write our byte.
@@ -184,9 +170,9 @@ fn Port(comptime port: enum { one, two }) type {
 
             // Wait for an ACK.
             if (port1.waitAck()) {
-                dbg("ok!\n", .{});
+                vga.dbg("ok!\n", .{});
             } else |e| {
-                dbg("failed to ack: {any}\n", .{e});
+                vga.dbg("failed to ack: {any}\n", .{e});
             }
         }
 
@@ -229,7 +215,7 @@ fn Port(comptime port: enum { one, two }) type {
             chk: switch (n) {
                 0 => unreachable,
                 1 => switch (buf[0]) {
-                    0xfc => dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port_num)}),
+                    0xfc => vga.dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port_num)}),
                     else => break :chk,
                 },
                 2, 3 => {
@@ -248,7 +234,7 @@ fn Port(comptime port: enum { one, two }) type {
                     for (options) |opt| {
                         if (std.mem.eql(u8, buf[0..n], opt)) {
                             self.healthy = true;
-                            dbg("ps/2 port {s} healthy!\n", .{@tagName(self.port_num)});
+                            vga.dbg("ps/2 port {s} healthy!\n", .{@tagName(self.port_num)});
 
                             return;
                         }
@@ -257,11 +243,11 @@ fn Port(comptime port: enum { one, two }) type {
                 else => break :chk,
             }
 
-            dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port_num)});
+            vga.dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port_num)});
             for (buf[0..n]) |byte| {
-                dbg(" 0x{x}", .{byte});
+                vga.dbg(" 0x{x}", .{byte});
             }
-            dbg("\n", .{});
+            vga.dbg("\n", .{});
         }
 
         pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
@@ -315,7 +301,7 @@ const ctrl = struct {
     pub fn pollData() u8 {
         // Wait for the controller to write the response.
         while (!status().output_buf_full) {
-            dbgv("waiting for polled byte...\n", .{});
+            vga.dbgv("waiting for polled byte...\n", .{});
         }
 
         // Read the response.
@@ -329,18 +315,10 @@ const ctrl = struct {
     pub fn flushData() void {
         while (status().output_buf_full) {
             const byte = io.inb(IOPort.data);
-            dbgv("flushing 0x{x}\n", .{byte});
+            vga.dbgv("flushing 0x{x}\n", .{byte});
         }
     }
 };
-
-fn dbg(comptime format: []const u8, args: anytype) void {
-    vga.printf(format, args);
-}
-
-fn dbgv(comptime format: []const u8, args: anytype) void {
-    vga.printf(format, args);
-}
 
 const CtrlOutputPort = packed struct(u8) {
     reset: bool = true,
@@ -646,196 +624,3 @@ pub const Device = struct {
         },
     );
 };
-
-const Key = struct {
-    key_name: []const u8,
-    shift_key_name: ?[]const u8,
-    key_code: []const u8,
-    released_key_code: []const u8,
-
-    pub fn new(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) @This() {
-        const released_key_code = blk: {
-            switch (key_code.len) {
-                1 => break :blk &[_]u8{ 0xf0, key_code[0] },
-                2 => break :blk &[_]u8{ key_code[0], 0xf0, key_code[1] },
-                else => @compileError(std.fmt.comptimePrint("not implemented: key code with len {d} ({s})", .{ key_code.len, key_name })),
-            }
-        };
-
-        return .{
-            .key_name = key_name,
-            .shift_key_name = shift_key_name,
-            .key_code = key_code,
-            .released_key_code = released_key_code,
-        };
-    }
-};
-
-const Keys = KeyMap(&[_]Key{
-    Key.new("F1", null, &[_]u8{0x05}),
-    Key.new("F2", null, &[_]u8{0x06}),
-    Key.new("F3", null, &[_]u8{0x04}),
-    Key.new("F4", null, &[_]u8{0x0C}),
-    Key.new("F5", null, &[_]u8{0x03}),
-    Key.new("F6", null, &[_]u8{0x0B}),
-    Key.new("F7", null, &[_]u8{0x83}),
-    Key.new("F8", null, &[_]u8{0x0A}),
-    Key.new("F9", null, &[_]u8{0x01}),
-    Key.new("F10", null, &[_]u8{0x09}),
-    Key.new("F11", null, &[_]u8{0x78}),
-    Key.new("F12", null, &[_]u8{0x07}),
-
-    Key.new("`", "~", &[_]u8{0x0E}),
-    Key.new("1", "!", &[_]u8{0x16}),
-    Key.new("2", "@", &[_]u8{0x1E}),
-    Key.new("3", "#", &[_]u8{0x26}),
-    Key.new("4", "$", &[_]u8{0x25}),
-    Key.new("5", "%", &[_]u8{0x2E}),
-    Key.new("6", "^", &[_]u8{0x36}),
-    Key.new("7", "&", &[_]u8{0x3D}),
-    Key.new("8", "*", &[_]u8{0x3E}),
-    Key.new("9", "(", &[_]u8{0x46}),
-    Key.new("0", ")", &[_]u8{0x45}),
-    Key.new("-", "_", &[_]u8{0x4E}),
-    Key.new("=", "+", &[_]u8{0x55}),
-
-    Key.new("space", null, &[_]u8{0x29}),
-    Key.new("tab", null, &[_]u8{0x0D}),
-    Key.new("enter", null, &[_]u8{0x5A}),
-    Key.new("escape", null, &[_]u8{0x76}),
-    Key.new("backspace", null, &[_]u8{0x66}),
-
-    Key.new("[", "{", &[_]u8{0x54}),
-    Key.new("]", "}", &[_]u8{0x5B}),
-    Key.new("\\", "|", &[_]u8{0x5D}),
-    Key.new(";", ":", &[_]u8{0x4C}),
-    Key.new("'", "\"", &[_]u8{0x52}),
-    Key.new(",", "<", &[_]u8{0x41}),
-    Key.new(".", ">", &[_]u8{0x49}),
-    Key.new("/", "?", &[_]u8{0x4A}),
-
-    Key.new("a", "A", &[_]u8{0x1C}),
-    Key.new("b", "B", &[_]u8{0x32}),
-    Key.new("c", "C", &[_]u8{0x21}),
-    Key.new("d", "D", &[_]u8{0x23}),
-    Key.new("e", "E", &[_]u8{0x24}),
-    Key.new("f", "F", &[_]u8{0x2B}),
-    Key.new("g", "G", &[_]u8{0x34}),
-    Key.new("h", "H", &[_]u8{0x33}),
-    Key.new("i", "I", &[_]u8{0x43}),
-    Key.new("j", "J", &[_]u8{0x3B}),
-    Key.new("k", "K", &[_]u8{0x42}),
-    Key.new("l", "L", &[_]u8{0x4B}),
-    Key.new("m", "M", &[_]u8{0x3A}),
-    Key.new("n", "N", &[_]u8{0x31}),
-    Key.new("o", "O", &[_]u8{0x44}),
-    Key.new("p", "P", &[_]u8{0x4D}),
-    Key.new("q", "Q", &[_]u8{0x15}),
-    Key.new("r", "R", &[_]u8{0x2D}),
-    Key.new("s", "S", &[_]u8{0x1B}),
-    Key.new("t", "T", &[_]u8{0x2C}),
-    Key.new("u", "U", &[_]u8{0x3C}),
-    Key.new("v", "V", &[_]u8{0x2A}),
-    Key.new("w", "W", &[_]u8{0x1D}),
-    Key.new("x", "X", &[_]u8{0x22}),
-    Key.new("y", "Y", &[_]u8{0x35}),
-    Key.new("z", "Z", &[_]u8{0x1A}),
-
-    Key.new("right alt", null, &[_]u8{ 0xE0, 0x11 }),
-    Key.new("right shift", null, &[_]u8{0x59}),
-    Key.new("right control", null, &[_]u8{ 0xE0, 0x14 }),
-    Key.new("right GUI", null, &[_]u8{ 0xE0, 0x27 }),
-
-    Key.new("left alt", null, &[_]u8{0x11}),
-    Key.new("left shift", null, &[_]u8{0x12}),
-    Key.new("left control", null, &[_]u8{0x14}),
-    Key.new("left GUI", null, &[_]u8{ 0xE0, 0x1F }),
-
-    Key.new("cursor up", null, &[_]u8{ 0xE0, 0x75 }),
-    Key.new("cursor right", null, &[_]u8{ 0xE0, 0x74 }),
-    Key.new("cursor down", null, &[_]u8{ 0xE0, 0x72 }),
-    Key.new("cursor left", null, &[_]u8{ 0xE0, 0x6B }),
-});
-
-fn KeyMap(keys: []const Key) type {
-    // Get the total number of key codes (including shift codes).
-    var num_key_codes = 0;
-    for (keys) |k| {
-        num_key_codes += 1;
-
-        if (k.shift_key_name != null) {
-            num_key_codes += 1;
-        }
-    }
-
-    var key_code_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_key_codes;
-    {
-        var i = 0;
-        for (keys) |k| {
-            key_code_t_fields[i] = .{
-                .name = std.fmt.comptimePrint("{s}", .{k.key_name}),
-                .value = i,
-            };
-            i += 1;
-
-            if (k.shift_key_name) |shift_key_name| {
-                key_code_t_fields[i] = .{
-                    .name = std.fmt.comptimePrint("{s}", .{shift_key_name}),
-                    .value = i,
-                };
-                i += 1;
-            }
-        }
-    }
-
-    const key_code_t = @Type(.{
-        .@"enum" = std.builtin.Type.Enum{
-            .fields = &key_code_t_fields,
-            .decls = &[_]std.builtin.Type.Declaration{},
-            .tag_type = u8,
-            .is_exhaustive = true,
-        },
-    });
-
-    const key_press_t = struct {
-        key: key_code_t,
-        state: enum {
-            pressed,
-            released,
-        },
-    };
-
-    return struct {
-        pub const KeyCode = @FieldType(key_press_t, "key");
-        pub const KeyState = @FieldType(key_press_t, "state");
-
-        pub const KeyPress = key_press_t;
-
-        pub fn keyFromKeyCodes(key_code: []const u8) ?KeyPress {
-            inline for (keys) |k| {
-                if (std.mem.eql(u8, key_code, k.key_code)) {
-                    return .{
-                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
-                        .state = .pressed,
-                    };
-                }
-
-                if (std.mem.eql(u8, key_code, k.released_key_code)) {
-                    return .{
-                        .key = std.meta.stringToEnum(KeyCode, k.key_name).?,
-                        .state = .pressed,
-                    };
-                }
-            }
-
-            return null;
-        }
-    };
-}
-
-test "keymap: k" {
-    const key = Keys.keyFromKeyCodes(&[_]u8{0x42}).?;
-
-    std.debug.assert(key.key == .k);
-    std.debug.assert(key.state == .pressed);
-}

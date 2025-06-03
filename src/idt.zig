@@ -61,24 +61,30 @@ fn loadIdt() void {
 }
 
 const int_handlers = GenInterruptHandlers(struct {
+    // Double Fault
     pub fn exc08() void {
         vga.printf("shit\n", .{});
     }
 
+    // General Protection Fault
     pub fn exc13(err_code: u32) void {
         _ = err_code; // autofix
     }
 
+    // Page Fault
     pub fn exc14(err_code: u32) void {
         _ = err_code; // autofix
     }
 
+    // PIT
     pub fn irq0() void {}
 
+    // PS/2 keyboard
     pub fn irq1() void {
         ps2.port1.recv();
     }
 
+    // RTC
     pub fn irq8() void {
         rtc.tick();
 
@@ -86,6 +92,7 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = rtc.regc();
     }
 
+    // PS/2 mouse
     pub fn irq12() void {
         ps2.port2.recv();
     }
