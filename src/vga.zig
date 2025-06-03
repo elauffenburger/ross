@@ -1,8 +1,8 @@
 const std = @import("std");
 const fmt = std.fmt;
 
-var width: u32 = 80;
-var height: u32 = 30;
+const width: u32 = 80;
+const height: u32 = 26;
 
 var curr_y: usize = 0;
 var curr_x: usize = 0;
@@ -128,8 +128,23 @@ fn newline() void {
 
     curr_y += 1;
     if (curr_y == height) {
-        curr_y = 0;
+        scroll();
     }
+}
+
+fn scroll() void {
+    // Copy line 1:n of buffer to line 0:(n-1) of new_buf.
+    var new_buf: [width * height]u16 = undefined;
+    @memcpy(new_buf[0..((width * height) - width)], buffer[width..]);
+
+    // Zero out the last line of new_buf.
+    @memcpy(new_buf[((width * height) - width)..], &([_]u16{0} ** width));
+
+    // Copy new_buf to buf.
+    @memcpy(buffer[0 .. width * height], &new_buf);
+
+    curr_x = 0;
+    curr_y = height - 1;
 }
 
 pub var debugVerbosity: enum(u8) { none, debug, v } = .v;
