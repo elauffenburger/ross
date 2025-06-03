@@ -41,118 +41,118 @@ const Key = struct {
     shift_key_name: ?[]const u8,
     key_code: []const u8,
     released_key_code: []const u8,
-
-    pub fn new(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) @This() {
-        const released_key_code = blk: {
-            switch (key_code.len) {
-                1 => break :blk &[_]u8{ 0xf0, key_code[0] },
-                2 => break :blk &[_]u8{ key_code[0], 0xf0, key_code[1] },
-                else => @compileError(std.fmt.comptimePrint("not implemented: key code with len {d} ({s})", .{ key_code.len, key_name })),
-            }
-        };
-
-        return .{
-            .key_name = key_name,
-            .shift_key_name = shift_key_name,
-            .key_code = key_code,
-            .released_key_code = released_key_code,
-        };
-    }
 };
 
+pub fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) Key {
+    const released_key_code = blk: {
+        switch (key_code.len) {
+            1 => break :blk &[_]u8{ 0xf0, key_code[0] },
+            2 => break :blk &[_]u8{ key_code[0], 0xf0, key_code[1] },
+            else => @compileError(std.fmt.comptimePrint("not implemented: key code with len {d} ({s})", .{ key_code.len, key_name })),
+        }
+    };
+
+    return .{
+        .key_name = key_name,
+        .shift_key_name = shift_key_name,
+        .key_code = key_code,
+        .released_key_code = released_key_code,
+    };
+}
+
 const Keys = KeyMap(&[_]Key{
-    Key.new("F1", null, &[_]u8{0x05}),
-    Key.new("F2", null, &[_]u8{0x06}),
-    Key.new("F3", null, &[_]u8{0x04}),
-    Key.new("F4", null, &[_]u8{0x0C}),
-    Key.new("F5", null, &[_]u8{0x03}),
-    Key.new("F6", null, &[_]u8{0x0B}),
-    Key.new("F7", null, &[_]u8{0x83}),
-    Key.new("F8", null, &[_]u8{0x0A}),
-    Key.new("F9", null, &[_]u8{0x01}),
-    Key.new("F10", null, &[_]u8{0x09}),
-    Key.new("F11", null, &[_]u8{0x78}),
-    Key.new("F12", null, &[_]u8{0x07}),
+    k("F1", null, &[_]u8{0x05}),
+    k("F2", null, &[_]u8{0x06}),
+    k("F3", null, &[_]u8{0x04}),
+    k("F4", null, &[_]u8{0x0C}),
+    k("F5", null, &[_]u8{0x03}),
+    k("F6", null, &[_]u8{0x0B}),
+    k("F7", null, &[_]u8{0x83}),
+    k("F8", null, &[_]u8{0x0A}),
+    k("F9", null, &[_]u8{0x01}),
+    k("F10", null, &[_]u8{0x09}),
+    k("F11", null, &[_]u8{0x78}),
+    k("F12", null, &[_]u8{0x07}),
 
-    Key.new("`", "~", &[_]u8{0x0E}),
-    Key.new("1", "!", &[_]u8{0x16}),
-    Key.new("2", "@", &[_]u8{0x1E}),
-    Key.new("3", "#", &[_]u8{0x26}),
-    Key.new("4", "$", &[_]u8{0x25}),
-    Key.new("5", "%", &[_]u8{0x2E}),
-    Key.new("6", "^", &[_]u8{0x36}),
-    Key.new("7", "&", &[_]u8{0x3D}),
-    Key.new("8", "*", &[_]u8{0x3E}),
-    Key.new("9", "(", &[_]u8{0x46}),
-    Key.new("0", ")", &[_]u8{0x45}),
-    Key.new("-", "_", &[_]u8{0x4E}),
-    Key.new("=", "+", &[_]u8{0x55}),
+    k("`", "~", &[_]u8{0x0E}),
+    k("1", "!", &[_]u8{0x16}),
+    k("2", "@", &[_]u8{0x1E}),
+    k("3", "#", &[_]u8{0x26}),
+    k("4", "$", &[_]u8{0x25}),
+    k("5", "%", &[_]u8{0x2E}),
+    k("6", "^", &[_]u8{0x36}),
+    k("7", "&", &[_]u8{0x3D}),
+    k("8", "*", &[_]u8{0x3E}),
+    k("9", "(", &[_]u8{0x46}),
+    k("0", ")", &[_]u8{0x45}),
+    k("-", "_", &[_]u8{0x4E}),
+    k("=", "+", &[_]u8{0x55}),
 
-    Key.new("space", null, &[_]u8{0x29}),
-    Key.new("tab", null, &[_]u8{0x0D}),
-    Key.new("enter", null, &[_]u8{0x5A}),
-    Key.new("escape", null, &[_]u8{0x76}),
-    Key.new("backspace", null, &[_]u8{0x66}),
+    k("space", null, &[_]u8{0x29}),
+    k("tab", null, &[_]u8{0x0D}),
+    k("enter", null, &[_]u8{0x5A}),
+    k("escape", null, &[_]u8{0x76}),
+    k("backspace", null, &[_]u8{0x66}),
 
-    Key.new("[", "{", &[_]u8{0x54}),
-    Key.new("]", "}", &[_]u8{0x5B}),
-    Key.new("\\", "|", &[_]u8{0x5D}),
-    Key.new(";", ":", &[_]u8{0x4C}),
-    Key.new("'", "\"", &[_]u8{0x52}),
-    Key.new(",", "<", &[_]u8{0x41}),
-    Key.new(".", ">", &[_]u8{0x49}),
-    Key.new("/", "?", &[_]u8{0x4A}),
+    k("[", "{", &[_]u8{0x54}),
+    k("]", "}", &[_]u8{0x5B}),
+    k("\\", "|", &[_]u8{0x5D}),
+    k(";", ":", &[_]u8{0x4C}),
+    k("'", "\"", &[_]u8{0x52}),
+    k(",", "<", &[_]u8{0x41}),
+    k(".", ">", &[_]u8{0x49}),
+    k("/", "?", &[_]u8{0x4A}),
 
-    Key.new("a", "A", &[_]u8{0x1C}),
-    Key.new("b", "B", &[_]u8{0x32}),
-    Key.new("c", "C", &[_]u8{0x21}),
-    Key.new("d", "D", &[_]u8{0x23}),
-    Key.new("e", "E", &[_]u8{0x24}),
-    Key.new("f", "F", &[_]u8{0x2B}),
-    Key.new("g", "G", &[_]u8{0x34}),
-    Key.new("h", "H", &[_]u8{0x33}),
-    Key.new("i", "I", &[_]u8{0x43}),
-    Key.new("j", "J", &[_]u8{0x3B}),
-    Key.new("k", "K", &[_]u8{0x42}),
-    Key.new("l", "L", &[_]u8{0x4B}),
-    Key.new("m", "M", &[_]u8{0x3A}),
-    Key.new("n", "N", &[_]u8{0x31}),
-    Key.new("o", "O", &[_]u8{0x44}),
-    Key.new("p", "P", &[_]u8{0x4D}),
-    Key.new("q", "Q", &[_]u8{0x15}),
-    Key.new("r", "R", &[_]u8{0x2D}),
-    Key.new("s", "S", &[_]u8{0x1B}),
-    Key.new("t", "T", &[_]u8{0x2C}),
-    Key.new("u", "U", &[_]u8{0x3C}),
-    Key.new("v", "V", &[_]u8{0x2A}),
-    Key.new("w", "W", &[_]u8{0x1D}),
-    Key.new("x", "X", &[_]u8{0x22}),
-    Key.new("y", "Y", &[_]u8{0x35}),
-    Key.new("z", "Z", &[_]u8{0x1A}),
+    k("a", "A", &[_]u8{0x1C}),
+    k("b", "B", &[_]u8{0x32}),
+    k("c", "C", &[_]u8{0x21}),
+    k("d", "D", &[_]u8{0x23}),
+    k("e", "E", &[_]u8{0x24}),
+    k("f", "F", &[_]u8{0x2B}),
+    k("g", "G", &[_]u8{0x34}),
+    k("h", "H", &[_]u8{0x33}),
+    k("i", "I", &[_]u8{0x43}),
+    k("j", "J", &[_]u8{0x3B}),
+    k("k", "K", &[_]u8{0x42}),
+    k("l", "L", &[_]u8{0x4B}),
+    k("m", "M", &[_]u8{0x3A}),
+    k("n", "N", &[_]u8{0x31}),
+    k("o", "O", &[_]u8{0x44}),
+    k("p", "P", &[_]u8{0x4D}),
+    k("q", "Q", &[_]u8{0x15}),
+    k("r", "R", &[_]u8{0x2D}),
+    k("s", "S", &[_]u8{0x1B}),
+    k("t", "T", &[_]u8{0x2C}),
+    k("u", "U", &[_]u8{0x3C}),
+    k("v", "V", &[_]u8{0x2A}),
+    k("w", "W", &[_]u8{0x1D}),
+    k("x", "X", &[_]u8{0x22}),
+    k("y", "Y", &[_]u8{0x35}),
+    k("z", "Z", &[_]u8{0x1A}),
 
-    Key.new("right alt", null, &[_]u8{ 0xE0, 0x11 }),
-    Key.new("right shift", null, &[_]u8{0x59}),
-    Key.new("right control", null, &[_]u8{ 0xE0, 0x14 }),
-    Key.new("right GUI", null, &[_]u8{ 0xE0, 0x27 }),
+    k("right alt", null, &[_]u8{ 0xE0, 0x11 }),
+    k("right shift", null, &[_]u8{0x59}),
+    k("right control", null, &[_]u8{ 0xE0, 0x14 }),
+    k("right GUI", null, &[_]u8{ 0xE0, 0x27 }),
 
-    Key.new("left alt", null, &[_]u8{0x11}),
-    Key.new("left shift", null, &[_]u8{0x12}),
-    Key.new("left control", null, &[_]u8{0x14}),
-    Key.new("left GUI", null, &[_]u8{ 0xE0, 0x1F }),
+    k("left alt", null, &[_]u8{0x11}),
+    k("left shift", null, &[_]u8{0x12}),
+    k("left control", null, &[_]u8{0x14}),
+    k("left GUI", null, &[_]u8{ 0xE0, 0x1F }),
 
-    Key.new("cursor up", null, &[_]u8{ 0xE0, 0x75 }),
-    Key.new("cursor right", null, &[_]u8{ 0xE0, 0x74 }),
-    Key.new("cursor down", null, &[_]u8{ 0xE0, 0x72 }),
-    Key.new("cursor left", null, &[_]u8{ 0xE0, 0x6B }),
+    k("cursor up", null, &[_]u8{ 0xE0, 0x75 }),
+    k("cursor right", null, &[_]u8{ 0xE0, 0x74 }),
+    k("cursor down", null, &[_]u8{ 0xE0, 0x72 }),
+    k("cursor left", null, &[_]u8{ 0xE0, 0x6B }),
 });
 
 fn KeyMap(keys: []const Key) type {
     // Get the total number of key codes (including shift codes).
     var num_keys = 0;
-    for (keys) |k| {
+    for (keys) |key| {
         num_keys += 1;
 
-        if (k.shift_key_name != null) {
+        if (key.shift_key_name != null) {
             num_keys += 1;
         }
     }
@@ -160,14 +160,14 @@ fn KeyMap(keys: []const Key) type {
     var key_name_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_keys;
     {
         var i = 0;
-        for (keys) |k| {
+        for (keys) |key| {
             key_name_t_fields[i] = .{
-                .name = std.fmt.comptimePrint("{s}", .{k.key_name}),
+                .name = std.fmt.comptimePrint("{s}", .{key.key_name}),
                 .value = i,
             };
             i += 1;
 
-            if (k.shift_key_name) |shift_key_name| {
+            if (key.shift_key_name) |shift_key_name| {
                 key_name_t_fields[i] = .{
                     .name = std.fmt.comptimePrint("{s}", .{shift_key_name}),
                     .value = i,
@@ -202,19 +202,19 @@ fn KeyMap(keys: []const Key) type {
         pub const KeyPress = key_press_t;
 
         pub fn keyFromKeyCodes(key_code: []const u8) ?KeyPress {
-            inline for (keys) |k| {
-                if (std.mem.eql(u8, key_code, k.key_code)) {
+            inline for (keys) |key| {
+                if (std.mem.eql(u8, key_code, key.key_code)) {
                     return .{
-                        .key_name = std.meta.stringToEnum(KeyName, k.key_name).?,
-                        .key = k,
+                        .key_name = std.meta.stringToEnum(KeyName, key.key_name).?,
+                        .key = key,
                         .state = .pressed,
                     };
                 }
 
-                if (std.mem.eql(u8, key_code, k.released_key_code)) {
+                if (std.mem.eql(u8, key_code, key.released_key_code)) {
                     return .{
-                        .key_name = std.meta.stringToEnum(KeyName, k.key_name).?,
-                        .key = k,
+                        .key_name = std.meta.stringToEnum(KeyName, key.key_name).?,
+                        .key = key,
                         .state = .released,
                     };
                 }
