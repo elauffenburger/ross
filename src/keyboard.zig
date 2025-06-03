@@ -5,7 +5,8 @@ const types = @import("types.zig");
 const vga = @import("vga.zig");
 
 var kb_reader: *std.io.AnyReader = undefined;
-var shift_pressed = false;
+var left_shift_held = false;
+var right_shift_held = false;
 
 var kb_buf: @TypeOf(ps2.port1.buffer) = undefined;
 
@@ -32,21 +33,69 @@ pub fn tick() !void {
     if (n != 0) {
         const key_code = kb_buf[0..n];
         if (Keys.keyFromKeyCodes(key_code)) |key| {
-            vga.dbg(
-                "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}\n",
-                .{
-                    key.key.key_name,
-                    if (key.key.key_ascii) |key_ascii| key_ascii else ' ',
-                    if (key.key.shift_key_name) |shift_key_name| shift_key_name else "none",
-                    if (key.key.shift_key_ascii) |shift_key_ascii| shift_key_ascii else ' ',
-                    @tagName(key.state),
-                },
-            );
+            handleKeyPress(key);
         }
     }
 }
 
+inline fn shiftHeld() bool {
+    return left_shift_held or right_shift_held;
+}
+
+fn handleKeyPress(key_press: Keys.KeyPress) void {
+    if (key_press.key.is_char) {
+        // If the key is being released, do nothing.
+        if (key_press.state == .released) {
+            return;
+        }
+
+        // If shift isn't held, send the key_ascii.
+        if (!shiftHeld()) {
+            recv(key_press.key.key_ascii.?);
+            return;
+        }
+
+        // If shift _is_ held and a shift key ascii is available, send it!
+        if (key_press.key.shift_key_ascii) |shift_key_ascii| {
+            recv(shift_key_ascii);
+            return;
+        }
+
+        // ...otherwise send the unshifted key ascii.
+        recv(key_press.key.key_ascii.?);
+        return;
+    }
+
+    switch (key_press.key_name) {
+        .@"left shift" => left_shift_held = key_press.state == .pressed,
+        .@"right shift" => right_shift_held = key_press.state == .pressed,
+        else => {
+            // TODO: handle unknown special key.
+        },
+    }
+}
+
+fn recv(ch: u8) void {
+    // TODO: actually send to terminal.
+    vga.writeCh(ch);
+}
+
+fn debugPrintKey(key: Keys.KeyPress) void {
+    vga.dbg(
+        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}\n",
+        .{
+            key.key.key_name,
+            if (key.key.key_ascii) |key_ascii| key_ascii else ' ',
+            if (key.key.shift_key_name) |shift_key_name| shift_key_name else "none",
+            if (key.key.shift_key_ascii) |shift_key_ascii| shift_key_ascii else ' ',
+            @tagName(key.state),
+        },
+    );
+}
+
 const Key = struct {
+    is_char: bool,
+
     key_name: []const u8,
     key_ascii: ?u8,
 
@@ -68,6 +117,8 @@ const Key = struct {
         };
 
         return .{
+            .is_char = args.is_char,
+
             .key_name = args.key_name,
             .key_ascii = args.key_ascii,
 
@@ -82,6 +133,8 @@ const Key = struct {
 
 pub fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) Key {
     return Key.new(.{
+        .is_char = false,
+
         .key_name = key_name,
         .key_ascii = null,
 
@@ -94,6 +147,8 @@ pub fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8
 
 fn kc(key_ascii: u8, shift_key_ascii: u8, key_code: []const u8) Key {
     return Key.new(.{
+        .is_char = true,
+
         .key_name = std.fmt.comptimePrint("{c}", .{key_ascii}),
         .key_ascii = key_ascii,
 
@@ -168,11 +223,46 @@ const Keys = KeyMap(&[_]Key{
     kc('y', 'Y', &[_]u8{0x35}),
     kc('z', 'Z', &[_]u8{0x1A}),
 
-    k("space", null, &[_]u8{0x29}),
-    k("tab", null, &[_]u8{0x0D}),
-    k("enter", null, &[_]u8{0x5A}),
-    k("escape", null, &[_]u8{0x76}),
-    k("backspace", null, &[_]u8{0x66}),
+    Key.new(.{
+        .is_char = true,
+        .key_name = "backspace",
+        .key_ascii = 0x08,
+        .shift_key_name = null,
+        .shift_key_ascii = null,
+        .key_code = &[_]u8{0x66},
+    }),
+    Key.new(.{
+        .is_char = true,
+        .key_name = "space",
+        .key_ascii = ' ',
+        .shift_key_name = null,
+        .shift_key_ascii = null,
+        .key_code = &[_]u8{0x29},
+    }),
+    Key.new(.{
+        .is_char = true,
+        .key_name = "tab",
+        .key_ascii = '\t',
+        .shift_key_name = null,
+        .shift_key_ascii = null,
+        .key_code = &[_]u8{0x0D},
+    }),
+    Key.new(.{
+        .is_char = true,
+        .key_name = "enter",
+        .key_ascii = '\n',
+        .shift_key_name = null,
+        .shift_key_ascii = null,
+        .key_code = &[_]u8{0x5A},
+    }),
+    Key.new(.{
+        .is_char = true,
+        .key_name = "escape",
+        .key_ascii = 0x1B,
+        .shift_key_name = null,
+        .shift_key_ascii = null,
+        .key_code = &[_]u8{0x76},
+    }),
 
     k("right alt", null, &[_]u8{ 0xE0, 0x11 }),
     k("right shift", null, &[_]u8{0x59}),
