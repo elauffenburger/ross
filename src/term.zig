@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const input = @import("input.zig");
+const kb = @import("keyboard.zig");
 const vga = @import("vga.zig");
 
 // HACK: not sure what the size should actually be here!
@@ -11,8 +12,9 @@ var buf_list = std.ArrayList(u8).init(buf_alloc.allocator());
 pub fn init() void {}
 
 pub fn tick() !void {
-    if (input.dequeueKeyEvents()) |key_events| {
-        for (key_events) |key_ev| {
+    var kb_events: [10]kb.KeyEvent = undefined;
+    if (input.dequeueKeyEvents(&kb_events) != 0) {
+        for (kb_events) |key_ev| {
             if (key_ev.key_press.state != .pressed) {
                 continue;
             }

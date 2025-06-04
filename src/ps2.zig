@@ -179,7 +179,7 @@ const Port = struct {
         const byte = io.inb(IOPort.data);
 
         // TODO: is it okay to just drop a byte like this?
-        if (self.buffer.head == self.buffer.buffer.len) {
+        if (self.buffer.head == self.buffer.buf.len) {
             return error{OutOfMemory}.OutOfMemory;
         }
 

@@ -1,24 +1,22 @@
 const std = @import("std");
 
 const kb = @import("keyboard.zig");
+const kstd = @import("kstd.zig");
 
-var buf = [_]u8{undefined} ** 1024;
-var buffered_events_allocator = std.heap.FixedBufferAllocator.init(&buf);
-var buffered_events = std.ArrayList(kb.KeyEvent).init(buffered_events_allocator.allocator());
+const InputBuffer = kstd.collections.BufferQueue(kb.KeyEvent, 1024);
+
+var buf = InputBuffer{};
 
 pub fn onKeyEvent(key_ev: kb.KeyEvent) !void {
-    try buffered_events.append(key_ev);
+    try buf.append(key_ev);
 }
 
-pub fn dequeueKeyEvents() ?[]kb.KeyEvent {
-    if (buffered_events.items.len == 0) {
-        return null;
+pub fn dequeueKeyEvents(events: []kb.KeyEvent) usize {
+    if (buf.buf.len == 0) {
+        return 0;
     }
 
-    const events = buffered_events.items;
-    buffered_events.clearRetainingCapacity();
-
-    return events;
+    return buf.dequeueSlice(events);
 }
 
 pub fn asciiFromKeyName(key_name: kb.Keys.Key) ?u8 {
