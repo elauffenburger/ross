@@ -121,154 +121,152 @@ fn testInterface() !void {
     }
 }
 
-fn Port(comptime port: enum { one, two }) type {
-    return struct {
-        const Self = @This();
+const Port = struct {
+    const Self = @This();
 
-        port_num: @TypeOf(port) = port,
-        dev_id: ?u8 = null,
+    port: enum { one, two },
+    dev_id: ?u8 = null,
 
-        verified: bool = false,
-        healthy: bool = false,
+    verified: bool = false,
+    healthy: bool = false,
 
-        // HACK: okay, I'm not even sure this is what's happening, but port2 seems to send a null terminator after it sends the health codes; this is basically a hack to still have it report healthy.
-        health_check_sends_null_terminator: bool = false,
+    // HACK: okay, I'm not even sure this is what's happening, but port2 seems to send a null terminator after it sends the health codes; this is basically a hack to still have it report healthy.
+    health_check_sends_null_terminator: bool = false,
 
-        // NOTE: this operates as a downwards-growing stack.
-        buffer: [128]u8 = undefined,
-        buffer_head: usize = @typeInfo(@FieldType(Self, "buffer")).array.len,
+    // NOTE: this operates as a downwards-growing stack.
+    buffer: [128]u8 = undefined,
+    buffer_head: usize = @typeInfo(@FieldType(Self, "buffer")).array.len,
 
-        buf_reader: std.io.AnyReader = undefined,
+    buf_reader: std.io.AnyReader = undefined,
 
-        pub fn init(self: *Self) void {
-            self.buf_reader = std.io.AnyReader{
-                .context = @ptrCast(self),
-                .readFn = &readBuf,
-            };
+    pub fn init(self: *Self) void {
+        self.buf_reader = std.io.AnyReader{
+            .context = @ptrCast(self),
+            .readFn = &readBuf,
+        };
+    }
+
+    pub fn writeDataNoAck(self: *Self, byte: u8) void {
+        switch (self.port) {
+            .one => {},
+            .two => {
+                // Tell the controller we're going to write to port two.
+                ctrl.sendCmd(Ctrl.WritePort2InputBuf.C);
+            },
         }
 
-        pub fn writeDataNoAck(_: *Self, byte: u8) void {
-            switch (port) {
-                .one => {},
-                .two => {
-                    // Tell the controller we're going to write to port two.
-                    ctrl.sendCmd(Ctrl.WritePort2InputBuf.C);
-                },
-            }
-
-            // Wait for the input buffer to be clear.
-            while (ctrl.status().input_buf_full) {
-                vga.dbgv("waiting on input buffer...\n", .{});
-            }
-
-            // Write our byte.
-            io.outb(IOPort.data, byte);
+        // Wait for the input buffer to be clear.
+        while (ctrl.status().input_buf_full) {
+            vga.dbgv("waiting on input buffer...\n", .{});
         }
 
-        pub fn writeData(self: *Self, byte: u8) void {
-            self.writeDataNoAck(byte);
+        // Write our byte.
+        io.outb(IOPort.data, byte);
+    }
 
-            // Wait for an ACK.
-            if (port1.waitAck()) {
-                vga.dbg("ok!\n", .{});
-            } else |e| {
-                vga.dbg("failed to ack: {any}\n", .{e});
-            }
+    pub fn writeData(self: *Self, byte: u8) void {
+        self.writeDataNoAck(byte);
+
+        // Wait for an ACK.
+        if (port1.waitAck()) {
+            vga.dbg("ok!\n", .{});
+        } else |e| {
+            vga.dbg("failed to ack: {any}\n", .{e});
+        }
+    }
+
+    pub fn recv(self: *Self) void {
+        const byte = io.inb(IOPort.data);
+
+        // TODO: is it okay to just drop a byte like this?
+        if (self.buffer_head == 0) {
+            return;
         }
 
-        pub fn recv(self: *Self) void {
-            const byte = io.inb(IOPort.data);
+        self.buffer_head -= 1;
+        self.buffer[self.buffer_head] = byte;
+    }
 
-            // TODO: is it okay to just drop a byte like this?
-            if (self.buffer_head == 0) {
-                return;
-            }
+    const AckErr = error{NotAck};
 
-            self.buffer_head -= 1;
-            self.buffer[self.buffer_head] = byte;
+    pub fn waitAck(self: *Self) !void {
+        // Wait for some data to become available.
+        while (self.buffer_head == self.buffer.len) {}
+
+        // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
+        var buf: @TypeOf(self.buffer) = undefined;
+        const n = try self.buf_reader.readAll(&buf);
+
+        if (!std.mem.eql(u8, buf[0..n], &[_]u8{0xfa})) {
+            return error.NotAck;
         }
+    }
 
-        const AckErr = error{NotAck};
+    // TODO: surface errors better.
+    pub fn reset(self: *Self) !void {
+        // Send reset.
+        self.writeDataNoAck(Device.ResetAndSelfTest.C);
 
-        pub fn waitAck(self: *Self) !void {
-            // Wait for some data to become available.
-            while (self.buffer_head == self.buffer.len) {}
+        // Read response.
+        var buf: @TypeOf(self.buffer) = undefined;
+        const n = try self.buf_reader.read(&buf);
 
-            // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
-            var buf: @TypeOf(self.buffer) = undefined;
-            const n = try self.buf_reader.readAll(&buf);
-
-            if (!std.mem.eql(u8, buf[0..n], &[_]u8{0xfa})) {
-                return error.NotAck;
-            }
-        }
-
-        // TODO: surface errors better.
-        pub fn reset(self: *Self) !void {
-            // Send reset.
-            self.writeDataNoAck(Device.ResetAndSelfTest.C);
-
-            // Read response.
-            var buf: @TypeOf(self.buffer) = undefined;
-            const n = try self.buf_reader.read(&buf);
-
-            chk: switch (n) {
-                0 => unreachable,
-                1 => switch (buf[0]) {
-                    0xfc => vga.dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port_num)}),
-                    else => break :chk,
-                },
-                2, 3 => {
-                    // NOTE: this can come out of order for some reason!
-                    const options = if (self.health_check_sends_null_terminator)
-                        &[_][]const u8{
-                            &[_]u8{ 0xfa, 0xaa, 0x00 },
-                            &[_]u8{ 0xaa, 0xfa, 0x00 },
-                        }
-                    else
-                        &[_][]const u8{
-                            &[_]u8{ 0xfa, 0xaa },
-                            &[_]u8{ 0xaa, 0xfa },
-                        };
-
-                    for (options) |opt| {
-                        if (std.mem.eql(u8, buf[0..n], opt)) {
-                            self.healthy = true;
-                            vga.dbg("ps/2 port {s} healthy!\n", .{@tagName(self.port_num)});
-
-                            return;
-                        }
-                    }
-                },
+        chk: switch (n) {
+            0 => unreachable,
+            1 => switch (buf[0]) {
+                0xfc => vga.dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port)}),
                 else => break :chk,
-            }
+            },
+            2, 3 => {
+                // NOTE: this can come out of order for some reason!
+                const options = if (self.health_check_sends_null_terminator)
+                    &[_][]const u8{
+                        &[_]u8{ 0xfa, 0xaa, 0x00 },
+                        &[_]u8{ 0xaa, 0xfa, 0x00 },
+                    }
+                else
+                    &[_][]const u8{
+                        &[_]u8{ 0xfa, 0xaa },
+                        &[_]u8{ 0xaa, 0xfa },
+                    };
 
-            vga.dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port_num)});
-            for (buf[0..n]) |byte| {
-                vga.dbg(" 0x{x}", .{byte});
-            }
-            vga.dbg("\n", .{});
+                for (options) |opt| {
+                    if (std.mem.eql(u8, buf[0..n], opt)) {
+                        self.healthy = true;
+                        vga.dbg("ps/2 port {s} healthy!\n", .{@tagName(self.port)});
+
+                        return;
+                    }
+                }
+            },
+            else => break :chk,
         }
 
-        pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
-            var self: *Self = @constCast(@ptrCast(@alignCast(context)));
-
-            const self_buf_len: usize = self.buffer.len - self.buffer_head;
-            const n = if (buffer.len > self_buf_len) self_buf_len else buffer.len;
-
-            const result = self.buffer[self.buffer_head .. self.buffer_head + n];
-            std.mem.reverse(u8, result);
-
-            @memcpy(buffer[0..n], result);
-            self.buffer_head += n;
-
-            return n;
+        vga.dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port)});
+        for (buf[0..n]) |byte| {
+            vga.dbg(" 0x{x}", .{byte});
         }
-    };
-}
+        vga.dbg("\n", .{});
+    }
 
-pub var port1 = Port(.one){ .verified = true };
-pub var port2 = Port(.two){ .verified = false, .health_check_sends_null_terminator = true };
+    pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
+        var self: *Self = @constCast(@ptrCast(@alignCast(context)));
+
+        const self_buf_len: usize = self.buffer.len - self.buffer_head;
+        const n = if (buffer.len > self_buf_len) self_buf_len else buffer.len;
+
+        const result = self.buffer[self.buffer_head .. self.buffer_head + n];
+        std.mem.reverse(u8, result);
+
+        @memcpy(buffer[0..n], result);
+        self.buffer_head += n;
+
+        return n;
+    }
+};
+
+pub var port1 = Port{ .port = .one, .verified = true };
+pub var port2 = Port{ .port = .two, .verified = false, .health_check_sends_null_terminator = true };
 
 const ctrl = struct {
     const Self = @This();
