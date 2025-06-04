@@ -10,6 +10,7 @@ const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
+const serial = @import("serial.zig");
 const stack = @import("stack.zig");
 const tables = @import("tables.zig");
 const term = @import("term.zig");
@@ -110,6 +111,8 @@ pub fn kmain() !void {
 
     // Init keyboard interface.
     kb.init();
+
+    try serial.init();
 
     // Init terminal.
     term.init();

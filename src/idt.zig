@@ -4,6 +4,7 @@ const cpu = @import("cpu.zig");
 const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
+const serial = @import("serial.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 
@@ -82,6 +83,16 @@ const int_handlers = GenInterruptHandlers(struct {
     // PS/2 keyboard
     pub fn irq1() void {
         ps2.port1.recv();
+    }
+
+    // Serial: COM2, COM4
+    pub fn irq3() void {
+        vga.writeCh('x');
+    }
+
+    // Serial: COM1, COM3
+    pub fn irq4() void {
+        vga.writeCh('y');
     }
 
     // RTC
