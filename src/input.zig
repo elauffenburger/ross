@@ -1,4 +1,4 @@
-// TODO: for reasons I don't know, it looks like something I'm doing in here is causing virtual memory to fail. OH! Could it be this is pushing the code past the 4MiB boundary that we map the Kernel into?? Do we still do that?
+// TODO: for reasons I don't know, it looks like something I'm doing in here was causing virtual memory to fail; I switched over to BufferQueue from some allocators and then all was well. We were getting page faults and i'm guessing they're legit?
 
 const std = @import("std");
 
