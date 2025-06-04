@@ -179,7 +179,7 @@ const Port = struct {
         const byte = io.inb(IOPort.data);
 
         // TODO: is it okay to just drop a byte like this?
-        if (self.buffer.head == self.buffer.buf.len) {
+        if (self.buffer.items.len == self.buffer.buf.len) {
             return error{OutOfMemory}.OutOfMemory;
         }
 
@@ -190,7 +190,7 @@ const Port = struct {
 
     pub fn waitAck(self: *Self) !void {
         // Wait for some data to become available.
-        while (self.buffer.head == 0) {}
+        while (self.buffer.items.len == 0) {}
 
         // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
         var buf: [1]u8 = undefined;

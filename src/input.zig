@@ -11,12 +11,13 @@ pub fn onKeyEvent(key_ev: kb.KeyEvent) !void {
     try buf.append(key_ev);
 }
 
-pub fn dequeueKeyEvents(events: []kb.KeyEvent) usize {
-    if (buf.buf.len == 0) {
-        return 0;
+pub fn dequeueKeyEvents(events: []kb.KeyEvent) ?[]kb.KeyEvent {
+    if (buf.items.len == 0) {
+        return null;
     }
 
-    return buf.dequeueSlice(events);
+    const n = buf.dequeueSlice(events);
+    return events[0..n];
 }
 
 pub fn asciiFromKeyName(key_name: kb.Keys.Key) ?u8 {

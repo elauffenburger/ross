@@ -72,4 +72,9 @@ test "BufferQueue" {
         std.debug.assert(std.mem.eql(u8, &[_]u8{ 3, 4, 5, 6, 7, 8, 9, 10, 11 }, &buf));
         std.debug.assert(std.mem.eql(u8, &[_]u8{}, queue.items));
     }
+
+    {
+        var buf: [3]u8 = undefined;
+        std.debug.assert(queue.dequeueSlice(&buf) == 0);
+    }
 }
