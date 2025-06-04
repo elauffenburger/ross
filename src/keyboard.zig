@@ -1,14 +1,19 @@
 const std = @import("std");
 
+const input = @import("input.zig");
 const ps2 = @import("ps2.zig");
 const types = @import("types.zig");
 const vga = @import("vga.zig");
 
 var kb_reader: *std.io.AnyReader = undefined;
+var kb_buf: @TypeOf(ps2.port1.buffer) = undefined;
+
 var left_shift_held = false;
 var right_shift_held = false;
 
-var kb_buf: @TypeOf(ps2.port1.buffer) = undefined;
+inline fn shiftHeld() bool {
+    return left_shift_held or right_shift_held;
+}
 
 pub fn init() void {
     // Enable scan codes for port1.
@@ -32,82 +37,34 @@ pub fn tick() !void {
     const n = try kb_reader.readAll(&kb_buf);
     if (n != 0) {
         const key_code = kb_buf[0..n];
-        if (Keys.keyFromKeyCodes(key_code)) |key| {
-            handleKeyPress(key);
+        if (Keys.keyFromKeyCodes(key_code)) |key_press| {
+            try input.onKeyEvent(.{
+                .key_press = key_press,
+                .modifiers = .{
+                    .shift = left_shift_held or right_shift_held,
+                },
+            });
+        } else {
+            // TODO: what do?
         }
     }
 }
 
-inline fn shiftHeld() bool {
-    return left_shift_held or right_shift_held;
-}
+pub const KeyEvent = struct {
+    key_press: Keys.KeyPress,
+    modifiers: struct {
+        shift: bool = false,
+    },
+};
 
-fn handleKeyPress(key_press: Keys.KeyPress) void {
-    if (key_press.key.is_char) {
-        // If the key is being released, do nothing.
-        if (key_press.state == .released) {
-            return;
-        }
-
-        // If shift isn't held, send the key_ascii.
-        if (!shiftHeld()) {
-            recv(key_press.key.key_ascii.?);
-            return;
-        }
-
-        // If shift _is_ held and a shift key ascii is available, send it!
-        if (key_press.key.shift_key_ascii) |shift_key_ascii| {
-            recv(shift_key_ascii);
-            return;
-        }
-
-        // ...otherwise send the unshifted key ascii.
-        recv(key_press.key.key_ascii.?);
-        return;
-    }
-
-    switch (key_press.key_name) {
-        .@"left shift" => left_shift_held = key_press.state == .pressed,
-        .@"right shift" => right_shift_held = key_press.state == .pressed,
-        else => {
-            // TODO: handle unknown special key.
-        },
-    }
-}
-
-fn recv(ch: u8) void {
-    // TODO: actually send to terminal.
-    vga.writeCh(ch);
-}
-
-fn debugPrintKey(key: Keys.KeyPress) void {
-    vga.dbg(
-        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}\n",
-        .{
-            key.key.key_name,
-            if (key.key.key_ascii) |key_ascii| key_ascii else ' ',
-            if (key.key.shift_key_name) |shift_key_name| shift_key_name else "none",
-            if (key.key.shift_key_ascii) |shift_key_ascii| shift_key_ascii else ' ',
-            @tagName(key.state),
-        },
-    );
-}
-
-const Key = struct {
-    is_char: bool,
-
+pub const KeyDef = struct {
     key_name: []const u8,
-    key_ascii: ?u8,
-
     shift_key_name: ?[]const u8,
-    shift_key_ascii: ?u8,
 
     key_code: []const u8,
     released_key_code: []const u8,
 
-    pub fn new(
-        args: types.Exclude(Key, .{"released_key_code"}),
-    ) @This() {
+    pub fn new(args: types.Exclude(KeyDef, .{"released_key_code"})) @This() {
         const released_key_code = blk: {
             switch (args.key_code.len) {
                 1 => break :blk &[_]u8{ 0xf0, args.key_code[0] },
@@ -117,13 +74,8 @@ const Key = struct {
         };
 
         return .{
-            .is_char = args.is_char,
-
             .key_name = args.key_name,
-            .key_ascii = args.key_ascii,
-
             .shift_key_name = args.shift_key_name,
-            .shift_key_ascii = args.shift_key_ascii,
 
             .key_code = args.key_code,
             .released_key_code = released_key_code,
@@ -131,35 +83,7 @@ const Key = struct {
     }
 };
 
-pub fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) Key {
-    return Key.new(.{
-        .is_char = false,
-
-        .key_name = key_name,
-        .key_ascii = null,
-
-        .shift_key_name = shift_key_name,
-        .shift_key_ascii = null,
-
-        .key_code = key_code,
-    });
-}
-
-fn kc(key_ascii: u8, shift_key_ascii: u8, key_code: []const u8) Key {
-    return Key.new(.{
-        .is_char = true,
-
-        .key_name = std.fmt.comptimePrint("{c}", .{key_ascii}),
-        .key_ascii = key_ascii,
-
-        .shift_key_name = std.fmt.comptimePrint("{c}", .{shift_key_ascii}),
-        .shift_key_ascii = shift_key_ascii,
-
-        .key_code = key_code,
-    });
-}
-
-const Keys = KeyMap(&[_]Key{
+pub const Keys = KeyMap(&[_]KeyDef{
     k("F1", null, &[_]u8{0x05}),
     k("F2", null, &[_]u8{0x06}),
     k("F3", null, &[_]u8{0x04}),
@@ -173,96 +97,61 @@ const Keys = KeyMap(&[_]Key{
     k("F11", null, &[_]u8{0x78}),
     k("F12", null, &[_]u8{0x07}),
 
-    kc('`', '~', &[_]u8{0x0E}),
-    kc('1', '!', &[_]u8{0x16}),
-    kc('2', '@', &[_]u8{0x1E}),
-    kc('3', '#', &[_]u8{0x26}),
-    kc('4', '$', &[_]u8{0x25}),
-    kc('5', '%', &[_]u8{0x2E}),
-    kc('6', '^', &[_]u8{0x36}),
-    kc('7', '&', &[_]u8{0x3D}),
-    kc('8', '*', &[_]u8{0x3E}),
-    kc('9', '(', &[_]u8{0x46}),
-    kc('0', ')', &[_]u8{0x45}),
-    kc('-', '_', &[_]u8{0x4E}),
-    kc('=', '+', &[_]u8{0x55}),
+    k("`", "~", &[_]u8{0x0E}),
+    k("1", "!", &[_]u8{0x16}),
+    k("2", "@", &[_]u8{0x1E}),
+    k("3", "#", &[_]u8{0x26}),
+    k("4", "$", &[_]u8{0x25}),
+    k("5", "%", &[_]u8{0x2E}),
+    k("6", "^", &[_]u8{0x36}),
+    k("7", "&", &[_]u8{0x3D}),
+    k("8", "*", &[_]u8{0x3E}),
+    k("9", "(", &[_]u8{0x46}),
+    k("0", ")", &[_]u8{0x45}),
+    k("-", "_", &[_]u8{0x4E}),
+    k("=", "+", &[_]u8{0x55}),
 
-    kc('[', '{', &[_]u8{0x54}),
-    kc(']', '}', &[_]u8{0x5B}),
-    kc('\\', '|', &[_]u8{0x5D}),
-    kc(';', ':', &[_]u8{0x4C}),
-    kc('\'', '"', &[_]u8{0x52}),
-    kc(',', '<', &[_]u8{0x41}),
-    kc('.', '>', &[_]u8{0x49}),
-    kc('/', '?', &[_]u8{0x4A}),
+    k("[", "{", &[_]u8{0x54}),
+    k("]", "}", &[_]u8{0x5B}),
+    k("\\", "|", &[_]u8{0x5D}),
+    k(";", ":", &[_]u8{0x4C}),
+    k("'", "\"", &[_]u8{0x52}),
+    k(",", "<", &[_]u8{0x41}),
+    k(".", ">", &[_]u8{0x49}),
+    k("/", "?", &[_]u8{0x4A}),
 
-    kc('a', 'A', &[_]u8{0x1C}),
-    kc('b', 'B', &[_]u8{0x32}),
-    kc('c', 'C', &[_]u8{0x21}),
-    kc('d', 'D', &[_]u8{0x23}),
-    kc('e', 'E', &[_]u8{0x24}),
-    kc('f', 'F', &[_]u8{0x2B}),
-    kc('g', 'G', &[_]u8{0x34}),
-    kc('h', 'H', &[_]u8{0x33}),
-    kc('i', 'I', &[_]u8{0x43}),
-    kc('j', 'J', &[_]u8{0x3B}),
-    kc('k', 'K', &[_]u8{0x42}),
-    kc('l', 'L', &[_]u8{0x4B}),
-    kc('m', 'M', &[_]u8{0x3A}),
-    kc('n', 'N', &[_]u8{0x31}),
-    kc('o', 'O', &[_]u8{0x44}),
-    kc('p', 'P', &[_]u8{0x4D}),
-    kc('q', 'Q', &[_]u8{0x15}),
-    kc('r', 'R', &[_]u8{0x2D}),
-    kc('s', 'S', &[_]u8{0x1B}),
-    kc('t', 'T', &[_]u8{0x2C}),
-    kc('u', 'U', &[_]u8{0x3C}),
-    kc('v', 'V', &[_]u8{0x2A}),
-    kc('w', 'W', &[_]u8{0x1D}),
-    kc('x', 'X', &[_]u8{0x22}),
-    kc('y', 'Y', &[_]u8{0x35}),
-    kc('z', 'Z', &[_]u8{0x1A}),
+    k("a", "A", &[_]u8{0x1C}),
+    k("b", "B", &[_]u8{0x32}),
+    k("c", "C", &[_]u8{0x21}),
+    k("d", "D", &[_]u8{0x23}),
+    k("e", "E", &[_]u8{0x24}),
+    k("f", "F", &[_]u8{0x2B}),
+    k("g", "G", &[_]u8{0x34}),
+    k("h", "H", &[_]u8{0x33}),
+    k("i", "I", &[_]u8{0x43}),
+    k("j", "J", &[_]u8{0x3B}),
+    k("k", "K", &[_]u8{0x42}),
+    k("l", "L", &[_]u8{0x4B}),
+    k("m", "M", &[_]u8{0x3A}),
+    k("n", "N", &[_]u8{0x31}),
+    k("o", "O", &[_]u8{0x44}),
+    k("p", "P", &[_]u8{0x4D}),
+    k("q", "Q", &[_]u8{0x15}),
+    k("r", "R", &[_]u8{0x2D}),
+    k("s", "S", &[_]u8{0x1B}),
+    k("t", "T", &[_]u8{0x2C}),
+    k("u", "U", &[_]u8{0x3C}),
+    k("v", "V", &[_]u8{0x2A}),
+    k("w", "W", &[_]u8{0x1D}),
+    k("x", "X", &[_]u8{0x22}),
+    k("y", "Y", &[_]u8{0x35}),
+    k("z", "Z", &[_]u8{0x1A}),
 
-    Key.new(.{
-        .is_char = true,
-        .key_name = "backspace",
-        .key_ascii = 0x08,
-        .shift_key_name = null,
-        .shift_key_ascii = null,
-        .key_code = &[_]u8{0x66},
-    }),
-    Key.new(.{
-        .is_char = true,
-        .key_name = "space",
-        .key_ascii = ' ',
-        .shift_key_name = null,
-        .shift_key_ascii = null,
-        .key_code = &[_]u8{0x29},
-    }),
-    Key.new(.{
-        .is_char = true,
-        .key_name = "tab",
-        .key_ascii = '\t',
-        .shift_key_name = null,
-        .shift_key_ascii = null,
-        .key_code = &[_]u8{0x0D},
-    }),
-    Key.new(.{
-        .is_char = true,
-        .key_name = "enter",
-        .key_ascii = '\n',
-        .shift_key_name = null,
-        .shift_key_ascii = null,
-        .key_code = &[_]u8{0x5A},
-    }),
-    Key.new(.{
-        .is_char = true,
-        .key_name = "escape",
-        .key_ascii = 0x1B,
-        .shift_key_name = null,
-        .shift_key_ascii = null,
-        .key_code = &[_]u8{0x76},
-    }),
+    k("backspace", null, &[_]u8{0x66}),
+    k("space", null, &[_]u8{0x29}),
+    k("tab", null, &[_]u8{0x0D}),
+    k("enter", null, &[_]u8{0x5A}),
+    k("escape", null, &[_]u8{0x76}),
 
     k("right alt", null, &[_]u8{ 0xE0, 0x11 }),
     k("right shift", null, &[_]u8{0x59}),
@@ -280,7 +169,7 @@ const Keys = KeyMap(&[_]Key{
     k("cursor left", null, &[_]u8{ 0xE0, 0x6B }),
 });
 
-fn KeyMap(keys: []const Key) type {
+fn KeyMap(keys: []const KeyDef) type {
     // Get the total number of key codes (including shift codes).
     var num_keys = 0;
     for (keys) |key| {
@@ -291,18 +180,18 @@ fn KeyMap(keys: []const Key) type {
         }
     }
 
-    var key_name_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_keys;
+    var key_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_keys;
     {
         var i = 0;
         for (keys) |key| {
-            key_name_t_fields[i] = .{
+            key_t_fields[i] = .{
                 .name = std.fmt.comptimePrint("{s}", .{key.key_name}),
                 .value = i,
             };
             i += 1;
 
             if (key.shift_key_name) |shift_key_name| {
-                key_name_t_fields[i] = .{
+                key_t_fields[i] = .{
                     .name = std.fmt.comptimePrint("{s}", .{shift_key_name}),
                     .value = i,
                 };
@@ -311,18 +200,21 @@ fn KeyMap(keys: []const Key) type {
         }
     }
 
-    const key_name_t = @Type(.{
+    const key_t: type = @Type(.{
         .@"enum" = std.builtin.Type.Enum{
-            .fields = &key_name_t_fields,
-            .decls = &[_]std.builtin.Type.Declaration{},
+            .fields = &key_t_fields,
+            .decls = &.{},
             .tag_type = u8,
             .is_exhaustive = true,
         },
     });
 
     const key_press_t = struct {
-        key_name: key_name_t,
-        key: Key,
+        key_def: KeyDef,
+
+        key: key_t,
+        shift_key: ?key_t,
+
         state: enum {
             pressed,
             released,
@@ -330,7 +222,7 @@ fn KeyMap(keys: []const Key) type {
     };
 
     return struct {
-        pub const KeyName = key_name_t;
+        pub const Key = key_t;
         pub const KeyState = @FieldType(key_press_t, "state");
 
         pub const KeyPress = key_press_t;
@@ -339,7 +231,7 @@ fn KeyMap(keys: []const Key) type {
             inline for (keys) |key| {
                 if (std.mem.eql(u8, key_code, key.key_code)) {
                     return .{
-                        .key_name = std.meta.stringToEnum(KeyName, key.key_name).?,
+                        .key_name = std.meta.stringToEnum(Key, key.key_name).?,
                         .key = key,
                         .state = .pressed,
                     };
@@ -347,7 +239,7 @@ fn KeyMap(keys: []const Key) type {
 
                 if (std.mem.eql(u8, key_code, key.released_key_code)) {
                     return .{
-                        .key_name = std.meta.stringToEnum(KeyName, key.key_name).?,
+                        .key_name = std.meta.stringToEnum(Key, key.key_name).?,
                         .key = key,
                         .state = .released,
                     };
@@ -359,9 +251,31 @@ fn KeyMap(keys: []const Key) type {
     };
 }
 
+fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) KeyDef {
+    return KeyDef.new(.{
+        .key_name = key_name,
+        .shift_key_name = shift_key_name,
+
+        .key_code = key_code,
+    });
+}
+
+fn debugPrintKey(key: Keys.KeyPress) void {
+    vga.dbg(
+        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}\n",
+        .{
+            key.key_def.key_name,
+            if (key.key_def.key_ascii) |key_ascii| key_ascii else ' ',
+            if (key.key_def.shift_key_name) |shift_key_name| shift_key_name else "none",
+            if (key.key_def.shift_key_ascii) |shift_key_ascii| shift_key_ascii else ' ',
+            @tagName(key.state),
+        },
+    );
+}
+
 test "keymap: k" {
     const key = Keys.keyFromKeyCodes(&[_]u8{0x42}).?;
 
-    std.debug.assert(key.key_name == .k);
+    std.debug.assert(key.key == .k);
     std.debug.assert(key.state == .pressed);
 }
