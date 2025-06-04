@@ -62,9 +62,14 @@ fn loadIdt() void {
 }
 
 const int_handlers = GenInterruptHandlers(struct {
-    // Double Fault
-    pub fn exc08() void {
+    pub fn exc05() void {
         vga.printf("shit\n", .{});
+    }
+
+    // Double Fault
+    pub fn exc08(err_code: u32) void {
+        _ = err_code; // autofix
+        vga.printf("double shit\n", .{});
     }
 
     // General Protection Fault
@@ -82,7 +87,7 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 keyboard
     pub fn irq1() void {
-        ps2.port1.recv();
+        ps2.port1.recv() catch {};
     }
 
     // Serial: COM2, COM4
@@ -105,7 +110,7 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 mouse
     pub fn irq12() void {
-        ps2.port2.recv();
+        ps2.port2.recv() catch {};
     }
 });
 

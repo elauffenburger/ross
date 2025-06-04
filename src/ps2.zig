@@ -3,6 +3,7 @@
 const std = @import("std");
 
 const io = @import("io.zig");
+const kstd = @import("kstd.zig");
 const pic = @import("pic.zig");
 const vga = @import("vga.zig");
 
@@ -124,6 +125,8 @@ fn testInterface() !void {
 const Port = struct {
     const Self = @This();
 
+    const Buffer = kstd.collections.BufferQueue(u8, 128);
+
     port: enum { one, two },
     dev_id: ?u8 = null,
 
@@ -133,10 +136,7 @@ const Port = struct {
     // HACK: okay, I'm not even sure this is what's happening, but port2 seems to send a null terminator after it sends the health codes; this is basically a hack to still have it report healthy.
     health_check_sends_null_terminator: bool = false,
 
-    // NOTE: this operates as a downwards-growing stack.
-    buffer: [128]u8 = undefined,
-    buffer_head: usize = @typeInfo(@FieldType(Self, "buffer")).array.len,
-
+    buffer: Buffer = .{},
     buf_reader: std.io.AnyReader = undefined,
 
     pub fn init(self: *Self) void {
@@ -175,29 +175,28 @@ const Port = struct {
         }
     }
 
-    pub fn recv(self: *Self) void {
+    pub fn recv(self: *Self) anyerror!void {
         const byte = io.inb(IOPort.data);
 
         // TODO: is it okay to just drop a byte like this?
-        if (self.buffer_head == 0) {
-            return;
+        if (self.buffer.head == self.buffer.buffer.len) {
+            return error{OutOfMemory}.OutOfMemory;
         }
 
-        self.buffer_head -= 1;
-        self.buffer[self.buffer_head] = byte;
+        try self.buffer.appendSlice(&[_]u8{byte});
     }
 
     const AckErr = error{NotAck};
 
     pub fn waitAck(self: *Self) !void {
         // Wait for some data to become available.
-        while (self.buffer_head == self.buffer.len) {}
+        while (self.buffer.head == 0) {}
 
         // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
-        var buf: @TypeOf(self.buffer) = undefined;
-        const n = try self.buf_reader.readAll(&buf);
+        var buf: [1]u8 = undefined;
+        _ = try self.buf_reader.readAll(&buf);
 
-        if (!std.mem.eql(u8, buf[0..n], &[_]u8{0xfa})) {
+        if (buf[0] != 0xfa) {
             return error.NotAck;
         }
     }
@@ -208,7 +207,7 @@ const Port = struct {
         self.writeDataNoAck(Device.ResetAndSelfTest.C);
 
         // Read response.
-        var buf: @TypeOf(self.buffer) = undefined;
+        var buf: [3]u8 = undefined;
         const n = try self.buf_reader.read(&buf);
 
         chk: switch (n) {
@@ -251,17 +250,7 @@ const Port = struct {
 
     pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
         var self: *Self = @constCast(@ptrCast(@alignCast(context)));
-
-        const self_buf_len: usize = self.buffer.len - self.buffer_head;
-        const n = if (buffer.len > self_buf_len) self_buf_len else buffer.len;
-
-        const result = self.buffer[self.buffer_head .. self.buffer_head + n];
-        std.mem.reverse(u8, result);
-
-        @memcpy(buffer[0..n], result);
-        self.buffer_head += n;
-
-        return n;
+        return self.buffer.dequeueSlice(buffer);
     }
 };
 

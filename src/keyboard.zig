@@ -6,7 +6,7 @@ const types = @import("types.zig");
 const vga = @import("vga.zig");
 
 var kb_reader: *std.io.AnyReader = undefined;
-var kb_buf: @TypeOf(ps2.port1.buffer) = undefined;
+var kb_buf: [128]u8 = undefined;
 
 var left_shift_held = false;
 var right_shift_held = false;

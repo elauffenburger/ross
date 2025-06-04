@@ -9,7 +9,7 @@ pub fn BufferQueue(T: type, size: usize) type {
 
         pub fn appendSlice(self: *Self, buffer: []const T) error{OutOfMemory}!void {
             const new_head = self.head + buffer.len;
-            if (new_head > buffer.len) {
+            if (new_head > self.buffer.len) {
                 return error.OutOfMemory;
             }
 
@@ -18,7 +18,11 @@ pub fn BufferQueue(T: type, size: usize) type {
         }
 
         pub fn dequeueSlice(self: *Self, buffer: []T) usize {
-            const n = if (self.buffer.len < buffer.len) self.buffer.len else buffer.len;
+            if (self.head == 0) {
+                return 0;
+            }
+
+            const n = if (self.head < buffer.len) self.head else buffer.len;
             @memcpy(buffer[0..n], self.buffer[0..n]);
 
             const old_head = self.head;

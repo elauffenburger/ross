@@ -2,9 +2,9 @@ const std = @import("std");
 
 const kb = @import("keyboard.zig");
 
-var buffered_events_allocator = std.heap.FixedBufferAllocator.init(@constCast(&[_]u8{undefined} ** 1024));
-var buffered_events = std.ArrayList(kb.KeyEvent)
-    .init(buffered_events_allocator.allocator());
+var buf = [_]u8{undefined} ** 1024;
+var buffered_events_allocator = std.heap.FixedBufferAllocator.init(&buf);
+var buffered_events = std.ArrayList(kb.KeyEvent).init(buffered_events_allocator.allocator());
 
 pub fn onKeyEvent(key_ev: kb.KeyEvent) !void {
     try buffered_events.append(key_ev);
@@ -15,7 +15,7 @@ pub fn dequeueKeyEvents() ?[]kb.KeyEvent {
         return null;
     }
 
-    const events = buffered_events.items[0..];
+    const events = buffered_events.items;
     buffered_events.clearRetainingCapacity();
 
     return events;

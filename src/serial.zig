@@ -10,10 +10,10 @@ pub var com3 = COMPort(0x3e8){};
 pub var com4 = COMPort(0x2e8){};
 
 pub fn init() !void {
-    try com1.init();
-    try com2.init();
-    try com3.init();
-    try com4.init();
+    // try com1.init();
+    // try com2.init();
+    // try com3.init();
+    // try com4.init();
 }
 
 fn COMPort(io_port: u16) type {
