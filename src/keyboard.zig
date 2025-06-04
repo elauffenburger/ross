@@ -228,20 +228,25 @@ fn KeyMap(keys: []const KeyDef) type {
         pub const KeyPress = key_press_t;
 
         pub fn keyFromKeyCodes(key_code: []const u8) ?KeyPress {
-            inline for (keys) |key| {
-                if (std.mem.eql(u8, key_code, key.key_code)) {
-                    return .{
-                        .key_name = std.meta.stringToEnum(Key, key.key_name).?,
-                        .key = key,
-                        .state = .pressed,
-                    };
-                }
+            inline for (keys) |key_def| {
+                const matched_state: ?KeyState = blk: {
+                    if (std.mem.eql(u8, key_code, key_def.key_code)) {
+                        break :blk .pressed;
+                    }
 
-                if (std.mem.eql(u8, key_code, key.released_key_code)) {
+                    if (std.mem.eql(u8, key_code, key_def.released_key_code)) {
+                        break :blk .released;
+                    }
+
+                    break :blk null;
+                };
+
+                if (matched_state) |match| {
                     return .{
-                        .key_name = std.meta.stringToEnum(Key, key.key_name).?,
-                        .key = key,
-                        .state = .released,
+                        .key = std.meta.stringToEnum(Key, key_def.key_name).?,
+                        .shift_key = if (key_def.shift_key_name) |shift_key_name| std.meta.stringToEnum(Key, shift_key_name) else null,
+                        .key_def = key_def,
+                        .state = match,
                     };
                 }
             }

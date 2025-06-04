@@ -119,6 +119,6 @@ pub fn asciiFromKeyName(key_name: kb.Keys.Key) ?u8 {
         .Y => 'Y',
         .Z => 'Z',
 
-        _ => null,
+        else => null,
     };
 }
