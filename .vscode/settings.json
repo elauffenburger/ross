@@ -2,5 +2,6 @@
   "nasm.outputFormat": "elf32",
   "lldb.displayFormat": "auto",
   "lldb.dereferencePointers": true,
-  "lldb.consoleMode": "commands"
+  "lldb.consoleMode": "commands",
+  "todo-tree.tree.scanMode": "workspace only"
 }

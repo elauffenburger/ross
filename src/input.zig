@@ -1,3 +1,5 @@
+// TODO: for reasons I don't know, it looks like something I'm doing in here is causing virtual memory to fail. OH! Could it be this is pushing the code past the 4MiB boundary that we map the Kernel into?? Do we still do that?
+
 const std = @import("std");
 
 const kb = @import("keyboard.zig");

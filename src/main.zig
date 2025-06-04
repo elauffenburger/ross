@@ -107,7 +107,7 @@ pub fn kmain() !void {
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
     //
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
-    // try vmem.init();
+    try vmem.init();
 
     // Init keyboard interface.
     kb.init();
