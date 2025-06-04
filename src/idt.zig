@@ -87,12 +87,12 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // Serial: COM2, COM4
     pub fn irq3() void {
-        vga.writeCh('x');
+        vga.writeStr("irq3\n");
     }
 
     // Serial: COM1, COM3
     pub fn irq4() void {
-        vga.writeCh('y');
+        vga.writeStr("irq4\n");
     }
 
     // RTC
