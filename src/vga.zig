@@ -4,10 +4,10 @@ const fmt = std.fmt;
 const io = @import("io.zig");
 
 const width: u32 = 80;
-const height: u32 = 26;
+const height: u32 = 25;
 
-var curr_y: usize = 0;
-var curr_x: usize = 0;
+var curr_y: u16 = 0;
+var curr_x: u16 = 0;
 var curr_colors = ColorPair{
     .fg = Color.LightGray,
     .bg = Color.Black,
@@ -188,20 +188,12 @@ pub fn init() void {
     // Init registers.
     {
         // Set IO addr select register.
-        {
+        misc_out.write(blk: {
             var reg = misc_out.read();
             reg.io_addr_select = .color;
 
-            misc_out.write(reg);
-        }
-
-        // Disable the cursor.
-        {
-            var reg = crt_ctrl.read(crt_ctrl.cursor_start);
-            reg.cursor_disable = true;
-
-            crt_ctrl.write(crt_ctrl.cursor_start, reg);
-        }
+            break :blk reg;
+        });
     }
 
     // Clear screen.
@@ -210,9 +202,30 @@ pub fn init() void {
 
 pub fn clear() void {
     @memset(buffer[0..size()], Char.code(.{ .colors = curr_colors, .ch = ' ' }));
+
+    setCursor(0, 0);
 }
 
-pub fn writeChAt(ch: Char, x: usize, y: usize) void {
+pub fn setCursor(x: u16, y: u16) void {
+    curr_x = x;
+    curr_y = y;
+
+    if (curr_x == width) {
+        newline();
+        return;
+    }
+
+    if (curr_y == height) {
+        scroll();
+        return;
+    }
+
+    const loc_reg = crt_ctrl.cursor_location;
+    crt_ctrl.write(loc_reg.lo, @truncate(curr_x));
+    crt_ctrl.write(loc_reg.hi, @truncate(curr_x >> 8));
+}
+
+pub fn writeChAt(ch: Char, x: u16, y: u16) void {
     const index = y * width + x;
 
     var code: u16 = @intCast(ch.colors.code());
@@ -230,10 +243,7 @@ pub fn writeCh(ch: u8) void {
 
     writeChAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
 
-    curr_x += 1;
-    if (curr_x == width) {
-        newline();
-    }
+    setCursor(curr_x + 1, curr_y);
 }
 
 pub fn writeStr(data: []const u8) void {
@@ -260,12 +270,7 @@ fn size() u32 {
 }
 
 fn newline() void {
-    curr_x = 0;
-
-    curr_y += 1;
-    if (curr_y == height) {
-        scroll();
-    }
+    setCursor(0, curr_y + 1);
 }
 
 fn scroll() void {
@@ -279,8 +284,7 @@ fn scroll() void {
     // Copy new_buf to buf.
     @memcpy(buffer[0 .. width * height], &new_buf);
 
-    curr_x = 0;
-    curr_y = height - 1;
+    setCursor(0, height - 1);
 }
 
 pub var debugVerbosity: enum(u8) { none, debug, v } = .v;

@@ -21,6 +21,9 @@ pub fn tick() !void {
             switch (key_ev.key_press.key) {
                 .backspace => {},
                 .escape => {},
+                .enter => {
+                    vga.writeCh('\n');
+                },
                 else => {
                     const key = if (key_ev.modifiers.shift and key_ev.key_press.shift_key != null) key_ev.key_press.shift_key.? else key_ev.key_press.key;
                     if (input.asciiFromKeyName(key)) |ascii_key_code| {
