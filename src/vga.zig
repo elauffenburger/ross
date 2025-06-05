@@ -4,10 +4,10 @@ const fmt = std.fmt;
 const io = @import("io.zig");
 
 const width: u32 = 80;
-const height: u32 = 25;
+const height: u32 = 20;
 
-var curr_y: u16 = 0;
-var curr_x: u16 = 0;
+var curr_y: u32 = 0;
+var curr_x: u32 = 0;
 var curr_colors = ColorPair{
     .fg = Color.LightGray,
     .bg = Color.Black,
@@ -99,7 +99,7 @@ pub const crt_ctrl = struct {
 
     pub fn read(reg: anytype) reg.Register {
         // Get the current register index.
-        // const orig_index = io.inb(reg_addrs.addr);
+        const orig_index = io.inb(reg_addrs.addr);
 
         // Set the input register index for this register.
         io.outb(reg_addrs.addr, reg.index);
@@ -108,7 +108,7 @@ pub const crt_ctrl = struct {
         const res = io.inb(reg_addrs.data);
 
         // Restore the original index.
-        // io.outb(reg_addrs.addr, orig_index);
+        io.outb(reg_addrs.addr, orig_index);
 
         return @bitCast(res);
     }
@@ -206,7 +206,7 @@ pub fn clear() void {
     setCursor(0, 0);
 }
 
-pub fn setCursor(x: u16, y: u16) void {
+pub fn setCursor(x: u32, y: u32) void {
     curr_x = x;
     curr_y = y;
 
@@ -221,12 +221,21 @@ pub fn setCursor(x: u16, y: u16) void {
     }
 
     const loc_reg = crt_ctrl.cursor_location;
-    crt_ctrl.write(loc_reg.lo, @truncate(curr_x));
-    crt_ctrl.write(loc_reg.hi, @truncate(curr_x >> 8));
+    var cursor_index = @as(u16, @truncate(bufIndex(curr_x, curr_y)));
+    if (cursor_index > 1600) {
+        cursor_index = 0;
+    }
+
+    crt_ctrl.write(loc_reg.lo, @truncate(cursor_index));
+    crt_ctrl.write(loc_reg.hi, @truncate(cursor_index >> 8));
 }
 
-pub fn writeChAt(ch: Char, x: u16, y: u16) void {
-    const index = y * width + x;
+inline fn bufIndex(x: u32, y: u32) u32 {
+    return y * width + x;
+}
+
+pub fn writeChAt(ch: Char, x: u32, y: u32) void {
+    const index = bufIndex(x, y);
 
     var code: u16 = @intCast(ch.colors.code());
     code <<= 8;
