@@ -16,118 +16,116 @@ var curr_colors = ColorPair{
 var buffer = @as([*]volatile u16, @ptrFromInt(buffer_addr));
 const buffer_addr = 0x0b8000;
 
-const Registers = struct {
-    pub const misc_out = struct {
-        pub var reg_val: Register = undefined;
+pub const misc_out = struct {
+    pub var reg_val: Register = undefined;
 
-        pub const io_port_r = 0x3cc;
-        pub const io_port_w = 0x3c2;
+    pub const io_port_r = 0x3cc;
+    pub const io_port_w = 0x3c2;
+
+    pub const Register = packed struct(u8) {
+        vsyncp: u1 = 0,
+        hsyncp: u1 = 0,
+        oe_page: enum(u1) {
+            lo = 0,
+            hi = 1,
+        } = .lo,
+        _r1: u1,
+        clock_select: enum(u2) {
+            @"25Mhz" = 0,
+            @"28Mhz" = 1,
+        } = .@"25Mhz",
+        ram_enable: bool,
+        io_addr_select: enum(u1) {
+            // crt controller addrs: 0x03bx, io status reg 1 addr: 0x03ba
+            mono = 0,
+
+            // crt controller addrs: 0x03dx, io status reg 1 addr: 0x03da
+            color = 1,
+        } = .mono,
+    };
+
+    pub fn read() Register {
+        return @bitCast(io.inb(io_port_r));
+    }
+
+    pub fn write(reg: Register) void {
+        // Write register value.
+        io.outb(io_port_w, @bitCast(reg));
+
+        // Update saved values.
+        reg_val = reg;
+        crt_ctrl.reg_addrs = crt_ctrl.regAddrs();
+    }
+};
+
+pub const crt_ctrl = struct {
+    pub const RegisterAddrs = struct {
+        addr: u16,
+        data: u16,
+    };
+
+    pub var reg_addrs: RegisterAddrs = undefined;
+
+    pub const cursor_location = struct {
+        pub const hi = struct {
+            pub const index = 0xe;
+
+            pub const Register = u8;
+        };
+
+        pub const lo = struct {
+            pub const index = 0xf;
+
+            pub const Register = u8;
+        };
+    };
+
+    pub const cursor_start = struct {
+        pub const index = 0xa;
 
         pub const Register = packed struct(u8) {
-            vsyncp: u1 = 0,
-            hsyncp: u1 = 0,
-            oe_page: enum(u1) {
-                lo = 0,
-                hi = 1,
-            } = .lo,
-            _r1: u1,
-            clock_select: enum(u2) {
-                @"25Mhz" = 0,
-                @"28Mhz" = 1,
-            } = .@"25Mhz",
-            ram_enable: bool,
-            io_addr_select: enum(u1) {
-                // crt controller addrs: 0x03bx, io status reg 1 addr: 0x03ba
-                mono = 0,
-
-                // crt controller addrs: 0x03dx, io status reg 1 addr: 0x03da
-                color = 1,
-            } = .mono,
+            cursort_scanline_start: u5 = 0,
+            cursor_disable: bool = false,
+            _r1: u2 = 0,
         };
-
-        pub fn read() Register {
-            return @bitCast(io.inb(io_port_r));
-        }
-
-        pub fn write(reg: Register) void {
-            // Write register value.
-            io.outb(io_port_w, @bitCast(reg));
-
-            // Update saved values.
-            reg_val = reg;
-            crt_ctrl.reg_addrs = crt_ctrl.regAddrs();
-        }
     };
 
-    pub const crt_ctrl = struct {
-        pub const RegisterAddrs = struct {
-            addr: u16,
-            data: u16,
-        };
-
-        pub var reg_addrs: RegisterAddrs = undefined;
-
-        pub const cursor_location = struct {
-            pub const hi = struct {
-                pub const index = 0xe;
-
-                pub const Register = u8;
-            };
-
-            pub const lo = struct {
-                pub const index = 0xf;
-
-                pub const Register = u8;
-            };
-        };
-
-        pub const cursor_start = struct {
-            pub const index = 0xa;
-
-            pub const Register = packed struct(u8) {
-                cursort_scanline_start: u5 = 0,
-                cursor_disable: bool = false,
-                _r1: u2 = 0,
-            };
-        };
-
-        pub fn regAddrs() RegisterAddrs {
-            switch (misc_out.reg_val.io_addr_select) {
-                .mono => return .{ .addr = 0x3b4, .data = 0x3b5 },
-                .color => return .{ .addr = 0x3d4, .data = 0x3d5 },
-            }
+    pub fn regAddrs() RegisterAddrs {
+        switch (misc_out.reg_val.io_addr_select) {
+            .mono => return .{ .addr = 0x3b4, .data = 0x3b5 },
+            .color => return .{ .addr = 0x3d4, .data = 0x3d5 },
         }
+    }
 
-        pub fn read(reg: anytype) reg.Register {
-            // Get the current register index.
-            // const orig_index = io.inb(reg_addrs.addr);
+    pub fn read(reg: anytype) reg.Register {
+        // Get the current register index.
+        // const orig_index = io.inb(reg_addrs.addr);
 
-            // Set the input register index for this register.
-            io.outb(reg_addrs.addr, reg.index);
+        // Set the input register index for this register.
+        io.outb(reg_addrs.addr, reg.index);
 
-            // Read the register data.
-            const res = io.inb(reg_addrs.data);
+        // Read the register data.
+        const res = io.inb(reg_addrs.data);
 
-            // Restore the original index.
-            // io.outb(reg_addrs.addr, orig_index);
+        // Restore the original index.
+        // io.outb(reg_addrs.addr, orig_index);
 
-            return @bitCast(res);
-        }
+        return @bitCast(res);
+    }
 
-        pub fn write(reg: anytype, val: reg.Register) void {
-            // Get the current register index.
-            const orig_index = io.inb(reg_addrs.addr);
+    pub fn write(reg: anytype, val: reg.Register) void {
+        // Get the current register index.
+        const orig_index = io.inb(reg_addrs.addr);
 
-            // Set the output register index for this register.
-            io.outb(reg_addrs.addr, reg.index);
+        // Set the output register index for this register.
+        io.outb(reg_addrs.addr, reg.index);
 
-            // Write the register data.
-            io.outb(reg_addrs.data, @bitCast(val));
+        // Write the register data.
+        io.outb(reg_addrs.data, @bitCast(val));
 
-            // Restore the original index.
-            io.outb(reg_addrs.addr, orig_index);
-        }
-    };
+        // Restore the original index.
+        io.outb(reg_addrs.addr, orig_index);
+    }
 };
 
 const BufferWriter = std.io.Writer(
@@ -191,18 +189,18 @@ pub fn init() void {
     {
         // Set IO addr select register.
         {
-            var reg = Registers.misc_out.read();
+            var reg = misc_out.read();
             reg.io_addr_select = .color;
 
-            Registers.misc_out.write(reg);
+            misc_out.write(reg);
         }
 
         // Disable the cursor.
         {
-            var reg = Registers.crt_ctrl.read(Registers.crt_ctrl.cursor_start);
+            var reg = crt_ctrl.read(crt_ctrl.cursor_start);
             reg.cursor_disable = true;
 
-            Registers.crt_ctrl.write(Registers.crt_ctrl.cursor_start, reg);
+            crt_ctrl.write(crt_ctrl.cursor_start, reg);
         }
     }
 
