@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const cpu = @import("cpu.zig");
+const klog = @import("kstd/log.zig");
 const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
@@ -63,13 +64,12 @@ fn loadIdt() void {
 
 const int_handlers = GenInterruptHandlers(struct {
     pub fn exc05() void {
-        vga.printf("shit\n", .{});
+        klog.dbg("shit");
     }
 
     // Double Fault
     pub fn exc08(err_code: u32) void {
-        _ = err_code; // autofix
-        vga.printf("double shit\n", .{});
+        klog.dbgf("double shit: {any}", .{err_code});
     }
 
     // General Protection Fault
@@ -92,12 +92,12 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // Serial: COM2, COM4
     pub fn irq3() void {
-        vga.writeStr("irq3\n");
+        klog.dbg("irq3");
     }
 
     // Serial: COM1, COM3
     pub fn irq4() void {
-        vga.writeStr("irq4\n");
+        klog.dbg("irq4");
     }
 
     // RTC

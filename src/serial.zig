@@ -1,13 +1,14 @@
 const std = @import("std");
 
 const io = @import("io.zig");
+const kstd = @import("kstd.zig");
 
 const baud_rate_base: u16 = 115200;
 
-pub var com1 = COMPort(0x3f8){};
-pub var com2 = COMPort(0x2f8){};
-pub var com3 = COMPort(0x3e8){};
-pub var com4 = COMPort(0x2e8){};
+pub var com1: COMPort = .{ .io_port = 0x3f8 };
+pub var com2: COMPort = .{ .io_port = 0x2f8 };
+pub var com3: COMPort = .{ .io_port = 0x3e8 };
+pub var com4: COMPort = .{ .io_port = 0x2e8 };
 
 pub fn init() !void {
     try com1.init();
@@ -16,125 +17,126 @@ pub fn init() !void {
     try com4.init();
 }
 
-fn COMPort(io_port: u16) type {
-    // | IO Port Offset | Setting of DLAB | I/O Access | Register mapped to this port |
-    // +0  0  Read        Receive buffer
-    // +0  0  Write       Transmit buffer
-    // +1  0  Read/Write  Interrupt Enable Register
-    // +0  1  Read/Write  With DLAB set to 1, this is the least significant byte of the divisor value for setting the baud rate
-    // +1  1  Read/Write  With DLAB set to 1, this is the most significant byte of the divisor value
-    // +2  -  Read        Interrupt Identification
-    // +2  -  Write       FIFO control registers
-    // +3  -  Read/Write  Line Control Register; The most significant bit of this register is the DLAB
-    // +4  -  Read/Write  Modem Control Register
-    // +5  -  Read        Line Status Register
-    // +6  -  Read        Modem Status Register
-    // +7  -  Read/Write  Scratch Register
-    return struct {
-        const Self = @This();
+// | IO Port Offset | Setting of DLAB | I/O Access | Register mapped to this port |
+// +0  0  Read        Receive buffer
+// +0  0  Write       Transmit buffer
+// +1  0  Read/Write  Interrupt Enable Register
+// +0  1  Read/Write  With DLAB set to 1, this is the least significant byte of the divisor value for setting the baud rate
+// +1  1  Read/Write  With DLAB set to 1, this is the most significant byte of the divisor value
+// +2  -  Read        Interrupt Identification
+// +2  -  Write       FIFO control registers
+// +3  -  Read/Write  Line Control Register; The most significant bit of this register is the DLAB
+// +4  -  Read/Write  Modem Control Register
+// +5  -  Read        Line Status Register
+// +6  -  Read        Modem Status Register
+// +7  -  Read/Write  Scratch Register
+pub const COMPort = struct {
+    const Self = @This();
 
-        var input_buf: [2048]u8 = undefined;
-        var input_buf_list_allocator = std.heap.FixedBufferAllocator.init(&input_buf);
-        var input_buf_list = std.ArrayList(u8).init(input_buf_list_allocator.allocator());
+    io_port: u16,
 
-        buf_reader: std.io.AnyReader = .{
-            .context = undefined,
+    input_buf: kstd.collections.BufferQueue(u8, 2048) = .{},
+    buf_reader: std.io.AnyReader = undefined,
+
+    output_buf: kstd.collections.BufferQueue(u8, 2048) = .{},
+    buf_writer: std.io.AnyWriter = undefined,
+
+    pub fn init(self: *Self) !void {
+        self.buf_reader = .{
+            .context = self,
             .readFn = &readBuf,
-        },
+        };
 
-        pub fn init(self: *Self) !void {
-            // Disable interrupts.
-            io.outb(io_port + 1, @bitCast(InterruptEnableRegister{}));
+        self.buf_writer = .{
+            .context = self,
+            .writeFn = &writeBuf,
+        };
 
-            // Set baud rate.
-            self.setBaud(38400);
+        // Disable interrupts.
+        io.outb(self.io_port + 1, @bitCast(InterruptEnableRegister{}));
 
-            // 8 bits, no parity, one stop bit.
-            self.setLineControl(LineControlRegister{ .data_width = .@"8b" });
+        // Set baud rate.
+        self.setBaud(38400);
 
-            // Enable FIFO, clear them, with 14-byte threshold
-            io.outb(io_port + 2, @bitCast(FifoRegister{
-                .enabled = true,
-                .clear_rx_fifo = true,
-                .clear_tx_fifo = true,
-                .interrupt_trigger_level = .@"14B",
-            }));
+        // 8 bits, no parity, one stop bit.
+        self.setLineControl(LineControlRegister{ .data_width = .@"8b" });
 
-            // IRQs enabled, RTS/DSR set
-            io.outb(io_port + 4, @bitCast(InterruptEnableRegister{}));
+        // Enable FIFO, clear them, with 14-byte threshold
+        io.outb(self.io_port + 2, @bitCast(FifoRegister{
+            .enabled = true,
+            .clear_rx_fifo = true,
+            .clear_tx_fifo = true,
+            .interrupt_trigger_level = .@"14B",
+        }));
 
-            // TODO: Make sure the interface is healthy.
+        // IRQs enabled, RTS/DSR set
+        io.outb(self.io_port + 4, @bitCast(InterruptEnableRegister{}));
+
+        // TODO: Make sure the interface is healthy.
+    }
+
+    pub fn setBaud(self: Self, divisor: u16) void {
+        var line_control: LineControlRegister = @bitCast(io.inb(self.io_port + 3));
+        const dlab_enabled = line_control.dlab;
+
+        // Enable DLAB on line control register.
+        if (!dlab_enabled) {
+            line_control.dlab = true;
+            self.setLineControl(line_control);
         }
 
-        pub fn setBaud(self: Self, divisor: u16) void {
-            var line_control: LineControlRegister = @bitCast(io.inb(io_port + 3));
-            const dlab_enabled = line_control.dlab;
+        // Write baud rate divisor.
+        io.outb(self.io_port, @as(u8, @truncate(divisor)) & 0xff);
+        io.outb(self.io_port + 1, @as(u8, @truncate(divisor >> 8)) & 0xff);
 
-            // Enable DLAB on line control register.
-            if (!dlab_enabled) {
-                line_control.dlab = true;
-                self.setLineControl(line_control);
-            }
+        // Restore DLAB value.
+        line_control.dlab = dlab_enabled;
+        io.outb(self.io_port + 3, @bitCast(line_control));
+    }
 
-            // Write baud rate divisor.
-            io.outb(io_port, @as(u8, @truncate(divisor)) & 0xff);
-            io.outb(io_port + 1, @as(u8, @truncate(divisor >> 8)) & 0xff);
+    pub fn getLineControl(self: Self) LineControlRegister {
+        return @bitCast(io.inb(self.io_port + 3));
+    }
 
-            // Restore DLAB value.
-            line_control.dlab = dlab_enabled;
-            io.outb(io_port + 3, @bitCast(line_control));
+    pub fn setLineControl(self: Self, reg: LineControlRegister) void {
+        io.outb(self.io_port + 3, @bitCast(reg));
+    }
+
+    inline fn ioPort(self: Self) u16 {
+        return @intFromEnum(self.port);
+    }
+
+    fn testInterface(self: Self) error{Unhealthy}!void {
+        // TODO: make this work.
+
+        // Set in loopback mode, test the serial chip.
+        io.outb(self.io_port + 4, 0x1e);
+
+        // Test serial chip (send byte 0xAE and check if serial returns same byte)
+        io.outb(self.io_port, 0xae);
+
+        // Check if serial is faulty (i.e: not same byte as sent)
+        if (io.inb(self.io_port) != 0xae) {
+            return error.Unhealthy;
         }
 
-        pub fn getLineControl(_: Self) LineControlRegister {
-            return @bitCast(io.inb(io_port + 3));
-        }
+        // If serial is not faulty set it in normal operation mode
+        // (not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled)
+        io.outb(self.io_port + 4, 0x0f);
+    }
 
-        pub fn setLineControl(_: Self, reg: LineControlRegister) void {
-            io.outb(io_port + 3, @bitCast(reg));
-        }
+    fn readBuf(ctx: *const anyopaque, buffer: []u8) anyerror!usize {
+        var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
+        return self.input_buf.dequeueSlice(buffer);
+    }
 
-        inline fn ioPort(self: Self) u16 {
-            return @intFromEnum(self.port);
-        }
+    fn writeBuf(ctx: *const anyopaque, buffer: []const u8) anyerror!usize {
+        var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
+        try self.output_buf.appendSlice(buffer);
 
-        fn testInterface(_: Self) error{Unhealthy}!void {
-            // TODO: make this work.
-
-            // Set in loopback mode, test the serial chip.
-            io.outb(io_port + 4, 0x1e);
-
-            // Test serial chip (send byte 0xAE and check if serial returns same byte)
-            io.outb(io_port, 0xae);
-
-            // Check if serial is faulty (i.e: not same byte as sent)
-            if (io.inb(io_port) != 0xae) {
-                return error.Unhealthy;
-            }
-
-            // If serial is not faulty set it in normal operation mode
-            // (not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled)
-            io.outb(io_port + 4, 0x0f);
-        }
-
-        fn readBuf(_: *const anyopaque, buffer: []u8) anyerror!usize {
-            const n = if (Self.input_buf_list.items.len < buffer.len) Self.input_buf_list.items.len else buffer.len;
-            for (0..n) |i| {
-                buffer[i] = Self.input_buf_list.items[i];
-            }
-
-            if (n == Self.input_buf_list.items.len) {
-                return n;
-            }
-
-            // HACK: there is no way this is efficient, but that's what we're going with for now!
-            const remainder = Self.input_buf_list.items[n..Self.input_buf_list.items.len];
-            Self.input_buf_list.clearRetainingCapacity();
-            try Self.input_buf_list.appendSlice(remainder);
-
-            return n;
-        }
-    };
-}
+        return buffer.len;
+    }
+};
 
 const InterruptIdentificationRegister = packed struct(u8) {
     pending_state: enum(u1) { pending = 0, not_pending = 1 } = .@"0",

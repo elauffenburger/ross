@@ -4,6 +4,7 @@ const std = @import("std");
 
 const io = @import("io.zig");
 const kstd = @import("kstd.zig");
+const klog = @import("kstd/log.zig");
 const pic = @import("pic.zig");
 const vga = @import("vga.zig");
 
@@ -47,9 +48,9 @@ fn testInterface() !void {
 
         const res = ctrl.pollData();
         if (res == @intFromEnum(Ctrl.TestCtrl.R.passed)) {
-            vga.dbg("ps/2 self-test: pass!\n", .{});
+            klog.dbg("ps/2 self-test: pass!");
         } else {
-            vga.dbg("ps/2 self-test: fail! ({b})\n", .{res});
+            klog.dbgf("ps/2 self-test: fail! ({b})", .{res});
         }
     }
 
@@ -71,9 +72,9 @@ fn testInterface() !void {
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort1.R.passed)) {
-                vga.dbg("ps/2 interface 1 test: pass!\n", .{});
+                klog.dbg("ps/2 interface 1 test: pass!");
             } else {
-                vga.dbg("ps/2 interface 1 test: fail! ({b})\n", .{res});
+                klog.dbgf("ps/2 interface 1 test: fail! ({b})", .{res});
             }
         }
 
@@ -83,9 +84,9 @@ fn testInterface() !void {
 
             const res = ctrl.pollData();
             if (res == @intFromEnum(Ctrl.TestPort2.R.passed)) {
-                vga.dbg("ps/2 interface 2 test: pass!\n", .{});
+                klog.dbg("ps/2 interface 2 test: pass!");
             } else {
-                vga.dbg("ps/2 interface 2 test: fail! ({b})\n", .{res});
+                klog.dbgf("ps/2 interface 2 test: fail! ({b})", .{res});
             }
         }
     }
@@ -157,7 +158,7 @@ const Port = struct {
 
         // Wait for the input buffer to be clear.
         while (ctrl.status().input_buf_full) {
-            vga.dbgv("waiting on input buffer...\n", .{});
+            klog.dbgv("waiting on input buffer...");
         }
 
         // Write our byte.
@@ -169,9 +170,9 @@ const Port = struct {
 
         // Wait for an ACK.
         if (port1.waitAck()) {
-            vga.dbg("ok!\n", .{});
+            klog.dbg("ok!");
         } else |e| {
-            vga.dbg("failed to ack: {any}\n", .{e});
+            klog.dbgf("failed to ack: {any}", .{e});
         }
     }
 
@@ -213,7 +214,7 @@ const Port = struct {
         chk: switch (n) {
             0 => unreachable,
             1 => switch (buf[0]) {
-                0xfc => vga.dbg("health check failed for ps/2 port {s}\n", .{@tagName(self.port)}),
+                0xfc => klog.dbgf("health check failed for ps/2 port {s}", .{@tagName(self.port)}),
                 else => break :chk,
             },
             2, 3 => {
@@ -232,7 +233,7 @@ const Port = struct {
                 for (options) |opt| {
                     if (std.mem.eql(u8, buf[0..n], opt)) {
                         self.healthy = true;
-                        vga.dbg("ps/2 port {s} healthy!\n", .{@tagName(self.port)});
+                        klog.dbgf("ps/2 port {s} healthy!", .{@tagName(self.port)});
 
                         return;
                     }
@@ -241,11 +242,11 @@ const Port = struct {
             else => break :chk,
         }
 
-        vga.dbg("unexpected response code for ps/2 port {s}:", .{@tagName(self.port)});
+        klog.dbgf("unexpected response code for ps/2 port {s}:", .{@tagName(self.port)});
         for (buf[0..n]) |byte| {
-            vga.dbg(" 0x{x}", .{byte});
+            klog.dbgf(" 0x{x}", .{byte});
         }
-        vga.dbg("\n", .{});
+        klog.dbg("");
     }
 
     pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
@@ -288,7 +289,7 @@ const ctrl = struct {
     pub fn pollData() u8 {
         // Wait for the controller to write the response.
         while (!status().output_buf_full) {
-            vga.dbgv("waiting for polled byte...\n", .{});
+            klog.dbgv("waiting for polled byte...");
         }
 
         // Read the response.
@@ -302,7 +303,7 @@ const ctrl = struct {
     pub fn flushData() void {
         while (status().output_buf_full) {
             const byte = io.inb(IOPort.data);
-            vga.dbgv("flushing 0x{x}\n", .{byte});
+            klog.dbgvf("flushing 0x{x}", .{byte});
         }
     }
 };

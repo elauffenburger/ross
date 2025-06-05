@@ -6,6 +6,7 @@ const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
 const kb = @import("keyboard.zig");
 const kstd = @import("kstd.zig");
+const klog = @import("kstd/log.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
@@ -77,11 +78,14 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
-    // Init VGA first so we can debug to screen.
-    vga.init();
+    // Init serial first so we can debug to screen.
+    try serial.init();
 
     // Init kstd.
     kstd.init();
+    klog.init();
+
+    vga.init();
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");
@@ -112,8 +116,6 @@ pub fn kmain() !void {
     // Init keyboard interface.
     kb.init();
 
-    try serial.init();
-
     // Init terminal.
     term.init();
 
@@ -121,7 +123,7 @@ pub fn kmain() !void {
 
     while (true) {
         tick() catch |e| {
-            vga.dbg("error ticking {any}\n", .{e});
+            klog.dbgf("error ticking {any}", .{e});
         };
 
         asm volatile ("hlt");

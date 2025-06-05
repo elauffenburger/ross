@@ -104,7 +104,7 @@ pub fn setCursor(x: u32, y: u32) void {
     }
 
     const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index = @as(u16, @truncate(bufIndex(curr_x, curr_y)));
+    const cursor_index = @as(u16, @intCast(bufIndex(curr_x, curr_y)));
 
     regs.crt_ctrl.write(loc_reg.lo, @truncate(cursor_index));
     regs.crt_ctrl.write(loc_reg.hi, @truncate(cursor_index >> 8));
@@ -170,20 +170,4 @@ fn scroll() void {
     @memcpy(buffer[0 .. width * height], &new_buf);
 
     setCursor(0, height - 1);
-}
-
-pub var debugVerbosity: enum(u8) { none, debug, v } = .v;
-
-pub fn dbg(comptime format: []const u8, args: anytype) void {
-    debugLog(format, args, .debug);
-}
-
-pub fn dbgv(comptime format: []const u8, args: anytype) void {
-    debugLog(format, args, .v);
-}
-
-pub fn debugLog(comptime format: []const u8, args: anytype, verbosity: @TypeOf(debugVerbosity)) void {
-    if (@intFromEnum(debugVerbosity) >= @intFromEnum(verbosity)) {
-        printf(format, args);
-    }
 }

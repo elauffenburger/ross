@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const input = @import("input.zig");
+const klog = @import("kstd/log.zig");
 const ps2 = @import("ps2.zig");
 const types = @import("types.zig");
 const vga = @import("vga.zig");
@@ -17,11 +18,11 @@ inline fn shiftHeld() bool {
 
 pub fn init() void {
     // Enable scan codes for port1.
-    vga.dbg("enabling port1 scan codes...", .{});
+    klog.dbg("enabling port1 scan codes...");
     ps2.port1.writeData(ps2.Device.EnableScanning.C);
 
     // Enable typematic for port1.
-    vga.dbg("enabling port1 typematic settings...", .{});
+    klog.dbg("enabling port1 typematic settings...");
     ps2.port1.writeData(ps2.Device.SetTypematic.C);
     ps2.port1.writeData(@bitCast(
         ps2.Device.SetTypematic.D{
@@ -266,8 +267,8 @@ fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) Ke
 }
 
 fn debugPrintKey(key: Keys.KeyPress) void {
-    vga.dbg(
-        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}\n",
+    klog.dbgf(
+        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}",
         .{
             key.key_def.key_name,
             if (key.key_def.key_ascii) |key_ascii| key_ascii else ' ',
