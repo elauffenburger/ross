@@ -78,9 +78,6 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
-    // Init serial first so we can debug to screen.
-    try serial.init();
-
     // Init kstd.
     kstd.init();
     klog.init();
@@ -101,6 +98,9 @@ pub fn kmain() !void {
     // Re-enable interrupts.
     asm volatile ("sti");
     cmos.unmaskNMIs();
+
+    // Init serial first so we can debug to screen.
+    try serial.init();
 
     // Enable PS/2 interfaces.
     try ps2.init();

@@ -44,12 +44,12 @@ pub const COMPort = struct {
     pub fn init(self: *Self) !void {
         self.buf_reader = .{
             .context = self,
-            .readFn = &readBuf,
+            .readFn = &read,
         };
 
         self.buf_writer = .{
             .context = self,
-            .writeFn = &writeBuf,
+            .writeFn = &write,
         };
 
         // Disable interrupts.
@@ -59,7 +59,10 @@ pub const COMPort = struct {
         self.setBaud(38400);
 
         // 8 bits, no parity, one stop bit.
-        self.setLineControl(LineControlRegister{ .data_width = .@"8b" });
+        self.setLineControl(LineControlRegister{
+            .data_width = .@"8b",
+            .stop = true,
+        });
 
         // Enable FIFO, clear them, with 14-byte threshold
         io.outb(self.io_port + 2, @bitCast(FifoRegister{
@@ -70,7 +73,23 @@ pub const COMPort = struct {
         }));
 
         // IRQs enabled, RTS/DSR set
-        io.outb(self.io_port + 4, @bitCast(InterruptEnableRegister{}));
+        io.outb(self.io_port + 4, @bitCast(ModemControlRegister{
+            .dtr = true,
+            .rts = true,
+            .out2 = true,
+        }));
+
+        // Enable interrupts
+        // HACK: is this necessary?
+        io.outb(
+            self.io_port + 1,
+            @bitCast(InterruptEnableRegister{
+                .rx_data_available = true,
+                .tx_holding_reg_empty = true,
+                .rx_line_status = true,
+                .modem_status = true,
+            }),
+        );
 
         // TODO: Make sure the interface is healthy.
     }
@@ -125,18 +144,63 @@ pub const COMPort = struct {
         io.outb(self.io_port + 4, 0x0f);
     }
 
-    fn readBuf(ctx: *const anyopaque, buffer: []u8) anyerror!usize {
+    fn read(ctx: *const anyopaque, buffer: []u8) anyerror!usize {
         var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
+        self.sync();
+
         return self.input_buf.dequeueSlice(buffer);
     }
 
-    fn writeBuf(ctx: *const anyopaque, buffer: []const u8) anyerror!usize {
+    fn write(ctx: *const anyopaque, buffer: []const u8) anyerror!usize {
         var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
+
         try self.output_buf.appendSlice(buffer);
+        self.sync();
 
         return buffer.len;
     }
+
+    fn sync(self: *Self) void {
+        const line_status = self.getLineStatus();
+
+        // If there's data pending on rx, read it!
+        if (line_status.data_ready) {
+            self.readPort() catch {};
+        }
+
+        // If there's data pending in the buffer, write it!
+        if (line_status.tx_holding_reg_empty) {
+            self.writePortFromBuf();
+        }
+    }
+
+    fn readPort(self: *Self) !void {
+        try self.input_buf.append(io.inb(self.io_port));
+    }
+
+    fn writePortFromBuf(self: *Self) void {
+        if (self.output_buf.dequeue()) |byte| {
+            io.outb(self.io_port, byte);
+        }
+    }
+
+    pub fn getLineStatus(self: Self) LineStatusRegister {
+        return @bitCast(io.inb(self.io_port + 5));
+    }
 };
+
+pub fn onIrq(maybe_port_nums: enum { com1com3, com2com4 }) void {
+    const maybe_ports = blk: {
+        switch (maybe_port_nums) {
+            .com1com3 => break :blk [_]*COMPort{ &com1, &com4 },
+            .com2com4 => break :blk [_]*COMPort{ &com1, &com4 },
+        }
+    };
+
+    for (maybe_ports) |maybe_port| {
+        maybe_port.sync();
+    }
+}
 
 const InterruptIdentificationRegister = packed struct(u8) {
     pending_state: enum(u1) { pending = 0, not_pending = 1 } = .@"0",
@@ -248,4 +312,23 @@ const LineControlRegister = packed struct(u8) {
     parity: u3 = 0,
     breakEnable: bool = false,
     dlab: bool = false,
+};
+
+const ModemControlRegister = packed struct(u8) {
+    // Data Terminal Ready pin
+    dtr: bool = false,
+
+    // Request to Send
+    rts: bool = false,
+
+    // Unused (I guess??)
+    out1: bool = false,
+
+    // Enables IRQs
+    out2: bool = false,
+
+    // Enables local loopback
+    loop: bool = false,
+
+    _r1: u3 = 0,
 };

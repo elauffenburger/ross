@@ -92,12 +92,12 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // Serial: COM2, COM4
     pub fn irq3() void {
-        klog.dbg("irq3");
+        serial.onIrq(.com2com4);
     }
 
     // Serial: COM1, COM3
     pub fn irq4() void {
-        klog.dbg("irq4");
+        serial.onIrq(.com1com3);
     }
 
     // RTC

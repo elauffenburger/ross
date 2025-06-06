@@ -18,11 +18,12 @@ inline fn shiftHeld() bool {
 
 pub fn init() void {
     // Enable scan codes for port1.
-    klog.dbg("enabling port1 scan codes...");
+    klog.dbgf("enabling port1 scan codes...", .{});
     ps2.port1.writeData(ps2.Device.EnableScanning.C);
+    klog.dbg("ok!");
 
     // Enable typematic for port1.
-    klog.dbg("enabling port1 typematic settings...");
+    klog.dbgf("enabling port1 typematic settings...", .{});
     ps2.port1.writeData(ps2.Device.SetTypematic.C);
     ps2.port1.writeData(@bitCast(
         ps2.Device.SetTypematic.D{
@@ -30,6 +31,7 @@ pub fn init() void {
             .delay = .@"750ms",
         },
     ));
+    klog.dbg("ok!");
 
     kb_reader = &ps2.port1.buf_reader;
 }

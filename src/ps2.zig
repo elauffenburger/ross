@@ -169,9 +169,7 @@ const Port = struct {
         self.writeDataNoAck(byte);
 
         // Wait for an ACK.
-        if (port1.waitAck()) {
-            klog.dbg("ok!");
-        } else |e| {
+        if (port1.waitAck()) {} else |e| {
             klog.dbgf("failed to ack: {any}", .{e});
         }
     }
@@ -233,7 +231,7 @@ const Port = struct {
                 for (options) |opt| {
                     if (std.mem.eql(u8, buf[0..n], opt)) {
                         self.healthy = true;
-                        klog.dbgf("ps/2 port {s} healthy!", .{@tagName(self.port)});
+                        klog.dbgf("ps/2 port {s} healthy!\n", .{@tagName(self.port)});
 
                         return;
                     }

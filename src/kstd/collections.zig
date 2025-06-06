@@ -3,11 +3,9 @@ const std = @import("std");
 pub fn BufferQueue(T: type, size: usize) type {
     return struct {
         const Self = @This();
-
         const Error = error{OutOfMemory};
 
         buf: [size]T = undefined,
-
         items: []T = undefined,
 
         pub fn append(self: *Self, item: T) !void {
@@ -22,6 +20,15 @@ pub fn BufferQueue(T: type, size: usize) type {
 
             @memcpy(self.buf[self.items.len..new_len], buffer);
             self.items = self.buf[0..new_len];
+        }
+
+        pub fn dequeue(self: *Self) ?T {
+            var buf: [1]T = undefined;
+            if (self.dequeueSlice(&buf) == 1) {
+                return buf[0];
+            }
+
+            return null;
         }
 
         pub fn dequeueSlice(self: *Self, buffer: []T) usize {
