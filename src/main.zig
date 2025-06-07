@@ -14,7 +14,6 @@ const rtc = @import("rtc.zig");
 const serial = @import("serial.zig");
 const stack = @import("stack.zig");
 const tables = @import("tables.zig");
-const term = @import("term.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
 
@@ -116,11 +115,6 @@ pub fn kmain() !void {
     // Init keyboard interface.
     kb.init();
 
-    // Init terminal.
-    term.init();
-
-    vga.writeStr("hello, zig!\n");
-
     while (true) {
         tick() catch |e| {
             klog.dbgf("error ticking {any}", .{e});
@@ -132,7 +126,6 @@ pub fn kmain() !void {
 
 fn tick() !void {
     try kb.tick();
-    try term.tick();
 }
 
 test {

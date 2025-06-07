@@ -8,9 +8,7 @@ const vga = @import("vga.zig");
 // HACK: not sure what the size should actually be here!
 var input_buf = kstd.collections.BufferQueue(u8, 2048){};
 
-pub fn init() void {}
-
-pub fn tick() !void {
+pub fn main() !void {
     var events_buf: [10]kb.KeyEvent = undefined;
     if (input.dequeueKeyEvents(&events_buf)) |kb_events| {
         for (kb_events) |key_ev| {
@@ -21,9 +19,7 @@ pub fn tick() !void {
             switch (key_ev.key_press.key) {
                 .backspace => {},
                 .escape => {},
-                .enter => {
-                    vga.writeCh('\n');
-                },
+                .enter => vga.writeCh('\n'),
                 else => {
                     const key = if (key_ev.modifiers.shift and key_ev.key_press.shift_key != null) key_ev.key_press.shift_key.? else key_ev.key_press.key;
                     if (input.asciiFromKeyName(key)) |ascii_key_code| {
