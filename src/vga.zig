@@ -13,6 +13,8 @@ var curr_colors = ColorPair{
     .bg = Color.Black,
 };
 
+var empty_char: Char = undefined;
+
 var buffer = @as([*]volatile u16, @ptrFromInt(buffer_addr));
 const buffer_addr = 0x0b8000;
 
@@ -79,6 +81,9 @@ pub fn init() void {
         });
     }
 
+    // Init defaults.
+    empty_char = Char{ .ch = ' ', .colors = curr_colors };
+
     // Clear screen.
     clear();
 }
@@ -133,7 +138,7 @@ pub fn writeStr(data: []const u8) void {
             return;
         }
 
-        writeCh(c);
+        writeChRaw(c);
     }
 
     syncCursor();
@@ -163,17 +168,13 @@ fn newline() void {
 }
 
 fn scroll() void {
-    // Copy vga buffer to temp buf.
-    var tmp_buf: [width * height]u16 = undefined;
-    @memcpy(&tmp_buf, buffer[0..(width * height)]);
+    // Copy vga buffer to temp buffer offset by one line.
+    var tmp_buf: [width * height - width]u16 = undefined;
+    @memcpy(&tmp_buf, buffer[width..(width * height)]);
 
-    // Clear the screen.
-    clearRaw();
-
-    // Copy over tmp_buf n+1 -> buff n
-    for (1..height, 0..(height - 1)) |src_line, dst_line| {
-        @memcpy(buffer[dst_line * width .. ((dst_line + 1) * width)], tmp_buf[src_line * width .. (src_line + 1) * width]);
-    }
+    // Copy tmp buf back to vga buf and clear the last line.
+    @memcpy(buffer[0 .. (width * height) - width], &tmp_buf);
+    @memcpy(buffer[(width * height) - width ..], &([_]u16{empty_char.code()} ** width));
 
     setCursor(0, height - 1);
 }
