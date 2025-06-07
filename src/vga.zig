@@ -84,12 +84,16 @@ pub fn init() void {
 }
 
 pub fn clear() void {
-    @memset(buffer[0..(width * height)], Char.code(.{ .colors = curr_colors, .ch = ' ' }));
+    clearRaw();
+    syncCursor();
+}
 
+fn clearRaw() void {
+    @memset(buffer[0..(width * height)], Char.code(.{ .colors = curr_colors, .ch = ' ' }));
     setCursor(0, 0);
 }
 
-pub fn setCursor(x: u32, y: u32) void {
+fn setCursor(x: u32, y: u32) void {
     curr_x = x;
     curr_y = y;
 
@@ -102,19 +106,13 @@ pub fn setCursor(x: u32, y: u32) void {
         scroll();
         return;
     }
-
-    const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index = @as(u16, @intCast(bufIndex(curr_x, curr_y)));
-
-    regs.crt_ctrl.write(loc_reg.lo, @truncate(cursor_index));
-    regs.crt_ctrl.write(loc_reg.hi, @truncate(cursor_index >> 8));
 }
 
 inline fn bufIndex(x: u32, y: u32) u32 {
     return y * width + x;
 }
 
-pub fn writeChAt(ch: Char, x: u32, y: u32) void {
+fn writeChAt(ch: Char, x: u32, y: u32) void {
     const index = bufIndex(x, y);
 
     var code: u16 = @intCast(ch.colors.code());
@@ -125,14 +123,8 @@ pub fn writeChAt(ch: Char, x: u32, y: u32) void {
 }
 
 pub fn writeCh(ch: u8) void {
-    if (ch == '\n') {
-        newline();
-        return;
-    }
-
-    writeChAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
-
-    setCursor(curr_x + 1, curr_y);
+    writeChRaw(ch);
+    syncCursor();
 }
 
 pub fn writeStr(data: []const u8) void {
@@ -143,6 +135,8 @@ pub fn writeStr(data: []const u8) void {
 
         writeCh(c);
     }
+
+    syncCursor();
 }
 
 pub fn printf(comptime format: []const u8, args: anytype) void {
@@ -154,20 +148,40 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
     writeStr(fmtd);
 }
 
+fn writeChRaw(ch: u8) void {
+    if (ch == '\n') {
+        newline();
+        return;
+    }
+
+    writeChAt(.{ .ch = ch, .colors = curr_colors }, curr_x, curr_y);
+    setCursor(curr_x + 1, curr_y);
+}
+
 fn newline() void {
     setCursor(0, curr_y + 1);
 }
 
 fn scroll() void {
-    // Copy line 1:n of buffer to line 0:(n-1) of new_buf.
-    var new_buf: [width * height]u16 = undefined;
-    @memcpy(new_buf[0..((width * height) - width)], buffer[width..]);
+    // Copy vga buffer to temp buf.
+    var tmp_buf: [width * height]u16 = undefined;
+    @memcpy(&tmp_buf, buffer[0..(width * height)]);
 
-    // Zero out the last line of new_buf.
-    @memcpy(new_buf[((width * height) - width)..], &([_]u16{0} ** width));
+    // Clear the screen.
+    clearRaw();
 
-    // Copy new_buf to buf.
-    @memcpy(buffer[0 .. width * height], &new_buf);
+    // Copy over tmp_buf n+1 -> buff n
+    for (1..height, 0..(height - 1)) |src_line, dst_line| {
+        @memcpy(buffer[dst_line * width .. ((dst_line + 1) * width)], tmp_buf[src_line * width .. (src_line + 1) * width]);
+    }
 
     setCursor(0, height - 1);
+}
+
+fn syncCursor() void {
+    const loc_reg = regs.crt_ctrl.cursor_location;
+    const cursor_index = @as(u16, @intCast(bufIndex(curr_x, curr_y)));
+
+    regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
+    regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
 }
