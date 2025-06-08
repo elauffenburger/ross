@@ -105,8 +105,17 @@ pub inline fn init() void {
         }),
     };
 
-    // Load GDT!
+    // Load GDT.
     loadGdt();
+
+    // Load Tss.
+    {
+        kernel_tss = .{
+            .ss0 = 8 * @as(u16, @intFromEnum(GdtSegment.kernelTss)),
+            .esp0 = stack.top(&stack.kernel_stack_bytes),
+        };
+        loadTss(.kernelTss);
+    }
 }
 
 inline fn loadGdt() void {
