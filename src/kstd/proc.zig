@@ -3,32 +3,9 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-pub const Process = packed struct {
-    saved_registers: packed struct {
-        esp: u32,
-        esp0: u32,
-        cr3: u32,
-    },
-
-    id: u32,
-    state: enum(u8) {
-        stopped = 0,
-        running = 1,
-        killed = 2,
-    },
-
-    parent: ?*Process,
-
-    // TODO: implement.
-    vm: *hw.vmem.ProcessVirtualMemory,
-};
-
 const max_procs = 256;
-
 const ProcsList = std.fifo.LinearFifo(*Process, .{ .Static = max_procs });
 var procs: ProcsList = ProcsList.init();
-
-var next_pid: u32 = 1;
 
 // SAFETY: set in init.
 var kernel_proc: *Process = undefined;
@@ -39,7 +16,6 @@ export var curr_proc: *Process = undefined;
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
 pub const InitProof = kstd.types.UniqueProof();
-
 pub fn init() !InitProof {
     const proof = try InitProof.new();
 
@@ -131,6 +107,7 @@ pub fn yield() void {
     switch_to_proc(kernel_proc);
 }
 
+var next_pid: u32 = 1;
 fn nextPID() u32 {
     const pid = next_pid;
     next_pid += 1;
@@ -163,4 +140,24 @@ const ProcessStackBuilder = struct {
     pub fn esp(self: *const Self) u32 {
         return @intFromPtr(self.buf.ptr) + self.head;
     }
+};
+
+pub const Process = packed struct {
+    saved_registers: packed struct {
+        esp: u32,
+        esp0: u32,
+        cr3: u32,
+    },
+
+    id: u32,
+    state: enum(u8) {
+        stopped = 0,
+        running = 1,
+        killed = 2,
+    },
+
+    parent: ?*Process,
+
+    // TODO: implement.
+    vm: *hw.vmem.ProcessVirtualMemory,
 };
