@@ -5,9 +5,12 @@ const kstd = @import("kstd.zig");
 const vmem = @import("vmem.zig");
 
 pub const Process = packed struct {
-    esp: u32,
-    esp0: u32,
-    cr3: u32,
+    // NOTE: these are the only fields accessed by asm; the order is important!
+    saved_registers: packed struct {
+        esp: u32,
+        esp0: u32,
+        cr3: u32,
+    },
 
     id: u32,
 
@@ -20,8 +23,6 @@ pub const Process = packed struct {
 
     // TODO: implement.
     vm: *vmem.ProcessVirtualMemory,
-
-    const SavedRegisters = @FieldType(@This(), "saved_registers");
 };
 
 const max_procs = 256;
@@ -38,16 +39,22 @@ extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
 pub fn init() !void {
     // Init the kernel_proc.
-    kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
-    kernel_proc.* = .{
-        .id = nextPID(),
-        .vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory),
-        .state = .running,
+    {
+        const vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory);
 
-        .esp = undefined,
-        .esp0 = undefined,
-        .cr3 = undefined,
-    };
+        kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
+        kernel_proc.* = .{
+            .saved_registers = .{
+                .esp = undefined,
+                .esp0 = undefined,
+                .cr3 = @intFromPtr(&vm.page_dir),
+            },
+
+            .id = nextPID(),
+            .vm = vm,
+            .state = .running,
+        };
+    }
 
     curr_proc = kernel_proc;
 }
@@ -56,33 +63,41 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     // Reuse or create a new proc for this kproc.
     const proc = try kstd.mem.kernel_heap_allocator.create(Process);
     proc.* = .{
+        .saved_registers = blk_regs: {
+            // Allocate a new kernel stack with:
+            //   - ebx (0)
+            //   - esi (0)
+            //   - edi (0)
+            //   - ebp (0)
+            //   - eip (&proc_main)
+            const esp0 = blk_esp0: {
+                // HACK: this leaks.
+                const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+                var stack = ProcessStackBuilder.init(buf);
+
+                stack.push(@intFromPtr(proc_main));
+                stack.push(@as(u32, 0));
+                stack.push(@as(u32, 0));
+                stack.push(@as(u32, 0));
+                stack.push(@as(u32, 0));
+
+                break :blk_esp0 stack.esp();
+            };
+
+            break :blk_regs .{
+                .esp0 = esp0,
+                .esp = esp0,
+
+                // Use the same page dir as the main kernel process.
+                .cr3 = kernel_proc.saved_registers.cr3,
+            };
+        },
+
         .id = nextPID(),
         .state = .running,
 
-        // Allocate a new kernel stack with:
-        //   - ebx (0)
-        //   - esi (0)
-        //   - edi (0)
-        //   - ebp (0)
-        //   - eip (&proc_main)
-        .esp0 = blk: {
-            // HACK: this leaks.
-            const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
-            var stack = ProcessStackBuilder.init(buf);
-
-            stack.push(@intFromPtr(proc_main));
-            stack.push(@as(u32, 0));
-            stack.push(@as(u32, 0));
-            stack.push(@as(u32, 0));
-            stack.push(@as(u32, 0));
-
-            break :blk stack.esp();
-        },
-        .esp = proc.esp0,
-
-        // TODO: create new page dir for proc.
-        .vm = undefined,
-        .cr3 = undefined,
+        // Use the same page dir as the main kernel process.
+        .vm = kernel_proc.vm,
     };
 
     try procs.writeItem(proc);

@@ -29,10 +29,10 @@ pub fn init() !void {
     try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);
 
     // Enable paging!
-    enablePaging(proc.kernel_proc.vm);
+    enablePaging(proc.kernel_proc.saved_registers.cr3);
 }
 
-fn enablePaging(vm: *ProcessVirtualMemory) void {
+fn enablePaging(new_cr3: u32) void {
     asm volatile (
         \\ mov %[pdt_addr], %%cr3
         \\
@@ -40,7 +40,7 @@ fn enablePaging(vm: *ProcessVirtualMemory) void {
         \\ or $0x80000000, %%eax
         \\ mov %%eax, %%cr0
         :
-        : [pdt_addr] "r" (@intFromPtr(&vm.page_dir)),
+        : [pdt_addr] "r" (new_cr3),
         : "eax", "cr0", "cr3"
     );
 }
