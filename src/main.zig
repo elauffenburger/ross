@@ -12,7 +12,6 @@ const pic = @import("pic.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const serial = @import("serial.zig");
-const stack = @import("stack.zig");
 const tables = @import("tables.zig");
 const vga = @import("vga.zig");
 const vmem = @import("vmem.zig");
@@ -34,14 +33,14 @@ pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
 
 pub export fn _kmain() callconv(.naked) noreturn {
     // Set up kernel stack.
-    stack.resetTo(&stack.kernel_stack_bytes);
+    kstd.mem.stack.reset();
 
     // Set up GDT and virtual memory before jumping into kmain since we need to map kernel space to the appropriate
     // segments and pages before we jump into it (or else our segment registers will be screwed up)!
     gdt.init();
 
     // Reset kernel stack.
-    stack.resetTo(&stack.kernel_stack_bytes);
+    kstd.mem.stack.reset();
 
     // Transfer to kmain.
     asm volatile (

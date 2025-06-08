@@ -1,4 +1,4 @@
-const stack = @import("stack.zig");
+const kstd = @import("kstd.zig");
 const tables = @import("tables.zig");
 
 // NOTE: if you rearrange the entries in the GDT, make sure to update GdtSegment!
@@ -112,7 +112,7 @@ pub inline fn init() void {
     {
         kernel_tss = .{
             .ss0 = 8 * @as(u16, @intFromEnum(GdtSegment.kernelTss)),
-            .esp0 = stack.top(&stack.kernel_stack_bytes),
+            .esp0 = kstd.mem.stack.top(),
         };
         loadTss(.kernelTss);
     }
