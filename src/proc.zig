@@ -83,8 +83,6 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         .cr3 = undefined,
     };
 
-    kstd.log.dbgf("curr_proc: 0x{x}, curr_proc.esp: 0x{x}", .{ @intFromPtr(curr_proc), @intFromPtr(&curr_proc.esp) });
-
     switch_to_proc(proc);
 }
 
