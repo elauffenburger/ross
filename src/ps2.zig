@@ -126,7 +126,7 @@ fn testInterface() !void {
 const Port = struct {
     const Self = @This();
 
-    const Buffer = kstd.collections.BufferQueue(u8, 128);
+    const Buffer = std.fifo.LinearFifo(u8, .{ .Static = 128 });
 
     port: enum { one, two },
     dev_id: ?u8 = null,
@@ -137,7 +137,7 @@ const Port = struct {
     // HACK: okay, I'm not even sure this is what's happening, but port2 seems to send a null terminator after it sends the health codes; this is basically a hack to still have it report healthy.
     health_check_sends_null_terminator: bool = false,
 
-    buffer: Buffer = .{},
+    buffer: Buffer = Buffer.init(),
     buf_reader: std.io.AnyReader = undefined,
 
     pub fn init(self: *Self) void {
@@ -178,18 +178,16 @@ const Port = struct {
         const byte = io.inb(IOPort.data);
 
         // TODO: is it okay to just drop a byte like this?
-        if (self.buffer.items.len == self.buffer.buf.len) {
-            return error{OutOfMemory}.OutOfMemory;
-        }
+        try self.buffer.ensureUnusedCapacity(1);
 
-        try self.buffer.appendSlice(&[_]u8{byte});
+        try self.buffer.write(&[_]u8{byte});
     }
 
     const AckErr = error{NotAck};
 
     pub fn waitAck(self: *Self) !void {
         // Wait for some data to become available.
-        while (self.buffer.items.len == 0) {}
+        while (self.buffer.count == 0) {}
 
         // HACK: we shouldn't have to allocate this much memory each time since an ack _should_ only be 1 byte! Optimize later.
         var buf: [1]u8 = undefined;
@@ -249,7 +247,8 @@ const Port = struct {
 
     pub fn readBuf(context: *const anyopaque, buffer: []u8) anyerror!usize {
         var self: *Self = @constCast(@ptrCast(@alignCast(context)));
-        return self.buffer.dequeueSlice(buffer);
+
+        return self.buffer.read(buffer);
     }
 };
 

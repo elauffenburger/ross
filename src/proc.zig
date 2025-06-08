@@ -24,7 +24,7 @@ pub const ProcessState = enum(u8) {
 
 const max_procs = 256;
 
-const procs = kstd.collections.BufferQueue(*Process, max_procs);
+const procs = std.fifo.LinearFifo(*Process, .{ .Static = max_procs }).init();
 
 var next_pid: u32 = 1;
 
@@ -62,34 +62,17 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         //   - ebp (0)
         //   - eip (&proc_main)
         .esp0 = blk: {
-            const stack = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+            // HACK: this leaks.
+            const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+            var stack = ProcessStackBuilder.init(buf);
 
-            const helpers = struct {
-                var head: usize = undefined;
+            stack.push(@intFromPtr(proc_main));
+            stack.push(@as(u32, 0));
+            stack.push(@as(u32, 0));
+            stack.push(@as(u32, 0));
+            stack.push(@as(u32, 0));
 
-                fn init(h: usize) void {
-                    head = h;
-                }
-
-                fn push(s: []u8, val: anytype) void {
-                    const bytes = std.mem.toBytes(val);
-                    const n = bytes.len;
-
-                    @memcpy(s[head - bytes.len .. head], &bytes);
-
-                    head -= n;
-                }
-            };
-
-            helpers.init(stack.len);
-
-            helpers.push(stack, @intFromPtr(proc_main));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-
-            break :blk (@intFromPtr(stack.ptr) + helpers.head);
+            break :blk stack.esp();
         },
         .esp = proc.esp0,
 
@@ -111,3 +94,30 @@ fn nextPID() u32 {
 
     return pid;
 }
+
+const ProcessStackBuilder = struct {
+    const Self = @This();
+
+    buf: []u8 = undefined,
+    head: usize = undefined,
+
+    pub fn init(buf: []u8) Self {
+        return .{
+            .buf = buf,
+            .head = buf.len,
+        };
+    }
+
+    pub fn push(self: *Self, val: anytype) void {
+        const bytes = std.mem.toBytes(val);
+        const n = bytes.len;
+
+        @memcpy(self.buf[self.head - bytes.len .. self.head], &bytes);
+
+        self.head -= n;
+    }
+
+    pub fn esp(self: *const Self) u32 {
+        return @intFromPtr(self.buf.ptr) + self.head;
+    }
+};

@@ -5,20 +5,22 @@ const std = @import("std");
 const kb = @import("keyboard.zig");
 const kstd = @import("kstd.zig");
 
-const InputBuffer = kstd.collections.BufferQueue(kb.KeyEvent, 1024);
+var buf: std.fifo.LinearFifo(kb.KeyEvent, .{ .Static = 1024 }) = undefined;
 
-var buf = InputBuffer{};
-
-pub fn onKeyEvent(key_ev: kb.KeyEvent) !void {
-    try buf.append(key_ev);
+pub fn init() void {
+    buf = @TypeOf(buf).init();
 }
 
-pub fn dequeueKeyEvents(events: []kb.KeyEvent) ?[]kb.KeyEvent {
-    if (buf.items.len == 0) {
-        return null;
+pub fn onKeyEvent(key_ev: kb.KeyEvent) !void {
+    try buf.writeItem(key_ev);
+}
+
+pub fn dequeueKeyEvents(events: []kb.KeyEvent) []kb.KeyEvent {
+    if (buf.count == 0) {
+        return events[0..0];
     }
 
-    const n = buf.dequeueSlice(events);
+    const n = buf.read(events);
     return events[0..n];
 }
 

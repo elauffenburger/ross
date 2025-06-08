@@ -115,7 +115,7 @@ pub fn kmain() !void {
     kb.init();
 
     klog.dbgf("&proc_term.main: 0x{x}\n", .{@intFromPtr(&proc_term.main)});
-    try proc.startKProc(&proc_term.main);
+    // try proc.startKProc(&proc_term.main);
 
     while (true) {
         tick() catch |e| {

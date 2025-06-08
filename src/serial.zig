@@ -35,18 +35,20 @@ pub const COMPort = struct {
 
     io_port: u16,
 
-    input_buf: kstd.collections.BufferQueue(u8, 2048) = .{},
+    input_buf: std.fifo.LinearFifo(u8, .{ .Static = 2048 }) = undefined,
     buf_reader: std.io.AnyReader = undefined,
 
-    output_buf: kstd.collections.BufferQueue(u8, 2048) = .{},
+    output_buf: std.fifo.LinearFifo(u8, .{ .Static = 2048 }) = undefined,
     buf_writer: std.io.AnyWriter = undefined,
 
     pub fn init(self: *Self) !void {
+        self.input_buf = @TypeOf(self.input_buf).init();
         self.buf_reader = .{
             .context = self,
             .readFn = &read,
         };
 
+        self.output_buf = @TypeOf(self.output_buf).init();
         self.buf_writer = .{
             .context = self,
             .writeFn = &write,
@@ -148,13 +150,13 @@ pub const COMPort = struct {
         var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
         self.sync();
 
-        return self.input_buf.dequeueSlice(buffer);
+        return self.input_buf.read(buffer);
     }
 
     fn write(ctx: *const anyopaque, buffer: []const u8) anyerror!usize {
         var self: *Self = @constCast(@ptrCast(@alignCast(ctx)));
 
-        try self.output_buf.appendSlice(buffer);
+        try self.output_buf.write(buffer);
         self.sync();
 
         return buffer.len;
@@ -175,11 +177,11 @@ pub const COMPort = struct {
     }
 
     fn readPort(self: *Self) !void {
-        try self.input_buf.append(io.inb(self.io_port));
+        try self.input_buf.writeItem(io.inb(self.io_port));
     }
 
     fn writePortFromBuf(self: *Self) void {
-        if (self.output_buf.dequeue()) |byte| {
+        if (self.output_buf.readItem()) |byte| {
             io.outb(self.io_port, byte);
         }
     }
