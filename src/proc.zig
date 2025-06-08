@@ -10,16 +10,18 @@ pub const Process = packed struct {
     cr3: u32,
 
     id: u32,
-    state: ProcessState,
+
+    // TODO: implement.
+    state: enum(u8) {
+        running = 0,
+        stopped = 1,
+        killed = 2,
+    },
+
+    // TODO: implement.
     vm: *vmem.ProcessVirtualMemory,
 
     const SavedRegisters = @FieldType(@This(), "saved_registers");
-};
-
-pub const ProcessState = enum(u8) {
-    running = 0,
-    stopped = 1,
-    killed = 2,
 };
 
 const max_procs = 256;
@@ -30,8 +32,8 @@ var procs: ProcsList = ProcsList.init();
 var next_pid: u32 = 1;
 
 pub var kernel_proc: *Process = undefined;
-
 export var curr_proc: *Process = undefined;
+
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
 pub fn init() !void {
@@ -42,7 +44,6 @@ pub fn init() !void {
         .vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory),
         .state = .running,
 
-        // TODO: is this right? NOTE: this is not right :)
         .esp = undefined,
         .esp0 = undefined,
         .cr3 = undefined,
