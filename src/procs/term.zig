@@ -34,7 +34,7 @@ pub fn main() !void {
                 },
             }
         }
-    }
 
-    proc.yield();
+        proc.yield();
+    }
 }

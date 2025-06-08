@@ -1,57 +1,6 @@
 const std = @import("std");
 
-const input = @import("input.zig");
-const klog = @import("kstd/log.zig");
-const ps2 = @import("ps2.zig");
 const types = @import("types.zig");
-const vga = @import("vga.zig");
-
-var kb_reader: *std.io.AnyReader = undefined;
-var kb_buf: [128]u8 = undefined;
-
-var left_shift_held = false;
-var right_shift_held = false;
-
-inline fn shiftHeld() bool {
-    return left_shift_held or right_shift_held;
-}
-
-pub fn init() void {
-    // Enable scan codes for port1.
-    klog.dbgf("enabling port1 scan codes...", .{});
-    ps2.port1.writeData(ps2.Device.EnableScanning.C);
-    klog.dbg("ok!");
-
-    // Enable typematic for port1.
-    klog.dbgf("enabling port1 typematic settings...", .{});
-    ps2.port1.writeData(ps2.Device.SetTypematic.C);
-    ps2.port1.writeData(@bitCast(
-        ps2.Device.SetTypematic.D{
-            .repeat_rate = 31,
-            .delay = .@"750ms",
-        },
-    ));
-    klog.dbg("ok!");
-
-    kb_reader = &ps2.port1.buf_reader;
-}
-
-pub fn tick() !void {
-    const n = try kb_reader.readAll(&kb_buf);
-    if (n != 0) {
-        const key_code = kb_buf[0..n];
-        if (Keys.keyFromKeyCodes(key_code)) |key_press| {
-            try input.onKeyEvent(.{
-                .key_press = key_press,
-                .modifiers = .{
-                    .shift = left_shift_held or right_shift_held,
-                },
-            });
-        } else {
-            // TODO: what do?
-        }
-    }
-}
 
 pub const KeyEvent = struct {
     key_press: Keys.KeyPress,
@@ -266,19 +215,6 @@ fn k(key_name: []const u8, shift_key_name: ?[]const u8, key_code: []const u8) Ke
 
         .key_code = key_code,
     });
-}
-
-fn debugPrintKey(key: Keys.KeyPress) void {
-    klog.dbgf(
-        "key: {s}, key_ascii: {c} shift_key: {s}, shift_key_ascii: {c} state: {s}",
-        .{
-            key.key_def.key_name,
-            if (key.key_def.key_ascii) |key_ascii| key_ascii else ' ',
-            if (key.key_def.shift_key_name) |shift_key_name| shift_key_name else "none",
-            if (key.key_def.shift_key_ascii) |shift_key_ascii| shift_key_ascii else ' ',
-            @tagName(key.state),
-        },
-    );
 }
 
 test "keymap: k" {

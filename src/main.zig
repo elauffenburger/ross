@@ -4,12 +4,12 @@ const cmos = @import("cmos.zig");
 const cpu = @import("cpu.zig");
 const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
-const kb = @import("keyboard.zig");
 const kstd = @import("kstd.zig");
 const klog = @import("kstd/log.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const proc = @import("proc.zig");
+const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
@@ -111,23 +111,13 @@ pub fn kmain() !void {
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
     try vmem.init();
 
-    // Init keyboard interface.
-    kb.init();
-
-    klog.dbgf("&proc_term.main: 0x{x}\n", .{@intFromPtr(&proc_term.main)});
+    // Start up kernel processes.
+    try proc.startKProc(&proc_kbd.main);
     try proc.startKProc(&proc_term.main);
 
     while (true) {
-        tick() catch |e| {
-            klog.dbgf("error ticking {any}", .{e});
-        };
-
         asm volatile ("hlt");
     }
-}
-
-fn tick() !void {
-    try kb.tick();
 }
 
 test {
