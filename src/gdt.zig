@@ -51,7 +51,7 @@ pub inline fn init() void {
             .flags = @bitCast(@as(u4, 0xc)),
         }),
 
-        // Add kernel TSS entry to GDT.
+        // Kernel TSS Segment.
         tables.GdtSegmentDescriptor.new(.{
             .base = @intFromPtr(&kernel_tss),
             .limit = @bitSizeOf(tables.TaskStateSegment),
@@ -87,9 +87,22 @@ pub inline fn init() void {
             .flags = @bitCast(@as(u4, 0xc)),
         }),
 
-        // Kernel TSS placeholder.
-        // NOTE: this will be created for real when we init the GDT.
-        @bitCast(@as(u64, 0)),
+        // User TSS Segment.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = @intFromPtr(&kernel_tss),
+            .limit = @bitSizeOf(tables.TaskStateSegment),
+            // TODO: convert these to structured values.
+            .access = .{
+                .system = .{
+                    .sys_seg_type = .tssAvailable32Bit,
+                    .priv_level = .userspace,
+                },
+            },
+            .flags = .{
+                .size = .@"32bit",
+                .granularity = .page,
+            },
+        }),
     };
 
     // Load GDT!
