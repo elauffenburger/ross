@@ -81,7 +81,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                     const n = bytes.len;
 
                     for (bytes, 0..n) |byte, i| {
-                        s[s.len - offset - n + i + 1] = byte;
+                        s[s.len - offset - n + i] = byte;
                     }
 
                     offset += n;
