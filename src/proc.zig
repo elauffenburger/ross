@@ -89,11 +89,6 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
             helpers.push(stack, @as(u32, 0));
             helpers.push(stack, @as(u32, 0));
 
-            for (helpers.head..stack.len) |i| {
-                kstd.log.dbgf("0x{x} ", .{stack[i]});
-            }
-            kstd.log.dbg("");
-
             break :blk (@intFromPtr(stack.ptr) + helpers.head);
         },
         .esp = proc.esp0,
