@@ -4,7 +4,7 @@ const std = @import("std");
 
 const kb = @import("../hw/io.zig").keyboard;
 
-var buf: std.fifo.LinearFifo(kb.KeyEvent, .{ .Static = 1024 }) = undefined;
+var buf = std.fifo.LinearFifo(kb.KeyEvent, .{ .Static = 1024 }).init();
 
 pub fn init() void {
     buf = @TypeOf(buf).init();

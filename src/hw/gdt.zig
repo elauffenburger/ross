@@ -20,6 +20,7 @@ var gdt: [@typeInfo(GdtSegment).@"enum".fields.len]GdtSegmentDescriptor align(4)
 var gdtr: GdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
 // Allocate space for our TSS.
+// SAFETY: set during init.
 var kernel_tss: TaskStateSegment = undefined;
 
 pub inline fn init() void {

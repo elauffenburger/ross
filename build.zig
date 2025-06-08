@@ -1,5 +1,4 @@
 const std = @import("std");
-const fs = std.fs;
 
 pub fn build(b: *std.Build) !void {
     const kernelc = addInstall(b);

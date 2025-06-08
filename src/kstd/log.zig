@@ -2,16 +2,18 @@ const std = @import("std");
 
 const serial = @import("../hw/io.zig").serial;
 
+// SAFETY: set in init
 var port: *serial.COMPort = undefined;
 
 pub var debugVerbosity: enum(u8) { none, debug, v } = .v;
 
 const writer = std.io.AnyWriter{
+    // SAFETY: unused
     .context = undefined,
     .writeFn = blk: {
         const helper = struct {
             fn write(_: *const anyopaque, buffer: []const u8) anyerror!usize {
-                try port.buf_writer.writeAll(buffer);
+                try port.buf_writer.?.writeAll(buffer);
                 return buffer.len;
             }
         };

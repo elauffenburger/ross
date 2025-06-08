@@ -7,7 +7,9 @@ pub const stack = @import("mem/stack.zig");
 const heap_size: usize = 512 * 1024 * 1024;
 var kheap: [heap_size]u8 linksection(".bss.kernel_heap") = undefined;
 
+// SAFETY: set in init
 var kheap_head: usize = undefined;
+// SAFETY: set in init
 var kheap_end: usize = undefined;
 
 extern var __kernel_size: u32;

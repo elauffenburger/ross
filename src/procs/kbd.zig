@@ -6,11 +6,33 @@ const kb = io.keyboard;
 const kstd = @import("../kstd.zig");
 const klog = kstd.log;
 
+// SAFETY: set in init
 var kb_reader: *std.io.AnyReader = undefined;
+// SAFETY: set in init
 var kb_buf: [128]u8 = undefined;
 
 var left_shift_held = false;
 var right_shift_held = false;
+
+fn init() void {
+    // Enable scan codes for port1.
+    klog.dbgf("enabling port1 scan codes...", .{});
+    ps2.port1.writeData(ps2.Device.EnableScanning.C);
+    klog.dbg("ok!");
+
+    // Enable typematic for port1.
+    klog.dbgf("enabling port1 typematic settings...", .{});
+    ps2.port1.writeData(ps2.Device.SetTypematic.C);
+    ps2.port1.writeData(@bitCast(
+        ps2.Device.SetTypematic.D{
+            .repeat_rate = 31,
+            .delay = .@"750ms",
+        },
+    ));
+    klog.dbg("ok!");
+
+    kb_reader = &ps2.port1.buf_reader;
+}
 
 pub fn main() !void {
     kstd.proc.yield();
@@ -41,26 +63,6 @@ pub fn main() !void {
 
         kstd.proc.yield();
     }
-}
-
-fn init() void {
-    // Enable scan codes for port1.
-    klog.dbgf("enabling port1 scan codes...", .{});
-    ps2.port1.writeData(ps2.Device.EnableScanning.C);
-    klog.dbg("ok!");
-
-    // Enable typematic for port1.
-    klog.dbgf("enabling port1 typematic settings...", .{});
-    ps2.port1.writeData(ps2.Device.SetTypematic.C);
-    ps2.port1.writeData(@bitCast(
-        ps2.Device.SetTypematic.D{
-            .repeat_rate = 31,
-            .delay = .@"750ms",
-        },
-    ));
-    klog.dbg("ok!");
-
-    kb_reader = &ps2.port1.buf_reader;
 }
 
 fn debugPrintKey(key: kb.Keys.KeyPress) void {

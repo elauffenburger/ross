@@ -6,7 +6,6 @@ const kstd = @import("../../kstd.zig");
 const klog = kstd.log;
 const io = @import("../io.zig");
 const pic = @import("../pic.zig");
-const vga = @import("../video/vga.zig");
 
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
 //
@@ -140,6 +139,7 @@ const Port = struct {
     health_check_sends_null_terminator: bool = false,
 
     buffer: Buffer = Buffer.init(),
+    // SAFETY: set in init
     buf_reader: std.io.AnyReader = undefined,
 
     pub fn init(self: *Self) void {
@@ -335,7 +335,7 @@ const StatusRegister = packed struct(u8) {
     // Must be clear before attempting to write to IO port.
     input_buf_full: bool,
 
-    _r1: u1 = undefined,
+    _r1: u1 = 0,
 
     input_for: enum(u1) {
         // Data in input buffer is for ps/2 device.
@@ -345,8 +345,8 @@ const StatusRegister = packed struct(u8) {
         command = 1,
     },
 
-    _r2: u1 = undefined,
-    _r3: u1 = undefined,
+    _r2: u1 = 0,
+    _r3: u1 = 0,
 
     timeout_err: bool,
     parity_err: bool,

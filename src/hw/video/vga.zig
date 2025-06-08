@@ -1,6 +1,5 @@
 const std = @import("std");
 
-const io = @import("../io.zig");
 const regs = @import("vga/registers.zig");
 
 const width: u32 = 80;
@@ -13,12 +12,14 @@ var curr_colors = ColorPair{
     .bg = Color.Black,
 };
 
+// SAFETY: set in init.
 var empty_char: Char = undefined;
 
 var buffer = @as([*]volatile u16, @ptrFromInt(buffer_addr));
 const buffer_addr = 0x0b8000;
 
 pub const writer = std.io.AnyWriter{
+    // SAFETY: unused
     .context = undefined,
     .writeFn = struct {
         fn write(_: *const anyopaque, buf: []const u8) anyerror!usize {
@@ -82,7 +83,7 @@ pub fn init() void {
     }
 
     // Init defaults.
-    empty_char = Char{ .ch = ' ', .colors = curr_colors };
+    empty_char = .{ .ch = ' ', .colors = curr_colors };
 
     // Clear screen.
     clear();

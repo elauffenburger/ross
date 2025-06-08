@@ -3,6 +3,7 @@ const std = @import("std");
 const kmem = @import("../mem.zig");
 
 pub const kernel_heap_allocator: std.mem.Allocator = .{
+    // SAFETY: unused.
     .ptr = undefined,
     .vtable = &kernel_heap_allocator_vtable,
 };

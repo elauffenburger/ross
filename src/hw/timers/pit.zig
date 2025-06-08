@@ -1,4 +1,4 @@
-const io = @import("io.zig");
+const io = @import("../io.zig");
 
 const IOPorts = struct {
     pub const ch0: u8 = 0x40;

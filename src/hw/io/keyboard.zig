@@ -132,6 +132,7 @@ fn KeyMap(keys: []const KeyDef) type {
         }
     }
 
+    // SAFETY: initialized in inner block.
     var key_t_fields = [_]std.builtin.Type.EnumField{undefined} ** num_keys;
     {
         var i = 0;

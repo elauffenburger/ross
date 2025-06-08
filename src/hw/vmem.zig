@@ -2,7 +2,6 @@ const std = @import("std");
 
 const kstd = @import("../kstd.zig");
 const pic = @import("pic.zig");
-const vga = @import("video/vga.zig");
 
 const user_proc_kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xc0000000 };
 
@@ -99,7 +98,8 @@ pub const ProcessVirtualMemory = struct {
     //   4MiB chunk     -> 4KiB slice of 4MiB      -> Offset into 4KiB
     //   City           -> Street                  -> Number on street
     page_dir: PageDirectory align(4096) = [_]PageDirectoryEntry{PageDirectoryEntry{ .rw = true }} ** 1024,
-    page_tables: [1024]*PageTable = undefined,
+
+    page_tables: [1024]?*PageTable = [_]?*PageTable{null} ** 1024,
 };
 
 const VirtualAddress = packed struct(u32) {

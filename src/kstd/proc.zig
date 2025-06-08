@@ -31,7 +31,10 @@ var procs: ProcsList = ProcsList.init();
 
 var next_pid: u32 = 1;
 
+// SAFETY: set in init.
 var kernel_proc: *Process = undefined;
+
+// SAFETY: not actually safe, but needs to be type *Process and not ?*Process for interop w/ asm.
 export var curr_proc: *Process = undefined;
 
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
@@ -48,8 +51,8 @@ pub fn init() !InitProof {
         kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
         kernel_proc.* = .{
             .saved_registers = .{
-                .esp = undefined,
-                .esp0 = undefined,
+                .esp = 0,
+                .esp0 = 0,
                 .cr3 = @intFromPtr(&vm.page_dir),
             },
 
@@ -136,8 +139,8 @@ fn nextPID() u32 {
 const ProcessStackBuilder = struct {
     const Self = @This();
 
-    buf: []u8 = undefined,
-    head: usize = undefined,
+    buf: []u8 = &[_]u8{},
+    head: usize = 0,
 
     pub fn init(buf: []u8) Self {
         return .{

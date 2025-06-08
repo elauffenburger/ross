@@ -3,8 +3,6 @@ const std = @import("std");
 const kstd = @import("../../kstd.zig");
 const io = @import("../io.zig");
 
-const baud_rate_base: u16 = 115200;
-
 pub var com1: COMPort = .{ .io_port = 0x3f8 };
 pub var com2: COMPort = .{ .io_port = 0x2f8 };
 pub var com3: COMPort = .{ .io_port = 0x3e8 };
@@ -39,13 +37,15 @@ pub fn init() !InitProof {
 pub const COMPort = struct {
     const Self = @This();
 
+    const Buffer = std.fifo.LinearFifo(u8, .{ .Static = 2048 });
+
     io_port: u16,
 
-    input_buf: std.fifo.LinearFifo(u8, .{ .Static = 2048 }) = undefined,
-    buf_reader: std.io.AnyReader = undefined,
+    input_buf: Buffer = Buffer.init(),
+    buf_reader: ?std.io.AnyReader = null,
 
-    output_buf: std.fifo.LinearFifo(u8, .{ .Static = 2048 }) = undefined,
-    buf_writer: std.io.AnyWriter = undefined,
+    output_buf: Buffer = Buffer.init(),
+    buf_writer: ?std.io.AnyWriter = null,
 
     pub fn init(self: *Self) !void {
         self.input_buf = @TypeOf(self.input_buf).init();
@@ -210,6 +210,7 @@ pub fn onIrq(maybe_port_nums: enum { com1com3, com2com4 }) void {
     }
 }
 
+// TODO: use this when handling serial IRQ.
 const InterruptIdentificationRegister = packed struct(u8) {
     pending_state: enum(u1) { pending = 0, not_pending = 1 } = .@"0",
     state: enum(u2) {
@@ -275,6 +276,7 @@ const LineStatusRegister = packed struct(u8) {
 };
 
 // NOTE If Bit 4 of the MCR (LOOP bit) is set, the upper 4 bits will mirror the 4 status output lines set in the Modem Control Register.
+// zlint-disable-next-line unused-decls -- we'll...probably use this?
 const ModemStatusRegister = packed struct(u8) {
     // (DCTS) Indicates that CTS input has changed state since the last time it was read.
     delta_clear_to_send: bool,

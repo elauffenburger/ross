@@ -1,8 +1,7 @@
-const std = @import("std");
-
 const io = @import("../../io.zig");
 
 pub const misc_out = struct {
+    // SAFETY: set in init
     pub var reg_val: Register = undefined;
 
     pub const io_port_r = 0x3cc;
@@ -50,6 +49,7 @@ pub const crt_ctrl = struct {
         data: u16,
     };
 
+    // SAFETY: set in init.
     pub var reg_addrs: RegisterAddrs = undefined;
 
     pub const cursor_location = struct {

@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const cmos = @import("hw/cmos.zig");
-const cpu = @import("hw/cpu.zig");
 const gdt = @import("hw/gdt.zig");
 const idt = @import("hw/idt.zig");
 const ps2 = @import("hw/io/ps2.zig");

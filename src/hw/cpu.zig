@@ -16,12 +16,12 @@ pub const EFlags = packed struct(u32) {
     // Parity Flag. Set if the number of set bits in the least significant byte is a multiple of 2.
     pf: bool,
 
-    _r2: u1 = undefined,
+    _r2: u1 = 0,
 
     // Adjust Flag. Carry of Binary Code Decimal (BCD) numbers arithmetic operations.
     af: bool,
 
-    _r3: u1 = undefined,
+    _r3: u1 = 0,
 
     // Zero Flag. Set if the result of an operation is Zero (0).
     zf: bool,

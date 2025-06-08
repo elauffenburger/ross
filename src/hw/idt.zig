@@ -90,6 +90,7 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 keyboard
     pub fn irq1() void {
+        // TODO: handle this better.
         io.ps2.port1.recv() catch {};
     }
 
@@ -113,6 +114,7 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 mouse
     pub fn irq12() void {
+        // TODO: handle this better.
         io.ps2.port2.recv() catch {};
     }
 });
@@ -140,6 +142,7 @@ const GeneratedInterruptHandler = struct {
 fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct".decls.len]GeneratedInterruptHandler {
     const orig_handlers_type = @typeInfo(orig_handlers).@"struct";
 
+    // SAFETY: the handlers are immediately filled, so undefined is safe here.
     var generated_handlers = [_]GeneratedInterruptHandler{undefined} ** orig_handlers_type.decls.len;
     for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, i| {
         // Check if this is an exception or interrupt handler.
