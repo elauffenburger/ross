@@ -41,11 +41,13 @@ pub fn init() !void {
         .vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory),
         .state = .running,
 
-        // TODO: is this right?
+        // TODO: is this right? NOTE: this is not right :)
         .esp = undefined,
         .esp0 = undefined,
         .cr3 = undefined,
     };
+
+    curr_proc = kernel_proc;
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
@@ -80,6 +82,8 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         .vm = undefined,
         .cr3 = undefined,
     };
+
+    kstd.log.dbgf("curr_proc: 0x{x}, curr_proc.esp: 0x{x}", .{ @intFromPtr(curr_proc), @intFromPtr(&curr_proc.esp) });
 
     switch_to_proc(proc);
 }

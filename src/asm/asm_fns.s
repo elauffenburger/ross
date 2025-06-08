@@ -14,33 +14,42 @@ switch_to_proc:
   ;   EIP is already saved on the stack by the caller's "CALL" instruction
   ;   The task isn't able to change CR3 so it doesn't need to be saved
 
-  push ebx                    ; save registers
+  ; save registers
+  push ebx
   push esi
   push edi
   push ebp
 
-  mov edi, [curr_proc]        ; move curr_proc to edi
+  ; move curr_proc to edi
+  mov edi, [curr_proc]
 
-  mov [edi], esp          ; save esp in SavedRegisters
+  ; save esp in SavedRegisters
+  mov [edi], esp
 
-  mov esi, [esp + (3 + 2)*4]  ; move proc to esi
-                              ; we need to offset by (3) u32s we pushed and (2) pointers to get to the current registers arg
+  ; move proc to esi
+  ; we need to offset by (3) u32s we pushed and (2) pointers to get to the current registers arg
+  mov esi, [esp + (3 + 2)*4]
 
-  mov [curr_proc], esi        ; make proc the curr_proc
+  ; make proc the curr_proc
+  mov [curr_proc], esi
 
-  mov esp, [esi]          ; load proc.esp
+  ; load proc.esp
+  mov esp, [esi]
 
   ; TODO: load new page dir.
-  ; mov eax, [esi + 17]         ; load proc.cr3
+  ;; load proc.cr3
+  ; mov eax, [esi + 17]
   ; mov cr3, eax
 
   ; TODO: change TSS
 
-  pop ebp                     ; restore registers
+  ; restore registers
+  pop ebp
   pop edi
   pop esi
   pop ebx
 
+  ; restore interrupts
   sti
 
   ret
