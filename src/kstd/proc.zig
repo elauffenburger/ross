@@ -4,7 +4,6 @@ const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
 pub const Process = packed struct {
-    // NOTE: these are the only fields accessed by asm; the order is important!
     saved_registers: packed struct {
         esp: u32,
         esp0: u32,
@@ -14,7 +13,7 @@ pub const Process = packed struct {
     id: u32,
 
     // TODO: implement.
-    state: enum(u8) {
+    state: enum(u32) {
         running = 0,
         stopped = 1,
         killed = 2,

@@ -27,8 +27,11 @@ switch_to_proc:
   mov [edi], esp
 
   ; move proc to esi
-  ; we need to offset by (3) u32s we pushed and (2) pointers to get to the current registers arg
-  mov esi, [esp + (3 + 2)*4]
+  ; this is tricky!
+  ;   go to the original esp location before we pushed the registers (4)
+  ;     this will be the return addr
+  ;   go back one more to get the proc argument (1)
+  mov esi, [esp + (4 + 1)*4]
 
   ; make proc the curr_proc
   mov [curr_proc], esi
