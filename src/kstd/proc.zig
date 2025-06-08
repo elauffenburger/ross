@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const vmem = @import("../hw/vmem.zig");
+const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
 pub const Process = packed struct {
@@ -21,7 +21,7 @@ pub const Process = packed struct {
     },
 
     // TODO: implement.
-    vm: *vmem.ProcessVirtualMemory,
+    vm: *hw.vmem.ProcessVirtualMemory,
 };
 
 const max_procs = 256;
@@ -43,7 +43,7 @@ pub fn init() !InitProof {
 
     // Init the kernel_proc.
     {
-        const vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory);
+        const vm = try kstd.mem.kernel_heap_allocator.create(hw.vmem.ProcessVirtualMemory);
 
         kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
         kernel_proc.* = .{

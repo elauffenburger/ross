@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const kb = @import("../hw/io/keyboard.zig");
-const vga = @import("../hw/video/vga.zig");
+const hw = @import("../hw.zig");
+const vga = hw.video.vga;
 const kstd = @import("../kstd.zig");
 
 const InputBuf = std.fifo.LinearFifo(u8, .{ .Static = 2048 });
@@ -10,7 +10,7 @@ pub fn main() !void {
     kstd.proc.yield();
 
     var input_buf: InputBuf = InputBuf.init();
-    var events_buf: [10]kb.KeyEvent = undefined;
+    var events_buf: [10]hw.io.keyboard.KeyEvent = undefined;
 
     while (true) {
         for (kstd.input.dequeueKeyEvents(&events_buf)) |key_ev| {
