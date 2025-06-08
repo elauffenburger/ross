@@ -5,23 +5,13 @@ const kstd = @import("kstd.zig");
 const vmem = @import("vmem.zig");
 
 pub const Process = packed struct {
-    // +0
-    id: u32,
-
-    // +4
-    vm: *vmem.ProcessVirtualMemory,
-
-    // +8
-    state: ProcessState,
-
-    // +9
     esp: u32,
-
-    // +13
     esp0: u32,
-
-    // +17
     cr3: u32,
+
+    id: u32,
+    state: ProcessState,
+    vm: *vmem.ProcessVirtualMemory,
 
     const SavedRegisters = @FieldType(@This(), "saved_registers");
 };
@@ -73,28 +63,38 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         //   - eip (&proc_main)
         .esp0 = blk: {
             const stack = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+
             const helpers = struct {
-                var offset: usize = 0;
+                var head: usize = undefined;
+
+                fn init(h: usize) void {
+                    head = h;
+                }
 
                 fn push(s: []u8, val: anytype) void {
                     const bytes = std.mem.toBytes(val);
                     const n = bytes.len;
 
-                    for (bytes, 0..n) |byte, i| {
-                        s[s.len - offset - n + i] = byte;
-                    }
+                    @memcpy(s[head - bytes.len .. head], &bytes);
 
-                    offset += n;
+                    head -= n;
                 }
             };
 
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @as(u32, 0));
-            helpers.push(stack, @intFromPtr(proc_main));
+            helpers.init(stack.len);
 
-            break :blk @intFromPtr(stack.ptr) - helpers.offset;
+            helpers.push(stack, @intFromPtr(proc_main));
+            helpers.push(stack, @as(u32, 0));
+            helpers.push(stack, @as(u32, 0));
+            helpers.push(stack, @as(u32, 0));
+            helpers.push(stack, @as(u32, 0));
+
+            for (helpers.head..stack.len) |i| {
+                kstd.log.dbgf("0x{x} ", .{stack[i]});
+            }
+            kstd.log.dbg("");
+
+            break :blk (@intFromPtr(stack.ptr) + helpers.head);
         },
         .esp = proc.esp0,
 

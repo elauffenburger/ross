@@ -10,6 +10,7 @@ const klog = @import("kstd/log.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const proc = @import("proc.zig");
+const proc_term = @import("procs/term.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const serial = @import("serial.zig");
@@ -113,7 +114,8 @@ pub fn kmain() !void {
     // Init keyboard interface.
     kb.init();
 
-    try proc.startKProc(&@import("procs/term.zig").main);
+    klog.dbgf("&proc_term.main: 0x{x}\n", .{@intFromPtr(&proc_term.main)});
+    try proc.startKProc(&proc_term.main);
 
     while (true) {
         tick() catch |e| {

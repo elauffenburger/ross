@@ -21,6 +21,8 @@ var shared_proc_vm = ProcessVirtualMemory{};
 
 pub fn init() !void {
     // Identity-map the kernel into the kernel_proc.
+    // try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
+    // HACK: we're just going to map the entire address space.
     try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
 
     // Map the kernel into the shared process virtual memory.
