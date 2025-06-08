@@ -2,8 +2,7 @@
 
 const std = @import("std");
 
-const kb = @import("keyboard.zig");
-const kstd = @import("kstd.zig");
+const kb = @import("../hw/io.zig").keyboard;
 
 var buf: std.fifo.LinearFifo(kb.KeyEvent, .{ .Static = 1024 }) = undefined;
 

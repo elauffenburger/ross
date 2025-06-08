@@ -1,9 +1,7 @@
 const std = @import("std");
 
-const cpu = @import("cpu.zig");
-const kstd = @import("kstd.zig");
-const types = @import("types.zig");
-const vmem = @import("vmem.zig");
+const vmem = @import("../hw/vmem.zig");
+const kstd = @import("../kstd.zig");
 
 pub const Process = packed struct {
     // NOTE: these are the only fields accessed by asm; the order is important!
@@ -38,7 +36,7 @@ export var curr_proc: *Process = undefined;
 
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
-pub const InitProof = types.UniqueProof();
+pub const InitProof = kstd.types.UniqueProof();
 
 pub fn init() !InitProof {
     const proof = try InitProof.new();

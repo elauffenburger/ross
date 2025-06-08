@@ -1,10 +1,8 @@
 const std = @import("std");
 
-const kstd = @import("kstd.zig");
+const kstd = @import("../kstd.zig");
 const pic = @import("pic.zig");
-const proc = @import("proc.zig");
-const types = @import("types.zig");
-const vga = @import("vga.zig");
+const vga = @import("video/vga.zig");
 
 const user_proc_kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xc0000000 };
 
@@ -20,11 +18,11 @@ fn kernelSize() u32 {
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
-pub fn init(pic_proof: pic.InitProof, proc_proof: proc.InitProof) !void {
+pub fn init(pic_proof: pic.InitProof, proc_proof: kstd.proc.InitProof) !void {
     try pic_proof.prove();
     try proc_proof.prove();
 
-    const kernel_proc = proc.kernelProc();
+    const kernel_proc = kstd.proc.kernelProc();
 
     // Identity-map the kernel into the kernel_proc.
     // try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
@@ -151,8 +149,8 @@ const PageDirectoryEntry = packed struct(u32) {
     };
 
     pub fn new(
-        args: types.And(
-            types.Exclude(@This(), .{"addr"}),
+        args: kstd.types.And(
+            kstd.types.Exclude(@This(), .{"addr"}),
             struct { page_table: *PageTable },
         ),
     ) !@This() {
@@ -200,8 +198,8 @@ const Page = packed struct(u32) {
     addr: u20 = 0,
 
     pub fn new(
-        args: types.And(
-            types.Exclude(Page, .{"addr"}),
+        args: kstd.types.And(
+            kstd.types.Exclude(Page, .{"addr"}),
             struct { addr: u32 },
         ),
     ) !@This() {

@@ -1,22 +1,18 @@
 const std = @import("std");
 
+const kstd = @import("../kstd.zig");
 const cpu = @import("cpu.zig");
-const klog = @import("kstd/log.zig");
+const io = @import("io.zig");
 const pic = @import("pic.zig");
-const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
-const serial = @import("serial.zig");
-const tables = @import("tables.zig");
-const types = @import("types.zig");
-const vga = @import("vga.zig");
 
 // Allocate space for the IDT.
-var idt align(4) = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
+var idt align(4) = [_]InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 
 // Allocate a pointer to the memory location we pass to lidt.
-var idtr: tables.IdtDescriptor align(4) = @bitCast(@as(u48, 0));
+var idtr: IdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
-pub const InitProof = types.UniqueProof();
+pub const InitProof = kstd.types.UniqueProof();
 
 pub fn init() !InitProof {
     const proof = try InitProof.new();
@@ -39,10 +35,10 @@ pub fn init() !InitProof {
     return proof;
 }
 
-fn addIdtEntry(index: u8, gate_type: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
+fn addIdtEntry(index: u8, gate_type: @FieldType(InterruptDescriptor, "gate_type"), privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {
     const handler_addr = @intFromPtr(handler);
 
-    idt[index] = tables.InterruptDescriptor{
+    idt[index] = InterruptDescriptor{
         .offset1 = @truncate(handler_addr),
         .offset2 = @truncate(handler_addr >> 16),
         .selector = .{
@@ -58,7 +54,7 @@ fn addIdtEntry(index: u8, gate_type: tables.InterruptDescriptor.GateType, privil
 
 fn loadIdt() void {
     idtr = .{
-        .limit = (idt.len * @sizeOf(tables.InterruptDescriptor)) - 1,
+        .limit = (idt.len * @sizeOf(InterruptDescriptor)) - 1,
         .addr = @intFromPtr(&idt),
     };
 
@@ -71,12 +67,12 @@ fn loadIdt() void {
 
 const int_handlers = GenInterruptHandlers(struct {
     pub fn exc05() void {
-        klog.dbg("shit");
+        kstd.log.dbg("shit");
     }
 
     // Double Fault
     pub fn exc08(err_code: u32) void {
-        klog.dbgf("double shit: {any}", .{err_code});
+        kstd.log.dbgf("double shit: {any}", .{err_code});
     }
 
     // General Protection Fault
@@ -94,17 +90,17 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 keyboard
     pub fn irq1() void {
-        ps2.port1.recv() catch {};
+        io.ps2.port1.recv() catch {};
     }
 
     // Serial: COM2, COM4
     pub fn irq3() void {
-        serial.onIrq(.com2com4);
+        io.serial.onIrq(.com2com4);
     }
 
     // Serial: COM1, COM3
     pub fn irq4() void {
-        serial.onIrq(.com1com3);
+        io.serial.onIrq(.com1com3);
     }
 
     // RTC
@@ -117,7 +113,7 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PS/2 mouse
     pub fn irq12() void {
-        ps2.port2.recv() catch {};
+        io.ps2.port2.recv() catch {};
     }
 });
 
@@ -265,3 +261,77 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
     return generated_handlers;
 }
+
+pub const InterruptDescriptor = packed struct(u64) {
+    offset1: u16,
+    selector: packed struct(u16) {
+        rpl: cpu.PrivilegeLevel,
+        ti: TableSelector,
+        index: u13,
+
+        const TableSelector = enum(u1) {
+            gdt = 0,
+            ldt = 1,
+        };
+    },
+    _r1: u8 = 0,
+    gate_type: enum(u4) {
+        task = 5,
+        interrupt16bits = 6,
+        trap16bits = 7,
+        interrupt32bits = 14,
+        trap32bits = 15,
+    },
+    _r2: u1 = 0,
+    dpl: cpu.PrivilegeLevel,
+    present: bool = true,
+    offset2: u16,
+};
+
+pub const IdtEntry = enum(u8) {
+    // Divide Error DIV and IDIV instructions.
+    de = 0,
+    // Debug Exception Instruction, data, and I/O breakpoints; single-step; and others.
+    db = 1,
+    // NMI Interrupt Nonmaskable external interrupt.
+    nmi = 2,
+    // Breakpoint INT3 instruction.
+    bp = 3,
+    // Overflow INTO instruction.
+    of = 4,
+    // BOUND Range Exceeded BOUND instruction.
+    br = 5,
+    // Invalid Opcode (Undefined Opcode) UD instruction or reserved opcode.
+    ud = 6,
+    // Device Not Available (No Math Coprocessor) Floating-point or WAIT/FWAIT instruction.
+    nm = 7,
+    // (zero) Double Fault Any instruction that can generate an exception, an NMI, or an INTR.
+    df = 8,
+    // Invalid TSS Task switch or TSS access.
+    ts = 10,
+    // Segment Not Present Loading segment registers or accessing system segments.
+    np = 11,
+    // Stack-Segment Fault Stack operations and SS register loads.
+    ss = 12,
+    // General Protection Any memory reference and other protection checks.
+    gp = 13,
+    // Page Fault Any memory reference.
+    pf = 14,
+    // x87 FPU Floating-Point Error (Math Fault) x87 FPU floating-point or WAIT/FWAIT instruction.
+    mf = 16,
+    // (zero) Alignment Check Any data reference in memory.
+    ac = 17,
+    // Machine Check Error codes (if any) and source are model dependent.
+    mc = 18,
+    // SIMD Floating-Point Exception SSE/SSE2/SSE3 floating-point instructions
+    xm = 19,
+    // Virtualization Exception EPT violations
+    ve = 20,
+    // Control Protection Exception RET, IRET, RSTORSSP, and SETSSBSY instructions can generate this exception. When CET indirect branch tracking is enabled, this exception can be generated due to a missing ENDBRANCH instruction at target of an indirect call or jump.
+    cp = 21,
+};
+
+pub const IdtDescriptor = packed struct(u48) {
+    limit: u16,
+    addr: u32,
+};

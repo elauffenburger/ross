@@ -1,6 +1,6 @@
+const kstd = @import("../kstd.zig");
 const idt = @import("idt.zig");
 const io = @import("io.zig");
-const types = @import("types.zig");
 
 pub const irq_offset = 0x20;
 
@@ -24,7 +24,7 @@ const pic1 = Pic{ .addr = 0x20 };
 // (secondary) Handles IRQs 0x08 -> 0x0f.
 const pic2 = Pic{ .addr = 0xa0 };
 
-pub const InitProof = types.UniqueProof();
+pub const InitProof = kstd.types.UniqueProof();
 
 // Initializes PICs and remaps their vectors to start at 0x20 to avoid ambiguity with IDT
 // exception ISRs.

@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const types = @import("types.zig");
+const kstd = @import("../../kstd.zig");
 
 pub const KeyEvent = struct {
     key_press: Keys.KeyPress,
@@ -16,7 +16,7 @@ pub const KeyDef = struct {
     key_code: []const u8,
     released_key_code: []const u8,
 
-    pub fn new(args: types.Exclude(KeyDef, .{"released_key_code"})) @This() {
+    pub fn new(args: kstd.types.Exclude(KeyDef, .{"released_key_code"})) @This() {
         const released_key_code = blk: {
             switch (args.key_code.len) {
                 1 => break :blk &[_]u8{ 0xf0, args.key_code[0] },

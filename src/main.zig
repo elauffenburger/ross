@@ -1,21 +1,20 @@
 const std = @import("std");
 
-const cmos = @import("cmos.zig");
-const cpu = @import("cpu.zig");
-const gdt = @import("gdt.zig");
-const idt = @import("idt.zig");
+const cmos = @import("hw/cmos.zig");
+const cpu = @import("hw/cpu.zig");
+const gdt = @import("hw/gdt.zig");
+const idt = @import("hw/idt.zig");
+const ps2 = @import("hw/io/ps2.zig");
+const serial = @import("hw/io/serial.zig");
+const pic = @import("hw/pic.zig");
+const rtc = @import("hw/rtc.zig");
+const vga = @import("hw/video/vga.zig");
+const vmem = @import("hw/vmem.zig");
 const kstd = @import("kstd.zig");
+const proc = @import("kstd/proc.zig");
 const multiboot = @import("multiboot.zig");
-const pic = @import("pic.zig");
-const proc = @import("proc.zig");
 const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
-const ps2 = @import("ps2.zig");
-const rtc = @import("rtc.zig");
-const serial = @import("serial.zig");
-const tables = @import("tables.zig");
-const vga = @import("vga.zig");
-const vmem = @import("vmem.zig");
 
 // Write multiboot header to .multiboot section.
 pub export var multiboot_header align(4) linksection(".multiboot") = blk: {

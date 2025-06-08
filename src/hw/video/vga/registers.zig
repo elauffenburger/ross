@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const io = @import("../io.zig");
+const io = @import("../../io.zig");
 
 pub const misc_out = struct {
     pub var reg_val: Register = undefined;

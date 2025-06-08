@@ -1,8 +1,7 @@
 const std = @import("std");
 
-const io = @import("io.zig");
-const kstd = @import("kstd.zig");
-const types = @import("types.zig");
+const kstd = @import("../../kstd.zig");
+const io = @import("../io.zig");
 
 const baud_rate_base: u16 = 115200;
 
@@ -11,7 +10,7 @@ pub var com2: COMPort = .{ .io_port = 0x2f8 };
 pub var com3: COMPort = .{ .io_port = 0x3e8 };
 pub var com4: COMPort = .{ .io_port = 0x2e8 };
 
-pub const InitProof = types.UniqueProof();
+pub const InitProof = kstd.types.UniqueProof();
 
 pub fn init() !InitProof {
     const proof = try InitProof.new();

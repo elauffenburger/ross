@@ -1,11 +1,10 @@
 const std = @import("std");
 
-const input = @import("../input.zig");
-const kb = @import("../keyboard.zig");
+const io = @import("../hw/io.zig");
+const ps2 = io.ps2;
+const kb = io.keyboard;
 const kstd = @import("../kstd.zig");
 const klog = kstd.log;
-const proc = @import("../proc.zig");
-const ps2 = @import("../ps2.zig");
 
 var kb_reader: *std.io.AnyReader = undefined;
 var kb_buf: [128]u8 = undefined;
@@ -14,7 +13,7 @@ var left_shift_held = false;
 var right_shift_held = false;
 
 pub fn main() !void {
-    proc.yield();
+    kstd.proc.yield();
 
     init();
 
@@ -29,7 +28,7 @@ pub fn main() !void {
                     else => {},
                 }
 
-                try input.onKeyEvent(.{
+                try kstd.input.onKeyEvent(.{
                     .key_press = key_press,
                     .modifiers = .{
                         .shift = left_shift_held or right_shift_held,
@@ -40,7 +39,7 @@ pub fn main() !void {
             }
         }
 
-        proc.yield();
+        kstd.proc.yield();
     }
 }
 

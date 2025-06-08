@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const io = @import("io.zig");
+const io = @import("../io.zig");
 const regs = @import("vga/registers.zig");
 
 const width: u32 = 80;

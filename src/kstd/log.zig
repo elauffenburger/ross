@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const serial = @import("../serial.zig");
+const serial = @import("../hw/io.zig").serial;
 
 var port: *serial.COMPort = undefined;
 

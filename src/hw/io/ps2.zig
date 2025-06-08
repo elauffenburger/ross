@@ -2,11 +2,11 @@
 
 const std = @import("std");
 
-const io = @import("io.zig");
-const kstd = @import("kstd.zig");
-const klog = @import("kstd/log.zig");
-const pic = @import("pic.zig");
-const vga = @import("vga.zig");
+const kstd = @import("../../kstd.zig");
+const klog = kstd.log;
+const io = @import("../io.zig");
+const pic = @import("../pic.zig");
+const vga = @import("../video/vga.zig");
 
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
 //

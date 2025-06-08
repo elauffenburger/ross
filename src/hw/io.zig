@@ -1,3 +1,7 @@
+pub const keyboard = @import("io/keyboard.zig");
+pub const ps2 = @import("io/ps2.zig");
+pub const serial = @import("io/serial.zig");
+
 pub fn inb(port: u16) u8 {
     return asm volatile (
         \\ movw %[port], %%dx
