@@ -81,7 +81,6 @@ fn addTests(b: *std.Build, kernelc: KernelCompile) void {
         .root_module = kernelc.kernel.root_module,
     });
     exe_unit_tests.linker_script = kernelc.kernel.linker_script;
-    exe_unit_tests.addObjectFile(kernelc.asm_lib_obj);
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 

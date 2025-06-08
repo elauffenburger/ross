@@ -9,6 +9,7 @@ const kstd = @import("kstd.zig");
 const klog = @import("kstd/log.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
+const proc = @import("proc.zig");
 const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const serial = @import("serial.zig");
@@ -99,6 +100,8 @@ pub fn kmain() !void {
     // Enable PS/2 interfaces.
     try ps2.init();
 
+    try proc.init();
+
     // Set up virtual memory.
     //
     // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
@@ -109,6 +112,8 @@ pub fn kmain() !void {
 
     // Init keyboard interface.
     kb.init();
+
+    try proc.startKProc(&@import("procs/term.zig").main);
 
     while (true) {
         tick() catch |e| {

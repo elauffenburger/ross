@@ -80,29 +80,25 @@ pub const EFlags = packed struct(u32) {
 };
 
 pub const Registers = packed struct {
-    gp: packed struct {
-        eax: u32,
-        ebx: u32,
-        ecx: u32,
-        esp: u32,
-        ebp: u32,
-        edi: u32,
-        esi: u32,
-        edx: u32,
-    },
-
-    seg: packed struct {
-        ss: u32,
-        cs: u32,
-        ds: u32,
-        es: u32,
-        fs: u32,
-        gs: u32,
-    },
-
+    eax: u32,
+    ecx: u32,
+    edx: u32,
     eip: u32,
 
-    eflags: packed struct {
+    ebx: u32,
+    esi: u32,
+    edi: u32,
+    ebp: u32,
+    esp: u32,
+
+    ss: u32,
+    cs: u32,
+    ds: u32,
+    es: u32,
+    fs: u32,
+    gs: u32,
+
+    eflags: packed struct(u32) {
         cf: bool,
 
         _r1: u1 = 1,

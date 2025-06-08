@@ -1,14 +1,17 @@
 const std = @import("std");
 
-const input = @import("input.zig");
-const kb = @import("keyboard.zig");
-const kstd = @import("kstd.zig");
-const vga = @import("vga.zig");
+const input = @import("../input.zig");
+const kb = @import("../keyboard.zig");
+const kstd = @import("../kstd.zig");
+const proc = @import("../proc.zig");
+const vga = @import("../vga.zig");
 
 // HACK: not sure what the size should actually be here!
 var input_buf = kstd.collections.BufferQueue(u8, 2048){};
 
 pub fn main() !void {
+    proc.yield();
+
     var events_buf: [10]kb.KeyEvent = undefined;
     if (input.dequeueKeyEvents(&events_buf)) |kb_events| {
         for (kb_events) |key_ev| {
@@ -30,5 +33,7 @@ pub fn main() !void {
                 },
             }
         }
+
+        proc.yield();
     }
 }

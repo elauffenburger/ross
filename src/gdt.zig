@@ -114,6 +114,7 @@ pub inline fn init() void {
             .ss0 = 8 * @as(u16, @intFromEnum(GdtSegment.kernelTss)),
             .esp0 = kstd.mem.stack.top(),
         };
+
         loadTss(.kernelTss);
     }
 }

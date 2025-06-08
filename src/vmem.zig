@@ -5,6 +5,8 @@ const proc = @import("proc.zig");
 const types = @import("types.zig");
 const vga = @import("vga.zig");
 
+const user_proc_kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xc0000000 };
+
 extern const __kernel_start: u8;
 fn kernelStartPhysAddr() u32 {
     return @as(u32, @intFromPtr(&__kernel_start));
@@ -15,25 +17,17 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
-var kernel_start_virt_addr: VirtualAddress = .{ .addr = 0xc0000000 };
-
-// HACK: this should just be proc 0 in our processes lookup!
-var kernel_proc: proc.Process = .{
-    .id = 0,
-    .vm = .{},
-};
-
 var shared_proc_vm = ProcessVirtualMemory{};
 
 pub fn init() !void {
     // Identity-map the kernel into the kernel_proc.
-    try mapPages(&kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
+    try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
 
     // Map the kernel into the shared process virtual memory.
-    try mapPages(&shared_proc_vm, 0, kernel_start_virt_addr, 0xffffffff - kernel_start_virt_addr.addr);
+    try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);
 
     // Enable paging!
-    enablePaging(&kernel_proc.vm);
+    enablePaging(proc.kernel_proc.vm);
 }
 
 fn enablePaging(vm: *ProcessVirtualMemory) void {
