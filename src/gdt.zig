@@ -9,62 +9,12 @@ pub const GdtSegment = enum(u4) {
     kernelTss = 3,
     userCode = 4,
     userData = 5,
+    userTss = 6,
 };
 
 // Create the GDT.
 // NOTE: if you rearrange the entries in the GDT, make sure to update GdtSegment!
-var gdt align(4) = [_]tables.GdtSegmentDescriptor{
-    // Mandatory null entry.
-    @bitCast(@as(u64, 0)),
-
-    // Kernel Mode Code Segment.
-    tables.GdtSegmentDescriptor.new(.{
-        .base = 0,
-        .limit = 0xf_ffff,
-        // TODO: convert these to structured values.
-        .access = .{
-            .code = @bitCast(@as(u8, 0x9a)),
-        },
-        .flags = @bitCast(@as(u4, 0xc)),
-    }),
-
-    // Kernel Mode Data Segment.
-    tables.GdtSegmentDescriptor.new(.{
-        .base = 0,
-        .limit = 0xf_ffff,
-        // TODO: convert these to structured values.
-        .access = .{
-            .data = @bitCast(@as(u8, 0x92)),
-        },
-        .flags = @bitCast(@as(u4, 0xc)),
-    }),
-
-    // Kernel TSS placeholder.
-    // NOTE: this will be created for real when we init the GDT.
-    @bitCast(@as(u64, 0)),
-
-    // User Mode Code Segment.
-    tables.GdtSegmentDescriptor.new(.{
-        .base = 0,
-        .limit = 0xf_ffff,
-        // TODO: convert these to structured values.
-        .access = .{
-            .code = @bitCast(@as(u8, 0xfa)),
-        },
-        .flags = @bitCast(@as(u4, 0xc)),
-    }),
-
-    // User Mode Data Segment.
-    tables.GdtSegmentDescriptor.new(.{
-        .base = 0,
-        .limit = 0xf_ffff,
-        // TODO: convert these to structured values.
-        .access = .{
-            .data = @bitCast(@as(u8, 0xf2)),
-        },
-        .flags = @bitCast(@as(u4, 0xc)),
-    }),
-};
+var gdt: [@typeInfo(GdtSegment).@"enum".fields.len]tables.GdtSegmentDescriptor align(4) = undefined;
 
 // Allocate a var for the GDT descriptor register whose address we'll pass to lgdt.
 var gdtr: tables.GdtDescriptor align(4) = @bitCast(@as(u48, 0));
@@ -75,19 +25,72 @@ pub var kernel_tss: tables.TaskStateSegment = undefined;
 pub inline fn init() void {
     @setRuntimeSafety(false);
 
-    // Add kernel TSS entry to GDT.
-    gdt[@intFromEnum(GdtSegment.kernelTss)] = tables.GdtSegmentDescriptor.new(.{
-        .base = @intFromPtr(&kernel_tss),
-        .limit = @bitSizeOf(tables.TaskStateSegment),
-        // TODO: convert these to structured values.
-        .access = .{
-            .system = @bitCast(@as(u8, 0x89)),
-        },
-        .flags = .{
-            .size = .@"32bit",
-            .granularity = .page,
-        },
-    });
+    gdt = [_]tables.GdtSegmentDescriptor{
+        // Mandatory null entry.
+        @bitCast(@as(u64, 0)),
+
+        // Kernel Mode Code Segment.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = 0,
+            .limit = 0xf_ffff,
+            // TODO: convert these to structured values.
+            .access = .{
+                .code = @bitCast(@as(u8, 0x9a)),
+            },
+            .flags = @bitCast(@as(u4, 0xc)),
+        }),
+
+        // Kernel Mode Data Segment.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = 0,
+            .limit = 0xf_ffff,
+            // TODO: convert these to structured values.
+            .access = .{
+                .data = @bitCast(@as(u8, 0x92)),
+            },
+            .flags = @bitCast(@as(u4, 0xc)),
+        }),
+
+        // Add kernel TSS entry to GDT.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = @intFromPtr(&kernel_tss),
+            .limit = @bitSizeOf(tables.TaskStateSegment),
+            // TODO: convert these to structured values.
+            .access = .{
+                .system = @bitCast(@as(u8, 0x89)),
+            },
+            .flags = .{
+                .size = .@"32bit",
+                .granularity = .page,
+            },
+        }),
+
+        // User Mode Code Segment.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = 0,
+            .limit = 0xf_ffff,
+            // TODO: convert these to structured values.
+            .access = .{
+                .code = @bitCast(@as(u8, 0xfa)),
+            },
+            .flags = @bitCast(@as(u4, 0xc)),
+        }),
+
+        // User Mode Data Segment.
+        tables.GdtSegmentDescriptor.new(.{
+            .base = 0,
+            .limit = 0xf_ffff,
+            // TODO: convert these to structured values.
+            .access = .{
+                .data = @bitCast(@as(u8, 0xf2)),
+            },
+            .flags = @bitCast(@as(u4, 0xc)),
+        }),
+
+        // Kernel TSS placeholder.
+        // NOTE: this will be created for real when we init the GDT.
+        @bitCast(@as(u64, 0)),
+    };
 
     // Load GDT!
     loadGdt();
