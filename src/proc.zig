@@ -2,6 +2,7 @@ const std = @import("std");
 
 const cpu = @import("cpu.zig");
 const kstd = @import("kstd.zig");
+const types = @import("types.zig");
 const vmem = @import("vmem.zig");
 
 pub const Process = packed struct {
@@ -32,12 +33,16 @@ var procs: ProcsList = ProcsList.init();
 
 var next_pid: u32 = 1;
 
-pub var kernel_proc: *Process = undefined;
+var kernel_proc: *Process = undefined;
 export var curr_proc: *Process = undefined;
 
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
-pub fn init() !void {
+pub const InitProof = types.UniqueProof();
+
+pub fn init() !InitProof {
+    const proof = try InitProof.new();
+
     // Init the kernel_proc.
     {
         const vm = try kstd.mem.kernel_heap_allocator.create(vmem.ProcessVirtualMemory);
@@ -57,6 +62,12 @@ pub fn init() !void {
     }
 
     curr_proc = kernel_proc;
+
+    return proof;
+}
+
+pub fn kernelProc() *const Process {
+    return kernel_proc;
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {

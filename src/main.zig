@@ -5,7 +5,6 @@ const cpu = @import("cpu.zig");
 const gdt = @import("gdt.zig");
 const idt = @import("idt.zig");
 const kstd = @import("kstd.zig");
-const klog = @import("kstd/log.zig");
 const multiboot = @import("multiboot.zig");
 const pic = @import("pic.zig");
 const proc = @import("proc.zig");
@@ -74,10 +73,16 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
-    // Init kstd.
-    kstd.init();
-    klog.init();
+    // Init kernel memory management.
+    kstd.mem.init();
 
+    // Init serial first so we can debug to screen.
+    const serial_proof = try serial.init();
+
+    // Init kernel logging.
+    try kstd.log.init(serial_proof);
+
+    // Init VGA.
     vga.init();
 
     // Disable interrupts while we init components that configure interrupts.
@@ -85,23 +90,21 @@ pub fn kmain() !void {
     cmos.maskNMIs();
 
     // Set up interrupts.
-    idt.init();
-    pic.init();
+    const idt_proof = try idt.init();
+    const pic_proof = try pic.init(idt_proof);
 
-    // Init other components.
-    rtc.init();
+    // Init RTC.
+    try rtc.init(pic_proof);
 
     // Re-enable interrupts.
     asm volatile ("sti");
     cmos.unmaskNMIs();
 
-    // Init serial first so we can debug to screen.
-    try serial.init();
-
     // Enable PS/2 interfaces.
-    try ps2.init();
+    try ps2.init(pic_proof);
 
-    try proc.init();
+    // Init process control.
+    const proc_proof = try proc.init();
 
     // Set up virtual memory.
     //
@@ -109,7 +112,7 @@ pub fn kmain() !void {
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
     //
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
-    try vmem.init();
+    try vmem.init(pic_proof, proc_proof);
 
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);

@@ -107,3 +107,22 @@ pub fn And(T: type, @"and": type) type {
         },
     });
 }
+
+pub fn UniqueProof() type {
+    return struct {
+        const Self = @This();
+
+        var proved = false;
+
+        pub fn new() error{AlreadyProved}!Self {
+            proved = true;
+            return .{};
+        }
+
+        pub fn prove(_: Self) error{Unproved}!void {
+            if (!proved) {
+                return error.Unproved;
+            }
+        }
+    };
+}

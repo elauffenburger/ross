@@ -7,6 +7,7 @@ const ps2 = @import("ps2.zig");
 const rtc = @import("rtc.zig");
 const serial = @import("serial.zig");
 const tables = @import("tables.zig");
+const types = @import("types.zig");
 const vga = @import("vga.zig");
 
 // Allocate space for the IDT.
@@ -15,7 +16,11 @@ var idt align(4) = [_]tables.InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 // Allocate a pointer to the memory location we pass to lidt.
 var idtr: tables.IdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
-pub fn init() void {
+pub const InitProof = types.UniqueProof();
+
+pub fn init() !InitProof {
+    const proof = try InitProof.new();
+
     // Add handlers.
     for (int_handlers) |handler| {
         switch (handler.kind) {
@@ -30,6 +35,8 @@ pub fn init() void {
 
     // Load IDT.
     loadIdt();
+
+    return proof;
 }
 
 fn addIdtEntry(index: u8, gate_type: tables.InterruptDescriptor.GateType, privilegeLevel: cpu.PrivilegeLevel, handler: *const fn () callconv(.naked) void) void {

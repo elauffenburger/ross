@@ -1,4 +1,6 @@
+const idt = @import("idt.zig");
 const io = @import("io.zig");
+const types = @import("types.zig");
 
 pub const irq_offset = 0x20;
 
@@ -22,9 +24,15 @@ const pic1 = Pic{ .addr = 0x20 };
 // (secondary) Handles IRQs 0x08 -> 0x0f.
 const pic2 = Pic{ .addr = 0xa0 };
 
+pub const InitProof = types.UniqueProof();
+
 // Initializes PICs and remaps their vectors to start at 0x20 to avoid ambiguity with IDT
 // exception ISRs.
-pub fn init() void {
+pub fn init(idt_proof: idt.InitProof) !InitProof {
+    try idt_proof.prove();
+
+    const proof = try InitProof.new();
+
     // ICW1: Start init.
     io.outb(pic1.cmd(), InitControlWord1.init | InitControlWord1.icw4);
     io.wait();
@@ -56,6 +64,8 @@ pub fn init() void {
     // Unmask PICs.
     io.outb(pic1.data(), 0);
     io.outb(pic2.data(), 0);
+
+    return proof;
 }
 
 pub fn eoi(irq: u8) void {

@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const kstd = @import("kstd.zig");
+const pic = @import("pic.zig");
 const proc = @import("proc.zig");
 const types = @import("types.zig");
 const vga = @import("vga.zig");
@@ -19,17 +20,22 @@ fn kernelSize() u32 {
 
 var shared_proc_vm = ProcessVirtualMemory{};
 
-pub fn init() !void {
+pub fn init(pic_proof: pic.InitProof, proc_proof: proc.InitProof) !void {
+    try pic_proof.prove();
+    try proc_proof.prove();
+
+    const kernel_proc = proc.kernelProc();
+
     // Identity-map the kernel into the kernel_proc.
     // try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
     // HACK: we're just going to map the entire address space.
-    try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
+    try mapPages(kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
 
     // Map the kernel into the shared process virtual memory.
     try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);
 
     // Enable paging!
-    enablePaging(proc.kernel_proc.saved_registers.cr3);
+    enablePaging(kernel_proc.saved_registers.cr3);
 }
 
 fn enablePaging(new_cr3: u32) void {

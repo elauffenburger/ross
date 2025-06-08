@@ -2,6 +2,7 @@ const std = @import("std");
 
 const io = @import("io.zig");
 const kstd = @import("kstd.zig");
+const types = @import("types.zig");
 
 const baud_rate_base: u16 = 115200;
 
@@ -10,11 +11,17 @@ pub var com2: COMPort = .{ .io_port = 0x2f8 };
 pub var com3: COMPort = .{ .io_port = 0x3e8 };
 pub var com4: COMPort = .{ .io_port = 0x2e8 };
 
-pub fn init() !void {
+pub const InitProof = types.UniqueProof();
+
+pub fn init() !InitProof {
+    const proof = try InitProof.new();
+
     try com1.init();
     try com2.init();
     try com3.init();
     try com4.init();
+
+    return proof;
 }
 
 // | IO Port Offset | Setting of DLAB | I/O Access | Register mapped to this port |

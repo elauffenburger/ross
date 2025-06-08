@@ -20,7 +20,9 @@ const writer = std.io.AnyWriter{
     },
 };
 
-pub fn init() void {
+pub fn init(serial_proof: serial.InitProof) !void {
+    try serial_proof.prove();
+
     port = &serial.com1;
 }
 

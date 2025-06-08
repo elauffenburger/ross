@@ -1,5 +1,6 @@
 const cmos = @import("cmos.zig");
 const io = @import("io.zig");
+const pic = @import("pic.zig");
 
 // The default value set by the BIOS is 1Khz, which is ~976us; we're going to just call that _roughly_ close to 1ms!
 var tick_ms: u8 = 1;
@@ -29,7 +30,9 @@ fn reg(T: type, regAddr: u8, restore_nmis: bool) T {
     return result;
 }
 
-pub fn init() void {
+pub fn init(pic_proof: pic.InitProof) !void {
+    try pic_proof.prove();
+
     // Configure RTC interrupts.
     //
     // NOTE: we're getting register b with NMIs masked and not unmasking until we're done initializing the kernel.

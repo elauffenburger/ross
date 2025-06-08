@@ -11,7 +11,9 @@ const vga = @import("vga.zig");
 // See https://wiki.osdev.org/I8042_PS/2_Controller#Initialising_the_PS/2_Controller
 //
 // NOTE: there's a bunch of stuff we _should_ do...and we're not going to do any of it for now because it requires ACPI and stuff :)
-pub fn init() !void {
+pub fn init(pic_proof: pic.InitProof) !void {
+    try pic_proof.prove();
+
     // TODO: initialize USB controllers.
     // TODO: make sure PS/2 controller exists.
 
