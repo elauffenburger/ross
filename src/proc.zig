@@ -24,7 +24,8 @@ pub const ProcessState = enum(u8) {
 
 const max_procs = 256;
 
-const procs = std.fifo.LinearFifo(*Process, .{ .Static = max_procs }).init();
+const ProcsList = std.fifo.LinearFifo(*Process, .{ .Static = max_procs });
+var procs: ProcsList = ProcsList.init();
 
 var next_pid: u32 = 1;
 
@@ -83,7 +84,17 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         .cr3 = undefined,
     };
 
+    try procs.writeItem(proc);
+
     switch_to_proc(proc);
+}
+
+// HACK: this isn't what we _actually_ want to do (we should drive this on interrupts), but it's a good test.
+pub fn tick() void {
+    for (0..procs.count) |i| {
+        const p: *Process = procs.buf[i];
+        switch_to_proc(p);
+    }
 }
 
 pub fn yield() void {

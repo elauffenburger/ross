@@ -116,6 +116,8 @@ pub fn kmain() !void {
     try proc.startKProc(&proc_term.main);
 
     while (true) {
+        proc.tick();
+
         asm volatile ("hlt");
     }
 }
