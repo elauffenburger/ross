@@ -13,9 +13,9 @@ pub const Process = packed struct {
     id: u32,
 
     // TODO: implement.
-    state: enum(u32) {
-        running = 0,
-        stopped = 1,
+    state: enum(u8) {
+        stopped = 0,
+        running = 1,
         killed = 2,
     },
 

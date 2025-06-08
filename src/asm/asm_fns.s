@@ -33,6 +33,10 @@ switch_to_proc:
   ;   go back one more to get the proc argument (1)
   mov esi, [esp + (4 + 1)*4]
 
+  ; mark curr_proc stopped
+  mov word [curr_proc + 16], 0
+  ; mark proc running
+  mov word [esi + 16], 1
   ; make proc the curr_proc
   mov [curr_proc], esi
 
