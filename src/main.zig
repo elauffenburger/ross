@@ -39,10 +39,12 @@ pub export fn _kmain() callconv(.naked) noreturn {
     // Set up GDT and virtual memory before jumping into kmain since we need to map kernel space to the appropriate
     // segments and pages before we jump into it (or else our segment registers will be screwed up)!
     gdt.init();
-    gdt.loadTss(.{
-        .segment = gdt.GdtSegment.kernelData,
-        .handle = &stack.kernel_stack_bytes,
-    });
+
+    gdt.kernel_tss = .{
+        .ss0 = 8 * @as(u16, @intFromEnum(gdt.GdtSegment.kernelTss)),
+        .esp0 = stack.top(&stack.kernel_stack_bytes),
+    };
+    gdt.loadTss(.kernelTss);
 
     // Reset kernel stack.
     stack.resetTo(&stack.kernel_stack_bytes);

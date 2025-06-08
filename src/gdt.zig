@@ -6,7 +6,7 @@ pub const GdtSegment = enum(u4) {
     null = 0,
     kernelCode = 1,
     kernelData = 2,
-    tss = 3,
+    kernelTss = 3,
     userCode = 4,
     userData = 5,
 };
@@ -70,14 +70,14 @@ var gdt align(4) = [_]tables.GdtSegmentDescriptor{
 var gdtr: tables.GdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
 // Allocate space for our TSS.
-var tss: tables.TaskStateSegment = @bitCast(@as(u864, 0));
+pub var kernel_tss: tables.TaskStateSegment = undefined;
 
 pub inline fn init() void {
     @setRuntimeSafety(false);
 
-    // Add TSS entry to GDT.
-    gdt[@intFromEnum(GdtSegment.tss)] = tables.GdtSegmentDescriptor.new(.{
-        .base = @intFromPtr(&tss),
+    // Add kernel TSS entry to GDT.
+    gdt[@intFromEnum(GdtSegment.kernelTss)] = tables.GdtSegmentDescriptor.new(.{
+        .base = @intFromPtr(&kernel_tss),
         .limit = @bitSizeOf(tables.TaskStateSegment),
         // TODO: convert these to structured values.
         .access = .{
@@ -149,24 +149,13 @@ inline fn loadGdt() void {
     );
 }
 
-pub inline fn loadTss(stack_info: struct { segment: GdtSegment, handle: []align(4) u8 }) void {
-    tss.ss0 = 8 * @as(u16, @intFromEnum(stack_info.segment));
-
-    // NOTE: we're sharing a single TSS right now, so we need to disable multitasking
-    // or else we could end up granting access to the kernel stack in userspace (which would be bad)!
-    tss.esp0 = stack.top(stack_info.handle);
-
-    // Set the offset from the base of the TSS to the IO permission bit map.
-    // HACK: I really have no idea _why_ this is even necessary (or when it wouldn't be 104);
-    //       we should take a look at this later!
-    tss.iopb = 104;
-
+pub inline fn loadTss(tss_segment: GdtSegment) void {
     // Load tss.
     asm volatile (
         \\ mov %[tss_gdt_offset], %%ax
         \\ ltr %%ax
         :
-        : [tss_gdt_offset] "X" (8 * @as(u32, @intFromEnum(GdtSegment.tss))),
+        : [tss_gdt_offset] "X" (8 * @as(u32, @intFromEnum(tss_segment))),
     );
 
     // TODO: handle switching stacks.

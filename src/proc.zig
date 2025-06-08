@@ -7,9 +7,6 @@ const vmem = @import("vmem.zig");
 pub const Process = struct {
     id: u32,
     vm: vmem.ProcessVirtualMemory,
-    state: ProcessState,
-
-    saved_registers: Registers,
 };
 
 pub const ProcessState = enum {
@@ -29,7 +26,7 @@ var next_pid = 2;
 pub fn addKProc(kproc_main: *const fn () void) void {
     _ = kproc_main; // autofix
 
-    var proc = newProc();
+    const proc = newProc();
     _ = proc; // autofix
 }
 
@@ -43,7 +40,6 @@ fn newProc() Process {
     const proc = .{
         .id = next_pid,
         .vm = .{},
-        .state = .stopped,
     };
 
     next_pid += 1;

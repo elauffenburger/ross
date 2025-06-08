@@ -137,61 +137,65 @@ pub const GdtDescriptor = packed struct(u48) {
 
 // See [the docs](https://wiki.osdev.org/Task_State_Segment) for more details.
 pub const TaskStateSegment = packed struct(u864) {
-    link: u16,
-    _r1: u16,
+    link: u16 = 0,
+    _r1: u16 = 0,
 
-    esp0: u32,
+    esp0: u32 = 0,
 
-    ss0: u16,
-    _r2: u16,
+    ss0: u16 = 0,
+    _r2: u16 = 0,
 
-    esp1: u32,
+    esp1: u32 = 0,
 
-    ss1: u16,
-    _r3: u16,
+    ss1: u16 = 0,
+    _r3: u16 = 0,
 
-    esp2: u32,
+    esp2: u32 = 0,
 
-    ss2: u16,
-    _r4: u16,
+    ss2: u16 = 0,
+    _r4: u16 = 0,
 
-    cr3: u32,
-    eip: u32,
-    eflags: u32,
-    eax: u32,
-    ecx: u32,
-    edx: u32,
-    ebx: u32,
-    esp: u32,
-    ebp: u32,
-    esi: u32,
-    edi: u32,
+    cr3: u32 = 0,
+    eip: u32 = 0,
+    eflags: u32 = 0,
+    eax: u32 = 0,
+    ecx: u32 = 0,
+    edx: u32 = 0,
+    ebx: u32 = 0,
+    esp: u32 = 0,
+    ebp: u32 = 0,
+    esi: u32 = 0,
+    edi: u32 = 0,
 
-    es: u16,
-    _r5: u16,
+    es: u16 = 0,
+    _r5: u16 = 0,
 
-    cs: u16,
-    _r6: u16,
+    cs: u16 = 0,
+    _r6: u16 = 0,
 
-    ss: u16,
-    _r7: u16,
+    ss: u16 = 0,
+    _r7: u16 = 0,
 
-    ds: u16,
-    _r8: u16,
+    ds: u16 = 0,
+    _r8: u16 = 0,
 
-    fs: u16,
-    _r9: u16,
+    fs: u16 = 0,
+    _r9: u16 = 0,
 
-    gs: u16,
-    _r10: u16,
+    gs: u16 = 0,
+    _r10: u16 = 0,
 
-    ldtr: u16,
-    _r11: u16,
+    ldtr: u16 = 0,
+    _r11: u16 = 0,
 
-    _r12: u16,
-    iopb: u16,
+    _r12: u16 = 0,
 
-    ssp: u32,
+    // Set the offset from the base of the TSS to the IO permission bit map.
+    // HACK: I really have no idea _why_ this is even necessary (or when it wouldn't be 104);
+    //       we should take a look at this later!
+    iopb: u16 = 104,
+
+    ssp: u32 = 0,
 };
 
 pub const SegmentSelector = packed struct(u16) {
