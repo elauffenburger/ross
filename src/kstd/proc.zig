@@ -11,13 +11,13 @@ pub const Process = packed struct {
     },
 
     id: u32,
-
-    // TODO: implement.
     state: enum(u8) {
         stopped = 0,
         running = 1,
         killed = 2,
     },
+
+    parent: ?*Process,
 
     // TODO: implement.
     vm: *hw.vmem.ProcessVirtualMemory,
@@ -56,8 +56,10 @@ pub fn init() !InitProof {
             },
 
             .id = nextPID(),
-            .vm = vm,
             .state = .running,
+            .parent = null,
+
+            .vm = vm,
         };
     }
 
@@ -106,6 +108,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 
         .id = nextPID(),
         .state = .running,
+        .parent = kernel_proc,
 
         // Use the same page dir as the main kernel process.
         .vm = kernel_proc.vm,
