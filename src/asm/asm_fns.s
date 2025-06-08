@@ -36,13 +36,19 @@ switch_to_proc:
   ; load proc.esp
   mov esp, [esi]
 
-  ; TODO: load new page dir.
-  ;; load proc.cr3
-  ; mov eax, [esi + 17]
-  ; mov cr3, eax
+  ; get proc.cr3
+  mov eax, [esi + 8]
+  ; get current c3
+  mov ebx, cr3
+  ; compare cr3 values; if they're the same, skip updating the register value
+  cmp eax, ebx
+  je .done
+  ; ...otherwise, update cr3
+  mov cr3, eax
 
   ; TODO: change TSS
 
+.done:
   ; restore registers
   pop ebp
   pop edi
