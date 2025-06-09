@@ -1,4 +1,40 @@
 const io = @import("../io.zig");
+const pic = @import("../pic.zig");
+
+const base_rate_hz = 1_193_180;
+var rate_hz: u32 = 0;
+
+pub fn init(pic_proof: pic.InitProof) !void {
+    try pic_proof.prove();
+
+    // Set mode.
+    io.outb(
+        IOPorts.cmd,
+        @bitCast(Mode{
+            .count_mode = .@"16bit",
+            .operating_mode = .squareWaveGenerator,
+            .access_mode = .bothBytes,
+            .channel = .ch0,
+        }),
+    );
+
+    // Set rate.
+    setRateHz(100);
+}
+
+fn setRateHz(hz: u32) void {
+    const divisor: u32 = @divFloor(base_rate_hz, hz);
+
+    // Set divisor lo, then hi.
+    io.outb(IOPorts.ch0, @truncate(divisor & 0xff));
+    io.outb(IOPorts.ch0, @truncate((divisor & 0xff00) >> 8));
+
+    rate_hz = hz;
+}
+
+pub fn rateHz() u32 {
+    return rate_hz;
+}
 
 const IOPorts = struct {
     pub const ch0: u8 = 0x40;

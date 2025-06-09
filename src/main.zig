@@ -84,8 +84,9 @@ pub fn kmain() !void {
     const idt_proof = try hw.idt.init();
     const pic_proof = try hw.pic.init(idt_proof);
 
-    // Init RTC.
+    // Init timers.
     try hw.timers.rtc.init(pic_proof);
+    try hw.timers.pit.init(pic_proof);
 
     // Re-enable interrupts.
     asm volatile ("sti");

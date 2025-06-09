@@ -86,7 +86,9 @@ const int_handlers = GenInterruptHandlers(struct {
     }
 
     // PIT
-    pub fn irq0() void {}
+    pub fn irq0() void {
+        kstd.time.tickTimers();
+    }
 
     // PS/2 keyboard
     pub fn irq1() void {

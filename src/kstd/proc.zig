@@ -29,6 +29,8 @@ export var last_created_proc: *Process = undefined;
 
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
+var proc_timer = kstd.time.Timer();
+
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {
     const proof = try InitProof.new();
@@ -148,6 +150,8 @@ pub fn yield() void {
 
     switch_to_proc(next_proc);
 }
+
+pub fn maybeYield() void {}
 
 var next_pid: u32 = 1;
 fn nextPID() u32 {
