@@ -1,5 +1,5 @@
-const cmos = @import("cmos.zig");
-const pic = @import("pic.zig");
+const cmos = @import("../cmos.zig");
+const pic = @import("../pic.zig");
 
 // The default value set by the BIOS is 1Khz, which is ~976us; we're going to just call that _roughly_ close to 1ms!
 var tick_ms: u8 = 1;

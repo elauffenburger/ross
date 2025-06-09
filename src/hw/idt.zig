@@ -4,7 +4,7 @@ const kstd = @import("../kstd.zig");
 const cpu = @import("cpu.zig");
 const io = @import("io.zig");
 const pic = @import("pic.zig");
-const rtc = @import("rtc.zig");
+const rtc = @import("timers.zig").rtc;
 
 // Allocate space for the IDT.
 var idt align(4) = [_]InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;

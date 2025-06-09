@@ -1,14 +1,7 @@
 const std = @import("std");
 
-const cmos = @import("hw/cmos.zig");
-const gdt = @import("hw/gdt.zig");
-const idt = @import("hw/idt.zig");
-const ps2 = @import("hw/io/ps2.zig");
-const serial = @import("hw/io/serial.zig");
-const pic = @import("hw/pic.zig");
-const rtc = @import("hw/rtc.zig");
-const vga = @import("hw/video/vga.zig");
-const vmem = @import("hw/vmem.zig");
+const hw = @import("hw.zig");
+const vga = hw.video.vga;
 const kstd = @import("kstd.zig");
 const proc = @import("kstd/proc.zig");
 const multiboot = @import("multiboot.zig");
@@ -36,7 +29,7 @@ pub export fn _kmain() callconv(.naked) noreturn {
 
     // Set up GDT and virtual memory before jumping into kmain since we need to map kernel space to the appropriate
     // segments and pages before we jump into it (or else our segment registers will be screwed up)!
-    gdt.init();
+    hw.gdt.init();
 
     // Reset kernel stack.
     kstd.mem.stack.reset();
@@ -54,7 +47,7 @@ pub const panic = std.debug.FullPanic(panicHandler);
 fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
     vga.writeStr("panic @ ");
     if (first_trace_addr != null) {
-        vga.printf("0x{x}\n", .{first_trace_addr.?});
+        hw.video.vga.printf("0x{x}\n", .{first_trace_addr.?});
     } else {
         vga.writeStr("??\n");
     }
@@ -75,7 +68,7 @@ pub fn kmain() !void {
     kstd.mem.init();
 
     // Init serial first so we can debug to screen.
-    const serial_proof = try serial.init();
+    const serial_proof = try hw.io.serial.init();
 
     // Init kernel logging.
     try kstd.log.init(serial_proof);
@@ -85,21 +78,21 @@ pub fn kmain() !void {
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");
-    cmos.maskNMIs();
+    hw.cmos.maskNMIs();
 
     // Set up interrupts.
-    const idt_proof = try idt.init();
-    const pic_proof = try pic.init(idt_proof);
+    const idt_proof = try hw.idt.init();
+    const pic_proof = try hw.pic.init(idt_proof);
 
     // Init RTC.
-    try rtc.init(pic_proof);
+    try hw.timers.rtc.init(pic_proof);
 
     // Re-enable interrupts.
     asm volatile ("sti");
-    cmos.unmaskNMIs();
+    hw.cmos.unmaskNMIs();
 
     // Enable PS/2 interfaces.
-    try ps2.init(pic_proof);
+    try hw.io.ps2.init(pic_proof);
 
     // Init process control.
     const proc_proof = try proc.init();
@@ -110,7 +103,7 @@ pub fn kmain() !void {
     // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
     //
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
-    try vmem.init(pic_proof, proc_proof);
+    try hw.vmem.init(pic_proof, proc_proof);
 
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);
