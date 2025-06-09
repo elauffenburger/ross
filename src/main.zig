@@ -106,13 +106,14 @@ pub fn kmain() !void {
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
     try hw.vmem.init(pic_proof, proc_proof);
 
+    // Turn on process control.
+    // proc.start();
+
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);
     try proc.startKProc(&proc_term.main);
 
     while (true) {
-        proc.tick();
-
         asm volatile ("hlt");
     }
 }

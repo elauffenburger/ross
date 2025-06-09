@@ -19,18 +19,13 @@ pub const Timer = struct {
         const id = next_id;
         next_id += 1;
 
-        const timer = .{
+        const timer: Self = .{
             .id = id,
             .state = .stopped,
         };
 
         try timers.put(id, timer);
         return timers.getPtr(id).?;
-    }
-
-    pub fn reset(self: *Self) void {
-        self.state = .stopped;
-        self.elapsed_ms = 0;
     }
 
     pub fn deinit(self: *Self) void {

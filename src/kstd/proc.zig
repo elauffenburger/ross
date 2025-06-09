@@ -3,6 +3,8 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
+extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
+
 const ProcessTreap = std.Treap(
     *Process,
     struct {
@@ -27,13 +29,17 @@ export var curr_proc: *Process = undefined;
 // SAFETY: set in init.
 export var last_created_proc: *Process = undefined;
 
-extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
-
-var proc_timer = kstd.time.Timer();
+// SAFETY: set in init.
+var proc_int_timer: *kstd.time.Timer = undefined;
+var ints_enabled = false;
+const max_proc_time_slice_ms = 100;
 
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {
     const proof = try InitProof.new();
+
+    // Init the process timer.
+    proc_int_timer = try kstd.time.Timer.init();
 
     // Init the kernel_proc.
     {
@@ -64,6 +70,13 @@ pub fn init() !InitProof {
 
 pub fn kernelProc() *const Process {
     return kernel_proc;
+}
+
+pub fn start() void {
+    ints_enabled = true;
+
+    proc_int_timer.elapsed_ms = 0;
+    proc_int_timer.state = .started;
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
@@ -129,13 +142,16 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     last_created_proc = proc;
 
     // Finally switch to this proc!
-    switch_to_proc(proc);
+    switchToProc(proc);
 }
 
-// HACK: this isn't what we _actually_ want to do (we should drive this on interrupts), but it's a good test.
 pub fn tick() void {
-    if (kernel_proc.next) |next| {
-        switch_to_proc(next);
+    if (!ints_enabled) {
+        return;
+    }
+
+    if (proc_int_timer.elapsed_ms >= max_proc_time_slice_ms) {
+        yield();
     }
 }
 
@@ -148,10 +164,13 @@ pub fn yield() void {
         break :blk kernel_proc;
     };
 
-    switch_to_proc(next_proc);
+    switchToProc(next_proc);
 }
 
-pub fn maybeYield() void {}
+fn switchToProc(proc: *Process) void {
+    proc_int_timer.elapsed_ms = 0;
+    switch_to_proc(proc);
+}
 
 var next_pid: u32 = 1;
 fn nextPID() u32 {
