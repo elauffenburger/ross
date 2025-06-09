@@ -142,7 +142,6 @@ const GeneratedInterruptHandler = struct {
 fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct".decls.len]GeneratedInterruptHandler {
     const orig_handlers_type = @typeInfo(orig_handlers).@"struct";
 
-    // SAFETY: the handlers are immediately filled, so undefined is safe here.
     var generated_handlers = [_]GeneratedInterruptHandler{undefined} ** orig_handlers_type.decls.len;
     for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, i| {
         // Check if this is an exception or interrupt handler.

@@ -3,15 +3,29 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-const max_procs = 256;
-const ProcsList = std.fifo.LinearFifo(*Process, .{ .Static = max_procs });
-var procs: ProcsList = ProcsList.init();
+const ProcessTreap = std.Treap(
+    *Process,
+    struct {
+        fn compare(l: *Process, r: *Process) std.math.Order {
+            if (l.id > r.id) {
+                return .gt;
+            } else if (l.id < r.id) {
+                return .lt;
+            }
+
+            return .eq;
+        }
+    }.compare,
+);
+
+var procs = ProcessTreap{};
 
 // SAFETY: set in init.
 var kernel_proc: *Process = undefined;
-
 // SAFETY: not actually safe, but needs to be type *Process and not ?*Process for interop w/ asm.
 export var curr_proc: *Process = undefined;
+// SAFETY: set in init.
+export var last_created_proc: *Process = undefined;
 
 extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
 
@@ -34,12 +48,14 @@ pub fn init() !InitProof {
             .id = nextPID(),
             .state = .running,
             .parent = null,
+            .next = null,
 
             .vm = vm,
         };
     }
 
     curr_proc = kernel_proc;
+    last_created_proc = kernel_proc;
 
     return proof;
 }
@@ -84,27 +100,53 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 
         .id = nextPID(),
         .state = .running,
+
         .parent = kernel_proc,
+        .next = null,
 
         // Use the same page dir as the main kernel process.
         .vm = kernel_proc.vm,
     };
 
-    try procs.writeItem(proc);
+    // Add the proc to the proc treap.
+    {
+        // Get an entry for this process by id.
+        var proc_entry = procs.getEntryFor(proc);
 
+        // If there's already a node, someothing went really wrong!
+        if (proc_entry.node) |_| {
+            return error.ProcessLookupStateError;
+        }
+
+        // ...otherwise, create a new node for this entry.
+        proc_entry.set(try kstd.mem.kernel_heap_allocator.create(ProcessTreap.Node));
+    }
+
+    // Update the last created proc's next to be this proc and mark this the last created proc.
+    last_created_proc.next = proc;
+    last_created_proc = proc;
+
+    // Finally switch to this proc!
     switch_to_proc(proc);
 }
 
 // HACK: this isn't what we _actually_ want to do (we should drive this on interrupts), but it's a good test.
 pub fn tick() void {
-    for (0..procs.count) |i| {
-        const p: *Process = procs.buf[i];
-        switch_to_proc(p);
+    if (kernel_proc.next) |next| {
+        switch_to_proc(next);
     }
 }
 
 pub fn yield() void {
-    switch_to_proc(kernel_proc);
+    const next_proc = blk: {
+        if (curr_proc.next) |next| {
+            break :blk next;
+        }
+
+        break :blk kernel_proc;
+    };
+
+    switch_to_proc(next_proc);
 }
 
 var next_pid: u32 = 1;
@@ -157,6 +199,7 @@ pub const Process = packed struct {
     },
 
     parent: ?*Process,
+    next: ?*Process,
 
     // TODO: implement.
     vm: *hw.vmem.ProcessVirtualMemory,
