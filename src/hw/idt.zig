@@ -87,15 +87,18 @@ const int_handlers = GenInterruptHandlers(struct {
 
     // PIT
     pub fn irq0_raw() void {
-        // HACK: bail early while i get this working.
-        asm volatile ("iret");
-
         // Save registers before doing any work.
         //
         // NOTE: the direction flag must be clear on entry for SYS V calling conv.
         asm volatile (
             \\ pusha
             \\ cld
+        );
+
+        // HACK: bail early while i get this working.
+        asm volatile (
+            \\ popa
+            \\ iret
         );
 
         // Tick timers.
