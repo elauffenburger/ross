@@ -3,7 +3,8 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-extern fn switch_to_proc(proc: *Process) callconv(.{ .x86_sysv = .{} }) void;
+// extern fn switch_to_proc(proc: *Process, from_int: bool) callconv(.{ .x86_sysv = .{} }) void;
+extern fn switch_to_proc(proc: *Process, from_int: bool) callconv(.{ .x86_sysv = .{} }) void;
 
 const ProcessTreap = std.Treap(
     *Process,
@@ -30,16 +31,16 @@ export var curr_proc: *Process = undefined;
 export var last_created_proc: *Process = undefined;
 
 // SAFETY: set in init.
-var proc_int_timer: *kstd.time.Timer = undefined;
+var proc_int_timer = kstd.time.Timer{};
 var ints_enabled = false;
-const max_proc_time_slice_ms = 100;
+const max_proc_time_slice_ms = 10;
 
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {
     const proof = try InitProof.new();
 
     // Init the process timer.
-    proc_int_timer = try kstd.time.Timer.init();
+    try kstd.time.registerTimer(&proc_int_timer);
 
     // Init the kernel_proc.
     {
@@ -142,34 +143,41 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     last_created_proc = proc;
 
     // Finally switch to this proc!
-    switchToProc(proc);
+    switchToProcNotIrq(proc);
 }
 
-pub fn tick() void {
+pub fn nextProcFromIrq() ?*Process {
     if (!ints_enabled) {
-        return;
+        return null;
     }
 
     if (proc_int_timer.elapsed_ms >= max_proc_time_slice_ms) {
-        yield();
+        return nextProc();
     }
+
+    return null;
 }
 
 pub fn yield() void {
-    const next_proc = blk: {
-        if (curr_proc.next) |next| {
-            break :blk next;
-        }
+    const next_proc = nextProc();
+    kstd.log.dbgf("next: {d}\n", .{next_proc.id});
 
-        break :blk kernel_proc;
-    };
-
-    switchToProc(next_proc);
+    switchToProcNotIrq(next_proc);
 }
 
-fn switchToProc(proc: *Process) void {
+fn switchToProcNotIrq(proc: *Process) void {
     proc_int_timer.elapsed_ms = 0;
-    switch_to_proc(proc);
+
+    asm volatile ("cli");
+    switch_to_proc(proc, false);
+}
+
+fn nextProc() *Process {
+    if (curr_proc.next) |next| {
+        return next;
+    }
+
+    return kernel_proc;
 }
 
 var next_pid: u32 = 1;

@@ -5,10 +5,8 @@ global switch_to_proc
 section .text
 
 ; NOTE: Adapted from https://wiki.osdev.org/Brendan%27s_Multi-tasking_Tutorial
-; switch_to_proc(proc: *Process) void
+; switch_to_proc(proc: *Process, from_int: bool) void
 switch_to_proc:
-  cli
-
   ; Notes:
   ;   For cdecl; EAX, ECX, and EDX are already saved by the caller and don't need to be saved again
   ;   EIP is already saved on the stack by the caller's "CALL" instruction
@@ -30,8 +28,10 @@ switch_to_proc:
   ; this is tricky!
   ;   go to the original esp location before we pushed the registers (4)
   ;     this will be the return addr
-  ;   go back one more to get the proc argument (1)
+  ;   go back one more u32 to get the proc argument (1)
   mov esi, [esp + (4 + 1)*4]
+  ;   go back one more byte to get from_int (1)
+  mov dl, [esp + (4 + 1)*4 + 1]
 
   ; mark curr_proc stopped
   mov word [curr_proc + 16], 0
@@ -46,9 +46,9 @@ switch_to_proc:
   ; get proc.cr3
   mov eax, [esi + 8]
   ; get current c3
-  mov ebx, cr3
+  mov ecx, cr3
   ; compare cr3 values; if they're the same, skip updating the register value
-  cmp eax, ebx
+  cmp eax, ecx
   je .done
   ; ...otherwise, update cr3
   mov cr3, eax
@@ -62,7 +62,13 @@ switch_to_proc:
   pop esi
   pop ebx
 
-  ; restore interrupts
-  sti
+  ; check if we're coming from an interrupt handler.
+  cmp dl, 1
+  je .ret_int
 
+.ret_not_int:
+  sti
   ret
+
+.ret_int:
+  iret
