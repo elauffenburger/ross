@@ -3,7 +3,8 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-extern fn switch_to_proc(proc: *Process, from_int: bool) callconv(.{ .x86_sysv = .{} }) void;
+pub extern fn yield_to_proc() callconv(.{ .x86_sysv = .{} }) void;
+pub extern fn irq_switch_to_proc() callconv(.naked) void;
 
 const ProcessTreap = std.Treap(
     *Process,
@@ -25,13 +26,13 @@ var procs = ProcessTreap{};
 // SAFETY: set in init.
 var kernel_proc: *Process = undefined;
 // SAFETY: not actually safe, but needs to be type *Process and not ?*Process for interop w/ asm.
-export var curr_proc: *Process = undefined;
+pub export var curr_proc: *Process = undefined;
 // SAFETY: set in init.
 export var last_created_proc: *Process = undefined;
 
 // SAFETY: set in init.
 var proc_int_timer = kstd.time.Timer{};
-var ints_enabled = false;
+pub var ints_enabled = false;
 const max_proc_time_slice_ms = 10;
 
 pub const InitProof = kstd.types.UniqueProof();
@@ -56,7 +57,7 @@ pub fn init() !InitProof {
             .id = nextPID(),
             .state = .running,
             .parent = null,
-            .next = null,
+            .next = kernel_proc,
 
             .vm = vm,
         };
@@ -117,7 +118,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         .state = .running,
 
         .parent = kernel_proc,
-        .next = null,
+        .next = kernel_proc,
 
         // Use the same page dir as the main kernel process.
         .vm = kernel_proc.vm,
@@ -142,41 +143,14 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     last_created_proc = proc;
 
     // Finally switch to this proc!
-    switchToProcNotIrq(proc);
-}
-
-pub fn nextProcFromIrq() ?*Process {
-    if (!ints_enabled) {
-        return null;
-    }
-
-    if (proc_int_timer.elapsed_ms >= max_proc_time_slice_ms) {
-        return nextProc();
-    }
-
-    return null;
+    yield();
 }
 
 pub fn yield() void {
-    const next_proc = nextProc();
-    kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, next_proc.id });
+    kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, curr_proc.next.id });
 
-    switchToProcNotIrq(next_proc);
-}
-
-fn switchToProcNotIrq(proc: *Process) void {
     proc_int_timer.elapsed_ms = 0;
-
-    asm volatile ("cli");
-    switch_to_proc(proc, false);
-}
-
-fn nextProc() *Process {
-    if (curr_proc.next) |next| {
-        return next;
-    }
-
-    return kernel_proc;
+    yield_to_proc();
 }
 
 var next_pid: u32 = 1;
@@ -214,7 +188,7 @@ const ProcessStackBuilder = struct {
     }
 };
 
-pub const Process = packed struct {
+pub const Process = packed struct(u232) {
     saved_registers: packed struct {
         esp: u32,
         esp0: u32,
@@ -229,7 +203,7 @@ pub const Process = packed struct {
     },
 
     parent: ?*Process,
-    next: ?*Process,
+    next: *Process,
 
     // TODO: implement.
     vm: *hw.vmem.ProcessVirtualMemory,

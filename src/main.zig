@@ -89,8 +89,8 @@ pub fn kmain() !void {
     try hw.timers.pit.init(pic_proof);
 
     // Re-enable interrupts.
-    asm volatile ("sti");
     hw.cmos.unmaskNMIs();
+    asm volatile ("sti");
 
     // Enable PS/2 interfaces.
     try hw.io.ps2.init(pic_proof);
@@ -110,7 +110,7 @@ pub fn kmain() !void {
     proc.start();
 
     // Start up kernel processes.
-    try proc.startKProc(&proc_kbd.main);
+    // try proc.startKProc(&proc_kbd.main);
     // try proc.startKProc(&proc_term.main);
 
     while (true) {
