@@ -107,11 +107,11 @@ pub fn kmain() !void {
     try hw.vmem.init(pic_proof, proc_proof);
 
     // Turn on process control.
-    // proc.start();
+    proc.start();
 
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);
-    try proc.startKProc(&proc_term.main);
+    // try proc.startKProc(&proc_term.main);
 
     while (true) {
         asm volatile ("hlt");

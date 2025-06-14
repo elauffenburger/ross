@@ -26,12 +26,12 @@ switch_to_proc:
 
   ; move proc to esi
   ; this is tricky!
-  ;   go to the original esp location before we pushed the registers (4)
+  ;   go back 4 u32 to the original esp location before we pushed the registers
   ;     this will be the return addr
-  ;   go back one more u32 to get the proc argument (1)
+  ;   go back one more u32 to get the proc argument
   mov esi, [esp + (4 + 1)*4]
-  ;   go back one more byte to get from_int (1)
-  mov dl, [esp + (4 + 1)*4 + 1]
+  ;   go back one more u8 to get from_int
+  mov edx, [esp + (4 + 2)*4]
 
   ; mark curr_proc stopped
   mov word [curr_proc + 16], 0
@@ -63,7 +63,7 @@ switch_to_proc:
   pop ebx
 
   ; check if we're coming from an interrupt handler.
-  cmp dl, 1
+  cmp edx, 1
   je .ret_int
 
 .ret_not_int:

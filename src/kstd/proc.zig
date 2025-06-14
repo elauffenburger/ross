@@ -3,7 +3,6 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-// extern fn switch_to_proc(proc: *Process, from_int: bool) callconv(.{ .x86_sysv = .{} }) void;
 extern fn switch_to_proc(proc: *Process, from_int: bool) callconv(.{ .x86_sysv = .{} }) void;
 
 const ProcessTreap = std.Treap(
@@ -160,7 +159,7 @@ pub fn nextProcFromIrq() ?*Process {
 
 pub fn yield() void {
     const next_proc = nextProc();
-    kstd.log.dbgf("next: {d}\n", .{next_proc.id});
+    kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, next_proc.id });
 
     switchToProcNotIrq(next_proc);
 }

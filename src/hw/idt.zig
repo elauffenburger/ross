@@ -29,6 +29,11 @@ pub fn init() !InitProof {
         }
     }
 
+    // Add raw handlers.
+    for (raw_int_handlers) |handler| {
+        addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
+    }
+
     // Load IDT.
     loadIdt();
 
@@ -85,49 +90,6 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = err_code; // autofix
     }
 
-    // PIT
-    pub fn irq0_raw() void {
-        // Save registers before doing any work.
-        //
-        // NOTE: the direction flag must be clear on entry for SYS V calling conv.
-        asm volatile (
-            \\ pusha
-            \\ cld
-        );
-
-        // HACK: bail early while i get this working.
-        asm volatile (
-            \\ popa
-            \\ iret
-        );
-
-        // Tick timers.
-        kstd.time.tickTimers();
-
-        // Get the process to switch to.
-        const next_proc = kstd.proc.nextProcFromIrq();
-        if (next_proc == null) {
-            // Trigger EOI.
-            pic.eoi(0);
-
-            // Restore registers and return.
-            asm volatile (
-                \\ popa
-                \\ iret
-            );
-        }
-
-        // Restore registers and switch to proc.
-        asm volatile (
-            \\ popa
-            \\ push $1
-            \\ push %[next_proc:P]
-            \\ jmp switch_to_proc
-            :
-            : [next_proc] "m" (next_proc.?),
-        );
-    }
-
     // PS/2 keyboard
     pub fn irq1() void {
         // TODO: handle this better.
@@ -156,6 +118,41 @@ const int_handlers = GenInterruptHandlers(struct {
     pub fn irq12() void {
         // TODO: handle this better.
         io.ps2.port2.recv() catch {};
+    }
+});
+
+const raw_int_handlers = GenRawInterruptHandlers(struct {
+    // PIT
+    pub fn irq0() void {
+        // Tick timers.
+        kstd.time.tickTimers();
+
+        // Get the process to switch to.
+        const next_proc = kstd.proc.nextProcFromIrq();
+        if (next_proc == null) {
+            // Trigger EOI.
+            pic.eoi(0);
+
+            // Restore registers and return.
+            asm volatile (
+                \\ mov %ebp, %esp
+                \\ pop %ebp
+                \\ popa
+                \\ iret
+            );
+        }
+
+        // Restore registers and switch to proc.
+        asm volatile (
+            \\ mov %ebp, %esp
+            \\ pop %ebp
+            \\ popa
+            \\ push 1
+            \\ push %[next_proc:P]
+            \\ jmp switch_to_proc
+            :
+            : [next_proc] "m" (next_proc.?),
+        );
     }
 });
 
@@ -198,37 +195,8 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
         };
 
         // Extract the handler fn args from fn name.
-        const int_num, const is_raw = blk: {
-            var int_num: ?u8 = null;
-            var is_raw = false;
-
-            var i: u8 = 0;
-            var handler_name_iter = std.mem.splitAny(u8, decl.name[3..], "_");
-            while (handler_name_iter.next()) |part| {
-                switch (i) {
-                    0 => {
-                        int_num = std.fmt.parseInt(u8, part, 10) catch {
-                            @compileError(std.fmt.comptimePrint("error parsing interrupt handler name as int: {s}", .{part}));
-                        };
-                    },
-                    1 => {
-                        if (std.mem.eql(u8, "raw", part)) {
-                            is_raw = true;
-                        } else {
-                            @compileError(std.fmt.comptimePrint("unexpected modifier: {any}", part));
-                        }
-                    },
-                    else => @compileError(std.fmt.comptimePrint("unexpected modifier: {any}", part)),
-                }
-
-                i += 1;
-            }
-
-            if (int_num == null) {
-                @compileError(std.fmt.comptimePrint("handler missing int num: {s}", decl.name));
-            }
-
-            break :blk .{ int_num.?, is_raw };
+        const int_num = std.fmt.parseInt(u8, decl.name[3..], 10) catch {
+            @compileError(std.fmt.comptimePrint("error parsing interrupt handler name as int: {s}", .{decl.name}));
         };
 
         const has_err = blk: {
@@ -269,6 +237,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
                         @call(.auto, @field(orig_handlers, decl.name), .{});
 
                         // Trigger EOI on PIC.
+                        //TODO: is this right?? shouldn't this have the offset applied?
                         pic.eoi(int_num);
                     }
                 };
@@ -287,6 +256,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
                     @call(.auto, @field(orig_handlers, decl.name), .{err});
 
                     // Trigger EOI on PIC.
+                    //TODO: is this right?? shouldn't this have the offset applied?
                     pic.eoi(int_num);
                 }
             };
@@ -294,19 +264,6 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
         const Handler = struct {
             pub fn handler() callconv(.naked) void {
-                if (is_raw) {
-                    const fn_addr = @field(orig_handlers, decl.name);
-
-                    // Call actual handler.
-                    asm volatile (
-                        \\ jmp %[fn_addr:P]
-                        :
-                        : [fn_addr] "p" (fn_addr),
-                    );
-
-                    asm volatile ("int $6");
-                }
-
                 // Save registers before calling handler.
                 //
                 // NOTE: the direction flag must be clear on entry for SYS V calling conv.
@@ -339,6 +296,52 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
         generated_handlers[handler_i] = .{
             .int_num = int_num,
             .kind = exc_or_irq,
+            .handler = Handler.handler,
+        };
+    }
+
+    return generated_handlers;
+}
+
+fn GenRawInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct".decls.len]GeneratedInterruptHandler {
+    const orig_handlers_type = @typeInfo(orig_handlers).@"struct";
+
+    var generated_handlers = [_]GeneratedInterruptHandler{undefined} ** orig_handlers_type.decls.len;
+    for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, handler_i| {
+        // Make sure the handler fn starts with irq.
+        if (!std.mem.eql(u8, decl.name[0..3], "irq")) {
+            @compileError(std.fmt.comptimePrint("handler fn {s} must start with irq", .{decl.name}));
+        }
+
+        // Extract the handler fn args from fn name.
+        const int_num = std.fmt.parseInt(u8, decl.name[3..], 10) catch {
+            @compileError(std.fmt.comptimePrint("error parsing interrupt handler name as int: {s}", .{decl.name[3..]}));
+        };
+
+        const Handler = struct {
+            pub fn handler() callconv(.naked) void {
+                // Save registers before calling handler.
+                //
+                // NOTE: the direction flag must be clear on entry for SYS V calling conv.
+                asm volatile (
+                    \\ pusha
+                    \\ cld
+                );
+
+                const fn_addr = @field(orig_handlers, decl.name);
+
+                // Call actual handler.
+                asm volatile (
+                    \\ jmp %[fn_addr:P]
+                    :
+                    : [fn_addr] "p" (&fn_addr),
+                );
+            }
+        };
+
+        generated_handlers[handler_i] = .{
+            .int_num = int_num,
+            .kind = .irq,
             .handler = Handler.handler,
         };
     }
