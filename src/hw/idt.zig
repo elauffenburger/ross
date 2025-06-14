@@ -29,11 +29,11 @@ pub fn init() !InitProof {
         }
     }
 
-    // Add raw handlers.
-    for (raw_int_handlers) |handler| {
-        _ = handler; // autofix
-        // addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
-    }
+    // // Add raw handlers.
+    // for (raw_int_handlers) |handler| {
+    //     _ = handler; // autofix
+    //     // addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
+    // }
 
     // Load IDT.
     loadIdt();
@@ -155,7 +155,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
     const orig_handlers_type = @typeInfo(orig_handlers).@"struct";
 
     var generated_handlers = [_]GeneratedInterruptHandler{undefined} ** orig_handlers_type.decls.len;
-    for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, handler_i| {
+    for (orig_handlers_type.decls, 0..orig_handlers_type.decls.len) |decl, i| {
         // Check if this is an exception or interrupt handler.
         const exc_or_irq: @FieldType(GeneratedInterruptHandler, "kind") = blk: {
             if (std.mem.startsWith(u8, decl.name, "exc")) {
@@ -268,7 +268,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
             }
         };
 
-        generated_handlers[handler_i] = .{
+        generated_handlers[i] = .{
             .int_num = int_num,
             .kind = exc_or_irq,
             .handler = Handler.handler,

@@ -40,7 +40,7 @@ pub fn init() !InitProof {
     const proof = try InitProof.new();
 
     // Init the process timer.
-    try kstd.time.registerTimer(&proc_int_timer);
+    // try kstd.time.registerTimer(&proc_int_timer);
 
     // Init the kernel_proc.
     {
