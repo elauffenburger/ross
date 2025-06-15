@@ -3,8 +3,6 @@ const std = @import("std");
 const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
-pub extern fn yield_to_proc() callconv(.{ .x86_sysv = .{} }) void;
-
 const ProcessTreap = std.Treap(
     *Process,
     struct {
@@ -140,16 +138,6 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     // Update the last created proc's next to be this proc and mark this the last created proc.
     last_created_proc.next = proc;
     last_created_proc = proc;
-
-    // Finally switch to this proc!
-    yield();
-}
-
-pub fn yield() void {
-    kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, curr_proc.next.id });
-
-    proc_int_timer.elapsed_ms = 0;
-    yield_to_proc();
 }
 
 var next_pid: u32 = 1;

@@ -110,7 +110,7 @@ pub fn kmain() !void {
     proc.start();
 
     // Start up kernel processes.
-    // try proc.startKProc(&proc_kbd.main);
+    try proc.startKProc(&proc_kbd.main);
     // try proc.startKProc(&proc_term.main);
 
     while (true) {
