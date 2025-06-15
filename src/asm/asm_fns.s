@@ -83,12 +83,19 @@ irq_switch_to_proc:
   ; save eax
   push eax
 
-  ; Check if irq proc switch is actually enabled; if not, bail!
+  ; Check if this is the kernel proc; if so, bail so the kernel can keep doing its job.
+  mov eax, [curr_proc + 12]
+  cmp eax, 0
+  je .abort
+
+  ; ...otherwise, if irq proc switch is actually enabled; if not, bail!
   mov al, [proc_irq_switching_enabled]
   cmp al, 1
   je .switch
 
-  ; ...otherwise, send eoi, restore eax, and bail.
+  ; ...otherwise send eoi, restore eax, and bail.
+.abort:
+  xor eax, eax
   outb al, pic_1_cmd_port, pic_1_cmd_port
   pop eax
   iret
@@ -124,8 +131,10 @@ irq_switch_to_proc:
   ; get current c3
   mov ecx, cr3
   ; compare cr3 values; if they're the same, skip updating the register value
-  cmp eax, ecx
-  je .done
+  ; HACK: disable since we know we're not switching TSS right now
+  ; cmp eax, ecx
+  ; je .done
+  jmp .done
   ; ...otherwise, update cr3
   mov cr3, eax
 

@@ -53,7 +53,7 @@ pub fn init() !InitProof {
                 .cr3 = @intFromPtr(&vm.page_dir),
             },
 
-            .id = nextPID(),
+            .id = 0,
             .state = .running,
             .parent = null,
             .next = kernel_proc,
@@ -146,6 +146,10 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 }
 
 pub fn yield() void {
+    if (curr_proc.next) {
+        @panic("tried to yield a process without a next process");
+    }
+
     kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, curr_proc.next.id });
 
     proc_int_timer.elapsed_ms = 0;
