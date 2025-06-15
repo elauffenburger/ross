@@ -90,10 +90,10 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = err_code; // autofix
     }
 
-    // PIT
-    pub fn irq0() void {
-        kstd.time.tickTimers();
-    }
+    // // PIT
+    // pub fn irq0() void {
+    //     kstd.time.tickTimers();
+    // }
 
     // PS/2 keyboard
     pub fn irq1() void {
@@ -133,17 +133,6 @@ const raw_int_handlers = [_]GeneratedInterruptHandler{
         .kind = .irq,
         .handler = struct {
             pub fn func() callconv(.naked) void {
-                asm volatile (
-                    \\ push %%eax
-                );
-                if (!kstd.proc.ints_enabled) {
-                    asm volatile (
-                        \\ mov $0x20, %%al
-                        \\ outb %%al, $0x20
-                        \\ pop %%eax
-                        \\ iret
-                    );
-                }
                 asm volatile (
                     \\ jmp irq_switch_to_proc
                 );

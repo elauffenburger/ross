@@ -31,7 +31,7 @@ export var last_created_proc: *Process = undefined;
 
 // SAFETY: set in init.
 var proc_int_timer = kstd.time.Timer{};
-pub var ints_enabled = false;
+extern var proc_irq_switching_enabled: bool linksection(".data");
 const max_proc_time_slice_ms = 10;
 
 pub const InitProof = kstd.types.UniqueProof();
@@ -73,7 +73,7 @@ pub fn kernelProc() *const Process {
 }
 
 pub fn start() void {
-    ints_enabled = true;
+    proc_irq_switching_enabled = true;
 
     proc_int_timer.elapsed_ms = 0;
     proc_int_timer.state = .started;

@@ -1,7 +1,20 @@
 extern curr_proc;
 
+global proc_irq_switching_enabled
+
 global yield_to_proc
 global irq_switch_to_proc
+
+pic_1_cmd_port equ 0x20
+pic_cmd_eoi equ 0x20
+
+%macro outb 3
+  mov %1, %3
+  out %2, %1
+%endmacro
+
+section .data
+  proc_irq_switching_enabled: db 0
 
 section .text
 
@@ -67,6 +80,23 @@ irq_switch_to_proc:
   ; Notes:
   ;   The task isn't able to change CR3 so it doesn't need to be saved
 
+  ; save eax
+  push eax
+
+  ; Check if irq proc switch is actually enabled; if not, bail!
+  mov al, [proc_irq_switching_enabled]
+  cmp al, 1
+  je .switch
+
+  ; ...otherwise, send eoi, restore eax, and bail.
+  outb al, pic_1_cmd_port, pic_1_cmd_port
+  pop eax
+  iret
+
+.switch:
+  ; restore eax before pusha
+  pop eax
+
   ; save registers
   pusha
 
@@ -102,7 +132,11 @@ irq_switch_to_proc:
   ; TODO: change TSS
 
 .done:
+  ; send eoi
+  outb al, pic_1_cmd_port, pic_1_cmd_port
+
   ; restore registers
   popa
 
   iret
+
