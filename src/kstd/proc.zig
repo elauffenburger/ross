@@ -56,7 +56,7 @@ pub fn init() !InitProof {
             .id = 0,
             .state = .running,
             .parent = null,
-            .next = kernel_proc,
+            .next = null,
 
             .vm = vm,
         };
@@ -146,10 +146,6 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 }
 
 pub fn yield() void {
-    if (curr_proc.next) {
-        @panic("tried to yield a process without a next process");
-    }
-
     kstd.log.dbgf("curr: {d}, next: {d}\n", .{ curr_proc.id, curr_proc.next.id });
 
     proc_int_timer.elapsed_ms = 0;
@@ -206,7 +202,7 @@ pub const Process = packed struct(u232) {
     },
 
     parent: ?*Process,
-    next: *Process,
+    next: ?*Process,
 
     // TODO: implement.
     vm: *hw.vmem.ProcessVirtualMemory,

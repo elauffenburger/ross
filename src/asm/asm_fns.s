@@ -83,9 +83,9 @@ irq_switch_to_proc:
   ; save eax
   push eax
 
-  ; Check if this is the kernel proc; if so, bail so the kernel can keep doing its job.
+  ; Check if curr_proc.next is null; if so, bail!
   mov eax, [curr_proc]
-  mov eax, [eax + 12]
+  mov eax, [eax + 21]
   cmp eax, 0
   je .abort
 
@@ -108,19 +108,20 @@ irq_switch_to_proc:
   ; save registers
   pusha
 
-  ; move curr_proc to edi
+  ; move *curr_proc to edi
   mov edi, [curr_proc]
 
   ; save esp in SavedRegisters
   mov [edi], esp
 
-  ; get next proc
-  mov edi, [curr_proc + 28]
-
   ; mark curr_proc stopped
-  mov word [curr_proc + 16], 0
-  ; mark proc running
+  mov word [edi + 16], 0
+
+  ; move curr_proc.next to edi
+  mov edi, [edi + 28]
+  ; mark new proc running
   mov word [edi + 16], 1
+
   ; make proc the curr_proc
   mov [curr_proc], esi
 
