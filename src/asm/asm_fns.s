@@ -84,7 +84,8 @@ irq_switch_to_proc:
   push eax
 
   ; Check if this is the kernel proc; if so, bail so the kernel can keep doing its job.
-  mov eax, [curr_proc + 12]
+  mov eax, [curr_proc]
+  mov eax, [eax + 12]
   cmp eax, 0
   je .abort
 
@@ -131,10 +132,8 @@ irq_switch_to_proc:
   ; get current c3
   mov ecx, cr3
   ; compare cr3 values; if they're the same, skip updating the register value
-  ; HACK: disable since we know we're not switching TSS right now
-  ; cmp eax, ecx
-  ; je .done
-  jmp .done
+  cmp eax, ecx
+  je .done
   ; ...otherwise, update cr3
   mov cr3, eax
 
