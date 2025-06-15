@@ -29,11 +29,10 @@ pub fn init() !InitProof {
         }
     }
 
-    // // Add raw handlers.
-    // for (raw_int_handlers) |handler| {
-    //     _ = handler; // autofix
-    //     // addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
-    // }
+    // Add raw handlers.
+    for (raw_int_handlers) |handler| {
+        addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
+    }
 
     // Load IDT.
     loadIdt();
@@ -91,6 +90,11 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = err_code; // autofix
     }
 
+    // PIT
+    pub fn irq0() void {
+        kstd.time.tickTimers();
+    }
+
     // PS/2 keyboard
     pub fn irq1() void {
         // TODO: handle this better.
@@ -123,12 +127,14 @@ const int_handlers = GenInterruptHandlers(struct {
 });
 
 const raw_int_handlers = [_]GeneratedInterruptHandler{
-    // PIT
-    .{
-        .int_num = 0,
-        .kind = .irq,
-        .handler = kstd.proc.irq_switch_to_proc,
-    },
+    // // PIT
+    // .{
+    //     .int_num = 0,
+    //     .kind = .irq,
+    //     .handler = struct {
+    //         pub fn func() callconv(.naked) void {}
+    //     }.func,
+    // },
 };
 
 const GeneratedInterruptHandler = struct {
