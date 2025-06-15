@@ -4,7 +4,6 @@ const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 
 pub extern fn yield_to_proc() callconv(.{ .x86_sysv = .{} }) void;
-pub extern fn irq_switch_to_proc() callconv(.naked) void;
 
 const ProcessTreap = std.Treap(
     *Process,
@@ -40,7 +39,7 @@ pub fn init() !InitProof {
     const proof = try InitProof.new();
 
     // Init the process timer.
-    // try kstd.time.registerTimer(&proc_int_timer);
+    try kstd.time.registerTimer(&proc_int_timer);
 
     // Init the kernel_proc.
     {

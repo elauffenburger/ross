@@ -127,14 +127,29 @@ const int_handlers = GenInterruptHandlers(struct {
 });
 
 const raw_int_handlers = [_]GeneratedInterruptHandler{
-    // // PIT
-    // .{
-    //     .int_num = 0,
-    //     .kind = .irq,
-    //     .handler = struct {
-    //         pub fn func() callconv(.naked) void {}
-    //     }.func,
-    // },
+    // PIT
+    .{
+        .int_num = 0,
+        .kind = .irq,
+        .handler = struct {
+            pub fn func() callconv(.naked) void {
+                asm volatile (
+                    \\ push %%eax
+                );
+                if (!kstd.proc.ints_enabled) {
+                    asm volatile (
+                        \\ mov $0x20, %%al
+                        \\ outb %%al, $0x20
+                        \\ pop %%eax
+                        \\ iret
+                    );
+                }
+                asm volatile (
+                    \\ jmp irq_switch_to_proc
+                );
+            }
+        }.func,
+    },
 };
 
 const GeneratedInterruptHandler = struct {

@@ -7,8 +7,6 @@ const kstd = @import("../kstd.zig");
 const InputBuf = std.fifo.LinearFifo(u8, .{ .Static = 2048 });
 
 pub fn main() !void {
-    kstd.proc.yield();
-
     var input_buf: InputBuf = InputBuf.init();
     var events_buf: [10]hw.io.keyboard.KeyEvent = undefined;
 
@@ -32,7 +30,5 @@ pub fn main() !void {
                 },
             }
         }
-
-        kstd.proc.yield();
     }
 }

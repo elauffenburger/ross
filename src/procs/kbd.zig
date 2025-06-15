@@ -35,8 +35,6 @@ fn init() void {
 }
 
 pub fn main() !void {
-    kstd.proc.yield();
-
     init();
 
     while (true) {
@@ -60,8 +58,6 @@ pub fn main() !void {
                 // TODO: what do?
             }
         }
-
-        kstd.proc.yield();
     }
 }
 
