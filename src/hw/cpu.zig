@@ -155,3 +155,14 @@ pub const Registers = packed struct {
         id: bool,
     },
 };
+
+pub const SegmentSelector = packed struct(u16) {
+    rpl: PrivilegeLevel,
+    ti: TableSelector,
+    index: u13,
+
+    const TableSelector = enum(u1) {
+        gdt = 0,
+        ldt = 1,
+    };
+};

@@ -78,28 +78,98 @@ pub fn start() void {
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
+    asm volatile ("cli");
+
     // Reuse or create a new proc for this kproc.
     const proc = try kstd.mem.kernel_heap_allocator.create(Process);
     proc.* = .{
         .saved_registers = blk_regs: {
-            // Allocate a new kernel stack with:
-            //   - ebx (0)
-            //   - esi (0)
+            // Allocate a new kernel stack such that registers will be popped in the following order:
             //   - edi (0)
-            //   - ebp (0)
+            //   - esi (0)
+            //   - ebp (esp)
+            //   - esp (esp) -- unused during pop
+            //   - ebx (0)
+            //   - edx (0)
+            //   - ecx (0)
+            //   - eax (0)
             //   - eip (&proc_main)
+            //   - The code segment selector to change to
+            //   - The value of the EFLAGS register to load
+            //   - The stack pointer to load
+            //   - The stack segment selector to change to
             const esp0 = blk_esp0: {
                 // HACK: this leaks.
                 const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
                 var stack = ProcessStackBuilder.init(buf);
 
-                stack.push(@intFromPtr(proc_main));
-                stack.push(@as(u32, 0));
-                stack.push(@as(u32, 0));
-                stack.push(@as(u32, 0));
+                // The stack segment selector to change to
+                stack.push(
+                    @as(u16, @bitCast(hw.cpu.SegmentSelector{
+                        .index = @intFromEnum(hw.gdt.GdtSegment.kernelData),
+                        .ti = .gdt,
+                        .rpl = .kernel,
+                    })),
+                );
+
+                // New ESP
                 stack.push(@as(u32, 0));
 
-                break :blk_esp0 stack.esp();
+                // The value of the EFLAGS register to load
+                //
+                // HACK: we'll just use the current value, but is that correct??
+                const eflags: u32 = asm volatile (
+                    \\ pushf
+                    \\ pop %eax
+                    : [eflags] "={eax}" (-> u32),
+                    :
+                    : "eax", "memory"
+                );
+                stack.push(eflags);
+
+                // The code segment selector to change to
+                stack.push(
+                    @as(u16, @bitCast(hw.cpu.SegmentSelector{
+                        .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
+                        .ti = .gdt,
+                        .rpl = .kernel,
+                    })),
+                );
+
+                // eip
+                stack.push(@intFromPtr(proc_main));
+
+                // PUSHA/POPA registers:
+                //
+                // eax
+                stack.push(@as(u32, 0));
+                // ecx
+                stack.push(@as(u32, 0));
+                // edx
+                stack.push(@as(u32, 0));
+                // ebx
+                stack.push(@as(u32, 0));
+                // esp placeholder (unused)
+                stack.push(@as(u32, 0));
+                // ebp
+                stack.push(@as(u32, 0));
+                // esi
+                stack.push(@as(u32, 0));
+                // edi
+                stack.push(@as(u32, 0));
+
+                // Patch esp into different fields in the stack.
+                //
+                // We couldn't set these when we were building the stack because we didn't know what the value should be at the time.
+                const esp0 = stack.esp();
+                const esp_bytes = std.mem.toBytes(esp0);
+
+                // PUSHA/POPA EBP
+                stack.patchUpFromHead(4 * 2, &esp_bytes);
+                // New ESP
+                stack.patchUpFromHead((4 * 9) + 2 + 4, &esp_bytes);
+
+                break :blk_esp0 esp0;
             };
 
             break :blk_regs .{
@@ -112,7 +182,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         },
 
         .id = nextPID(),
-        .state = .running,
+        .state = .stopped,
 
         .parent = kernel_proc,
         .next = kernel_proc,
@@ -138,6 +208,8 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     // Update the last created proc's next to be this proc and mark this the last created proc.
     last_created_proc.next = proc;
     last_created_proc = proc;
+
+    asm volatile ("sti");
 }
 
 var next_pid: u32 = 1;
@@ -172,6 +244,10 @@ const ProcessStackBuilder = struct {
 
     pub fn esp(self: *const Self) u32 {
         return @intFromPtr(self.buf.ptr) + self.head;
+    }
+
+    pub fn patchUpFromHead(self: *Self, at: u32, new_bytes: []const u8) void {
+        @memcpy(self.buf[self.head + at .. self.head + at + new_bytes.len], new_bytes);
     }
 };
 

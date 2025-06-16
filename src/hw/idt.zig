@@ -90,11 +90,6 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = err_code; // autofix
     }
 
-    // // PIT
-    // pub fn irq0() void {
-    //     kstd.time.tickTimers();
-    // }
-
     // PS/2 keyboard
     pub fn irq1() void {
         // TODO: handle this better.
@@ -290,16 +285,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
 pub const InterruptDescriptor = packed struct(u64) {
     offset1: u16,
-    selector: packed struct(u16) {
-        rpl: cpu.PrivilegeLevel,
-        ti: TableSelector,
-        index: u13,
-
-        const TableSelector = enum(u1) {
-            gdt = 0,
-            ldt = 1,
-        };
-    },
+    selector: cpu.SegmentSelector,
     _r1: u8 = 0,
     gate_type: enum(u4) {
         task = 5,

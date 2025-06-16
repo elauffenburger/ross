@@ -5,24 +5,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "type": "gdb",
-      "request": "attach",
-      "name": "Attach to gdbserver",
-      "target": "localhost:1234",
-      "remote": true,
-      "cwd": "${workspaceRoot}",
-      "valuesFormatting": "prettyPrinters",
-      "autorun": ["symbol-file ${workspaceFolder}/zig-out/bin/ross"]
-    },
-    {
-      "name": "Remote attach (maybe)",
+      "name": "Remote attach",
       "type": "lldb",
       "request": "launch",
       "targetCreateCommands": [
-        "target create ${workspaceFolder}/zig-out/bin/ross"
+        "target create -a i386 ${workspaceFolder}/zig-out/bin/ross"
       ],
       "processCreateCommands": [
-        "gdb-remote localhost:1234"
+        "gdb-remote localhost:1234",
+
+        // HACK: debugging irq process switching:
+        "b 0x00100081"
       ],
     }
   ]
