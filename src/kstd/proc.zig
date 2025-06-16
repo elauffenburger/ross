@@ -115,17 +115,24 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 // New ESP
                 stack.push(@as(u32, 0));
 
-                // The value of the EFLAGS register to load
+                // The value of the EFLAGS register to load.
+                // NOTE: we need to re-enable interrupts when returning via `iret`.
                 //
                 // HACK: we'll just use the current value, but is that correct??
-                const eflags: u32 = asm volatile (
-                    \\ pushf
-                    \\ pop %eax
-                    : [eflags] "={eax}" (-> u32),
-                    :
-                    : "eax", "memory"
-                );
-                stack.push(eflags);
+                stack.push(blk_eflags: {
+                    const eflags_raw = asm volatile (
+                        \\ pushf
+                        \\ pop %eax
+                        : [eflags] "={eax}" (-> u32),
+                        :
+                        : "eax", "memory"
+                    );
+
+                    var eflags: hw.cpu.EFlags = @bitCast(eflags_raw);
+                    eflags.@"if" = true;
+
+                    break :blk_eflags @as(u32, @bitCast(eflags));
+                });
 
                 // The code segment selector to change to
                 stack.push(

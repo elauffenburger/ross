@@ -39,7 +39,7 @@ irq_switch_to_proc:
   ; ...otherwise send eoi, restore eax, and bail.
 .abort:
   xor eax, eax
-  outb al, pic_1_cmd_port, pic_1_cmd_port
+  outb al, pic_1_cmd_port, pic_cmd_eoi
   pop eax
   iret
 
@@ -84,7 +84,7 @@ irq_switch_to_proc:
 
 .done:
   ; send eoi
-  outb al, pic_1_cmd_port, pic_1_cmd_port
+  outb al, pic_1_cmd_port, pic_cmd_eoi
 
   ; restore registers
   popa
