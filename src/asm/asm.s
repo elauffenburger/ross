@@ -1,7 +1,10 @@
 extern curr_proc;
+extern curr_proc_time_slice_ms;
 
 global proc_irq_switching_enabled
 global irq_switch_to_proc
+
+max_proc_time_slice_ms equ 10;
 
 pic_1_cmd_port equ 0x20
 pic_cmd_eoi equ 0x20
@@ -21,25 +24,23 @@ irq_switch_to_proc:
   ; save eax
   push eax
 
-  ; Check if curr_proc.next is null; if so, bail!
+  ; Check if curr_proc.next is null, bail.
   mov eax, [curr_proc]
   mov eax, [eax + 21]
   cmp eax, 0
   je .abort
 
-  ; ...otherwise, if irq proc switch is actually enabled; if not, bail!
+  ; If proc switching isn't enabled, bail.
   mov al, [proc_irq_switching_enabled]
-  cmp al, 1
-  je .switch
+  cmp al, 0
+  je .abort
 
-  ; ...otherwise send eoi, restore eax, and bail.
-.abort:
-  xor eax, eax
-  outb al, pic_1_cmd_port, pic_cmd_eoi
-  pop eax
+  ; If the process hasn't been given its full timeslice, bail.
+  mov eax, [curr_proc_time_slice_ms]
+  cmp eax, max_proc_time_slice_ms
+  jl .abort
 
-  iret
-
+; ...otherwise, perform the switch!
 .switch:
   ; restore eax before pusha
   pop eax
@@ -94,6 +95,14 @@ irq_switch_to_proc:
   mov eax, [esp + .eflags_offset]
   or eax, 0x0200
   mov [esp + .eflags_offset], eax
+  pop eax
+
+  iret
+
+; send eoi, restore eax, and bail.
+.abort:
+  xor eax, eax
+  outb al, pic_1_cmd_port, pic_cmd_eoi
   pop eax
 
   iret

@@ -28,9 +28,15 @@ pub export var curr_proc: *Process = undefined;
 export var last_created_proc: *Process = undefined;
 
 // SAFETY: set in init.
-var proc_int_timer = kstd.time.Timer{};
+var proc_int_timer = kstd.time.Timer{
+    .on_tick = struct {
+        fn tick(self: kstd.time.Timer) void {
+            curr_proc_time_slice_ms = self.elapsed_ms;
+        }
+    }.tick,
+};
 extern var proc_irq_switching_enabled: bool linksection(".data");
-const max_proc_time_slice_ms = 10;
+export var curr_proc_time_slice_ms: u32 = 0;
 
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {

@@ -28,6 +28,8 @@ pub const Timer = struct {
     id: u32 = 0,
     state: enum { started, stopped } = .stopped,
     elapsed_ms: u32 = 0,
+
+    on_tick: ?*const fn (Self) void,
 };
 
 pub fn registerTimer(timer: *Timer) !void {
@@ -50,6 +52,10 @@ pub fn tickTimers() void {
         const timer = node.key;
         if (timer.state == .started) {
             timer.elapsed_ms += @intFromFloat(elapsed_ms);
+
+            if (timer.on_tick) |on_tick| {
+                on_tick(*timer);
+            }
         }
     }
 }
