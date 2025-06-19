@@ -89,5 +89,13 @@ irq_switch_to_proc:
   ; restore registers
   popa
 
-  iret
+  ; turn interrupts back on in the eflags pushed to the stack.
+  .eflags_offset: equ 4 + (4 * 2)
 
+  push eax
+  mov eax, [esp + .eflags_offset]
+  or eax, 0x0200
+  mov [esp + .eflags_offset], eax
+  pop eax
+
+  iret

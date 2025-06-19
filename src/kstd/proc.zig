@@ -97,45 +97,27 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
             //   - The code segment selector to change to
             //   - The value of the EFLAGS register to load
             //   - The stack pointer to load
-            //   - The stack segment selector to change to
             const esp0 = blk_esp0: {
                 // HACK: this leaks.
                 const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
                 var stack = ProcessStackBuilder.init(buf);
 
-                // The stack segment selector to change to
-                stack.push(
-                    @as(u16, @bitCast(hw.cpu.SegmentSelector{
-                        .index = @intFromEnum(hw.gdt.GdtSegment.kernelData),
-                        .ti = .gdt,
-                        .rpl = .kernel,
-                    })),
-                );
-
                 // New ESP
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
 
                 // The value of the EFLAGS register to load.
-                // NOTE: we need to re-enable interrupts when returning via `iret`.
                 //
                 // HACK: we'll just use the current value, but is that correct??
-                stack.push(blk_eflags: {
-                    const eflags_raw = asm volatile (
-                        \\ pushf
-                        \\ pop %eax
-                        : [eflags] "={eax}" (-> u32),
-                        :
-                        : "eax", "memory"
-                    );
-
-                    var eflags: hw.cpu.EFlags = @bitCast(eflags_raw);
-                    eflags.@"if" = true;
-
-                    break :blk_eflags @as(u32, @bitCast(eflags));
-                });
+                stack.pushu32(asm volatile (
+                    \\ pushf
+                    \\ pop %eax
+                    : [eflags] "={eax}" (-> u32),
+                    :
+                    : "eax", "memory"
+                ));
 
                 // The code segment selector to change to
-                stack.push(
+                stack.pushu32(
                     @as(u16, @bitCast(hw.cpu.SegmentSelector{
                         .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
                         .ti = .gdt,
@@ -144,26 +126,26 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 );
 
                 // eip
-                stack.push(@intFromPtr(proc_main));
+                stack.pushu32(@intFromPtr(proc_main));
 
                 // PUSHA/POPA registers:
                 //
                 // eax
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // ecx
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // edx
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // ebx
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // esp placeholder (unused)
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // ebp
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // esi
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
                 // edi
-                stack.push(@as(u32, 0));
+                stack.pushu32(0);
 
                 // Patch esp into different fields in the stack.
                 //
@@ -172,9 +154,9 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 const esp_bytes = std.mem.toBytes(esp0);
 
                 // PUSHA/POPA EBP
-                stack.patchUpFromHead(4 * 2, &esp_bytes);
+                stack.patchUpFromHead((4 * 2), &esp_bytes);
                 // New ESP
-                stack.patchUpFromHead((4 * 9) + 2 + 4, &esp_bytes);
+                stack.patchUpFromHead((4 * 11), &esp_bytes);
 
                 break :blk_esp0 esp0;
             };
@@ -240,8 +222,8 @@ const ProcessStackBuilder = struct {
         };
     }
 
-    pub fn push(self: *Self, val: anytype) void {
-        const bytes = std.mem.toBytes(val);
+    pub fn pushu32(self: *Self, val: anytype) void {
+        const bytes = std.mem.toBytes(@as(u32, @intCast(val)));
         const n = bytes.len;
 
         @memcpy(self.buf[self.head - bytes.len .. self.head], &bytes);
