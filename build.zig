@@ -58,7 +58,7 @@ fn addInstall(b: *std.Build) KernelCompile {
             "-o",
         });
         const loader_obj = build_loader.addOutputFileArg("asm_fns.o");
-        build_loader.addFileArg(b.path("src/asm/asm_fns.s"));
+        build_loader.addFileArg(b.path("src/asm/asm.s"));
 
         break :blk .{ build_loader, loader_obj };
     };

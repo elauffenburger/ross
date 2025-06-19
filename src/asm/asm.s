@@ -1,7 +1,6 @@
 extern curr_proc;
 
 global proc_irq_switching_enabled
-
 global irq_switch_to_proc
 
 pic_1_cmd_port equ 0x20
@@ -19,9 +18,6 @@ section .text
 
 ; irq_switch_to_proc() void
 irq_switch_to_proc:
-  ; Notes:
-  ;   The task isn't able to change CR3 so it doesn't need to be saved
-
   ; save eax
   push eax
 
@@ -41,6 +37,7 @@ irq_switch_to_proc:
   xor eax, eax
   outb al, pic_1_cmd_port, pic_cmd_eoi
   pop eax
+
   iret
 
 .switch:
@@ -80,10 +77,11 @@ irq_switch_to_proc:
   ; ...otherwise, update cr3
   mov cr3, eax
 
-  ; TODO: change TSS
+  ; TODO: change TSS if switching to userspace
 
 .done:
   ; send eoi
+  xor eax, eax
   outb al, pic_1_cmd_port, pic_cmd_eoi
 
   ; restore registers
