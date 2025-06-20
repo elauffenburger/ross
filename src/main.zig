@@ -111,7 +111,7 @@ pub fn kmain() !void {
 
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);
-    // try proc.startKProc(&proc_term.main);
+    try proc.startKProc(&proc_term.main);
 
     while (true) {
         asm volatile ("hlt");

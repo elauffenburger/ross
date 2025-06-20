@@ -27,7 +27,6 @@ pub export var curr_proc: *Process = undefined;
 // SAFETY: set in init.
 export var last_created_proc: *Process = undefined;
 
-// SAFETY: set in init.
 var proc_int_timer = kstd.time.Timer{
     .on_tick = struct {
         fn tick(self: kstd.time.Timer) void {
@@ -180,7 +179,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         .state = .stopped,
 
         .parent = kernel_proc,
-        .next = kernel_proc,
+        .next = null,
 
         // Use the same page dir as the main kernel process.
         .vm = kernel_proc.vm,

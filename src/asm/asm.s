@@ -1,5 +1,7 @@
-extern curr_proc;
-extern curr_proc_time_slice_ms;
+extern curr_proc
+extern curr_proc_time_slice_ms
+
+extern kstd_tick_timers
 
 global proc_irq_switching_enabled
 global irq_switch_to_proc
@@ -99,10 +101,20 @@ irq_switch_to_proc:
 
   iret
 
-; send eoi, restore eax, and bail.
+; pop previous saved eax and tick timers
 .abort:
-  xor eax, eax
-  outb al, pic_1_cmd_port, pic_cmd_eoi
   pop eax
 
+  ; save registers
+  pusha
+
+  ; tick timers
+  call kstd_tick_timers
+
+  ; send eoi
+  xor eax, eax
+  outb al, pic_1_cmd_port, pic_cmd_eoi
+
+  ; restore registers and return
+  popa
   iret
