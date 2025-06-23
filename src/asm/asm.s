@@ -99,6 +99,9 @@ irq_switch_to_proc:
   mov [esp + .eflags_offset], eax
   pop eax
 
+  ; HACK: disable irq switching after first switch to test out some stuff.
+  mov byte [proc_irq_switching_enabled], 0
+
   iret
 
 ; pop previous saved eax and tick timers

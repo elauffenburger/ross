@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const hw = @import("../hw.zig");
 const kstd = @import("../kstd.zig");
 const cpu = @import("cpu.zig");
 const io = @import("io.zig");
@@ -47,8 +48,7 @@ fn addIdtEntry(index: u8, gate_type: @FieldType(InterruptDescriptor, "gate_type"
         .offset1 = @truncate(handler_addr),
         .offset2 = @truncate(handler_addr >> 16),
         .selector = .{
-            // .index = @intFromEnum(GdtSegment.kernelCode),
-            .index = 1,
+            .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
             .rpl = .kernel,
             .ti = .gdt,
         },
@@ -298,49 +298,6 @@ pub const InterruptDescriptor = packed struct(u64) {
     dpl: cpu.PrivilegeLevel,
     present: bool = true,
     offset2: u16,
-};
-
-pub const IdtEntry = enum(u8) {
-    // Divide Error DIV and IDIV instructions.
-    de = 0,
-    // Debug Exception Instruction, data, and I/O breakpoints; single-step; and others.
-    db = 1,
-    // NMI Interrupt Nonmaskable external interrupt.
-    nmi = 2,
-    // Breakpoint INT3 instruction.
-    bp = 3,
-    // Overflow INTO instruction.
-    of = 4,
-    // BOUND Range Exceeded BOUND instruction.
-    br = 5,
-    // Invalid Opcode (Undefined Opcode) UD instruction or reserved opcode.
-    ud = 6,
-    // Device Not Available (No Math Coprocessor) Floating-point or WAIT/FWAIT instruction.
-    nm = 7,
-    // (zero) Double Fault Any instruction that can generate an exception, an NMI, or an INTR.
-    df = 8,
-    // Invalid TSS Task switch or TSS access.
-    ts = 10,
-    // Segment Not Present Loading segment registers or accessing system segments.
-    np = 11,
-    // Stack-Segment Fault Stack operations and SS register loads.
-    ss = 12,
-    // General Protection Any memory reference and other protection checks.
-    gp = 13,
-    // Page Fault Any memory reference.
-    pf = 14,
-    // x87 FPU Floating-Point Error (Math Fault) x87 FPU floating-point or WAIT/FWAIT instruction.
-    mf = 16,
-    // (zero) Alignment Check Any data reference in memory.
-    ac = 17,
-    // Machine Check Error codes (if any) and source are model dependent.
-    mc = 18,
-    // SIMD Floating-Point Exception SSE/SSE2/SSE3 floating-point instructions
-    xm = 19,
-    // Virtualization Exception EPT violations
-    ve = 20,
-    // Control Protection Exception RET, IRET, RSTORSSP, and SETSSBSY instructions can generate this exception. When CET indirect branch tracking is enabled, this exception can be generated due to a missing ENDBRANCH instruction at target of an indirect call or jump.
-    cp = 21,
 };
 
 pub const IdtDescriptor = packed struct(u48) {

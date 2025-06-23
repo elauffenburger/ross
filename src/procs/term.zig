@@ -7,6 +7,8 @@ const kstd = @import("../kstd.zig");
 const InputBuf = std.fifo.LinearFifo(u8, .{ .Static = 2048 });
 
 pub fn main() !void {
+    kstd.log.dbg("in term!");
+
     var input_buf: InputBuf = InputBuf.init();
     var events_buf: [10]hw.io.keyboard.KeyEvent = undefined;
 

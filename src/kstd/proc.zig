@@ -99,7 +99,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
             //   - ecx (0)
             //   - eax (0)
             //   - eip (&proc_main)
-            //   - The code segment selector to change to
+            //   - The code segment selector to change to (extended to a u32)
             //   - The value of the EFLAGS register to load
             //   - The stack pointer to load
             const esp0 = blk_esp0: {
@@ -108,7 +108,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 var stack = ProcessStackBuilder.init(buf);
 
                 // New ESP
-                stack.pushu32(0);
+                stack.pushu32(@intFromPtr(buf.ptr));
 
                 // The value of the EFLAGS register to load.
                 //
@@ -143,8 +143,8 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 stack.pushu32(0);
                 // ebx
                 stack.pushu32(0);
-                // esp placeholder (unused)
-                stack.pushu32(0);
+                // esp (unused)
+                stack.pushu32(@intFromPtr(buf.ptr));
                 // ebp
                 stack.pushu32(0);
                 // esi
@@ -152,16 +152,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 // edi
                 stack.pushu32(0);
 
-                // Patch esp into different fields in the stack.
-                //
-                // We couldn't set these when we were building the stack because we didn't know what the value should be at the time.
                 const esp0 = stack.esp();
-                const esp_bytes = std.mem.toBytes(esp0);
-
-                // PUSHA/POPA EBP
-                stack.patchUpFromHead((4 * 2), &esp_bytes);
-                // New ESP
-                stack.patchUpFromHead((4 * 11), &esp_bytes);
 
                 break :blk_esp0 esp0;
             };
