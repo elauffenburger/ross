@@ -79,10 +79,12 @@ pub fn kernelProc() *const Process {
 }
 
 pub fn start() void {
+    asm volatile ("cli");
     proc_irq_switching_enabled = true;
 
     proc_int_timer.elapsed_ms = 0;
     proc_int_timer.state = .started;
+    asm volatile ("sti");
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
@@ -179,9 +181,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 }
 
 pub fn switchProc() void {
-    asm volatile ("cli");
     switchProcRaw(false);
-    asm volatile ("sti");
 }
 
 pub fn tick() void {

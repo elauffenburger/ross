@@ -106,14 +106,17 @@ pub fn kmain() !void {
     // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
     try hw.vmem.init(pic_proof, proc_proof);
 
-    // Turn on process control.
-    proc.start();
-
     // Start up kernel processes.
     // try proc.startKProc(&proc_kbd.main);
     // try proc.startKProc(&proc_term.main);
     try proc.startKProc(&@import("procs/vga.zig").Main("a"));
     try proc.startKProc(&@import("procs/vga.zig").Main("b"));
+
+    // Turn on process control.
+    //
+    // NOTE: it is _very_ unlikely control will ever return back to this frame after starting the kernel processes since IRQ0 will likely fire
+    // right after this is complete.
+    proc.start();
 
     while (true) {
         asm volatile ("hlt");
