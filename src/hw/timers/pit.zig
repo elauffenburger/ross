@@ -19,7 +19,7 @@ pub fn init(pic_proof: pic.InitProof) !void {
     );
 
     // Set rate.
-    setRateHz(100);
+    setRateHz(1000);
 }
 
 fn setRateHz(hz: u32) void {

@@ -34,8 +34,11 @@ var proc_int_timer = kstd.time.Timer{
         }
     }.tick,
 };
-extern var proc_irq_switching_enabled: bool linksection(".data");
-export var curr_proc_time_slice_ms: u32 = 0;
+
+var proc_irq_switching_enabled = false;
+var curr_proc_time_slice_ms: u32 = 0;
+
+extern fn switch_proc(in_irq: bool) void;
 
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {
@@ -90,18 +93,6 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     proc.* = .{
         .saved_registers = blk_regs: {
             // Allocate a new kernel stack such that registers will be popped in the following order:
-            //   - edi (0)
-            //   - esi (0)
-            //   - ebp (esp)
-            //   - esp (esp) -- unused during pop
-            //   - ebx (0)
-            //   - edx (0)
-            //   - ecx (0)
-            //   - eax (0)
-            //   - eip (&proc_main)
-            //   - The code segment selector to change to (extended to a u32)
-            //   - The value of the EFLAGS register to load
-            //   - The stack pointer to load
             const esp0 = blk_esp0: {
                 // HACK: this leaks.
                 const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
@@ -133,23 +124,13 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 // eip
                 stack.pushu32(@intFromPtr(proc_main));
 
-                // PUSHA/POPA registers:
-                //
-                // eax
-                stack.pushu32(0);
-                // ecx
-                stack.pushu32(0);
-                // edx
-                stack.pushu32(0);
-                // ebx
-                stack.pushu32(0);
-                // esp (unused)
-                stack.pushu32(@intFromPtr(buf.ptr));
                 // ebp
+                stack.pushu32(@intFromPtr(buf.ptr));
+                // edi
                 stack.pushu32(0);
                 // esi
                 stack.pushu32(0);
-                // edi
+                // ebx
                 stack.pushu32(0);
 
                 const esp0 = stack.esp();
@@ -195,6 +176,30 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     last_created_proc = proc;
 
     asm volatile ("sti");
+}
+
+pub fn switchProc() void {
+    asm volatile ("cli");
+    switchProcRaw(false);
+    asm volatile ("sti");
+}
+
+pub fn tick() void {
+    kstd.time.tick();
+
+    if (!proc_irq_switching_enabled) {
+        return;
+    }
+
+    switchProcRaw(true);
+}
+
+fn switchProcRaw(in_irq: bool) void {
+    if (curr_proc.next == null) {
+        return;
+    }
+
+    switch_proc(in_irq);
 }
 
 var next_pid: u32 = 1;

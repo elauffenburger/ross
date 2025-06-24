@@ -1,54 +1,24 @@
 extern curr_proc
 extern curr_proc_time_slice_ms
 
-extern kstd_tick_timers
-
-global proc_irq_switching_enabled
-global irq_switch_to_proc
-
-max_proc_time_slice_ms equ 10;
-
-pic_1_cmd_port equ 0x20
-pic_cmd_eoi equ 0x20
-
-%macro outb 3
-  mov %1, %3
-  out %2, %1
-%endmacro
+global switch_proc
 
 section .data
-  proc_irq_switching_enabled: db 0
+  switch_proc_in_irq db 0
 
 section .text
 
-; irq_switch_to_proc() void
-irq_switch_to_proc:
-  ; save eax
-  push eax
-
-  ; Check if curr_proc.next is null, bail.
-  mov eax, [curr_proc]
-  mov eax, [eax + 21]
-  cmp eax, 0
-  je .abort
-
-  ; If proc switching isn't enabled, bail.
-  mov al, [proc_irq_switching_enabled]
-  cmp al, 0
-  je .abort
-
-  ; If the process hasn't been given its full timeslice, bail.
-  mov eax, [curr_proc_time_slice_ms]
-  cmp eax, max_proc_time_slice_ms
-  jl .abort
-
-; ...otherwise, perform the switch!
-.switch:
-  ; restore eax before pusha
-  pop eax
+; switch_proc(in_irq: bool) void
+switch_proc:
+  ; save in_irq
+  mov eax, [esp + 4]
+  mov [switch_proc_in_irq], eax
 
   ; save registers
-  pusha
+  push ebx
+  push esi
+  push edi
+  push ebp
 
   ; move *curr_proc to edi
   mov edi, [curr_proc]
@@ -71,53 +41,37 @@ irq_switch_to_proc:
   mov esp, [edi]
 
   ; get proc.cr3
-  mov eax, [edi + 8]
+  mov ebx, [edi + 8]
   ; get current c3
   mov ecx, cr3
   ; compare cr3 values; if they're the same, skip updating the register value
-  cmp eax, ecx
+  cmp ebx, ecx
   je .done
   ; ...otherwise, update cr3
-  mov cr3, eax
+  mov cr3, ebx
 
   ; TODO: change TSS if switching to userspace
 
 .done:
-  ; send eoi
-  xor eax, eax
-  outb al, pic_1_cmd_port, pic_cmd_eoi
-
   ; restore registers
-  popa
+  pop ebp
+  pop edi
+  pop esi
+  pop ebx
 
+  mov eax, [switch_proc_in_irq]
+  cmp eax, 1
+  je .in_irq
+
+.not_irq:
+  ret
+
+.in_irq:
   ; turn interrupts back on in the eflags pushed to the stack.
-  .eflags_offset: equ 4 + (4 * 2)
+  .eflags_offset: equ 4 * 2
 
-  push eax
   mov eax, [esp + .eflags_offset]
   or eax, 0x0200
   mov [esp + .eflags_offset], eax
-  pop eax
 
-  ; HACK: disable irq switching after first switch to test out some stuff.
-  mov byte [proc_irq_switching_enabled], 0
-
-  iret
-
-; pop previous saved eax and tick timers
-.abort:
-  pop eax
-
-  ; save registers
-  pusha
-
-  ; tick timers
-  call kstd_tick_timers
-
-  ; send eoi
-  xor eax, eax
-  outb al, pic_1_cmd_port, pic_cmd_eoi
-
-  ; restore registers and return
-  popa
   iret

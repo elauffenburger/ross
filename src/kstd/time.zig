@@ -43,7 +43,7 @@ pub fn registerTimer(timer: *Timer) !void {
     entry.set(try kstd.mem.kernel_heap_allocator.create(TimerTreap.Node));
 }
 
-export fn kstd_tick_timers() void {
+pub fn tick() void {
     const rate_hz = hw.timers.pit.rateHz();
     const elapsed_ms = (1.0 / @as(f32, @floatFromInt(rate_hz))) * 1000;
 

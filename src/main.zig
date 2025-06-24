@@ -110,8 +110,10 @@ pub fn kmain() !void {
     proc.start();
 
     // Start up kernel processes.
-    try proc.startKProc(&proc_kbd.main);
+    // try proc.startKProc(&proc_kbd.main);
     // try proc.startKProc(&proc_term.main);
+    try proc.startKProc(&@import("procs/vga.zig").Main("a"));
+    try proc.startKProc(&@import("procs/vga.zig").Main("b"));
 
     while (true) {
         asm volatile ("hlt");

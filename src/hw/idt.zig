@@ -30,11 +30,6 @@ pub fn init() !InitProof {
         }
     }
 
-    // Add raw handlers.
-    for (raw_int_handlers) |handler| {
-        addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
-    }
-
     // Load IDT.
     loadIdt();
 
@@ -90,6 +85,12 @@ const int_handlers = GenInterruptHandlers(struct {
         _ = err_code; // autofix
     }
 
+    // PIT
+    pub fn irq0() void {
+        hw.pic.eoi(8);
+        kstd.proc.tick();
+    }
+
     // PS/2 keyboard
     pub fn irq1() void {
         // TODO: handle this better.
@@ -120,21 +121,6 @@ const int_handlers = GenInterruptHandlers(struct {
         io.ps2.port2.recv() catch {};
     }
 });
-
-const raw_int_handlers = [_]GeneratedInterruptHandler{
-    // PIT
-    .{
-        .int_num = 0,
-        .kind = .irq,
-        .handler = struct {
-            pub fn func() callconv(.naked) void {
-                asm volatile (
-                    \\ jmp irq_switch_to_proc
-                );
-            }
-        }.func,
-    },
-};
 
 const GeneratedInterruptHandler = struct {
     int_num: u8,
