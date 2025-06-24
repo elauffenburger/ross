@@ -22,10 +22,10 @@ var procs = ProcessTreap{};
 
 // SAFETY: set in init.
 var kernel_proc: *Process = undefined;
-// SAFETY: not actually safe, but needs to be type *Process and not ?*Process for interop w/ asm.
-pub export var curr_proc: *Process = undefined;
+
 // SAFETY: set in init.
 export var last_created_proc: *Process = undefined;
+export var curr_proc: ?*Process = null;
 
 var proc_int_timer = kstd.time.Timer{
     .on_tick = struct {
@@ -53,11 +53,9 @@ pub fn init() !InitProof {
 
         kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
         kernel_proc.* = .{
-            .saved_registers = .{
-                .esp = 0,
-                .esp0 = 0,
-                .cr3 = @intFromPtr(&vm.page_dir),
-            },
+            .esp = 0,
+            .esp0 = 0,
+            .cr3 = @intFromPtr(&vm.page_dir),
 
             .id = 0,
             .state = .running,
@@ -92,71 +90,69 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 
     // Reuse or create a new proc for this kproc.
     const proc = try kstd.mem.kernel_heap_allocator.create(Process);
-    proc.* = .{
-        .saved_registers = blk_regs: {
-            // Allocate a new kernel stack such that registers will be popped in the following order:
-            const esp0 = blk_esp0: {
-                // HACK: this leaks.
-                const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
-                var stack = ProcessStackBuilder.init(buf);
+    proc.* = blk_proc: {
+        // Allocate a new kernel stack such that registers will be popped in the following order:
+        const esp0 = blk_esp0: {
+            // HACK: this leaks.
+            const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+            var stack = ProcessStackBuilder.init(buf);
 
-                // New ESP
-                stack.pushu32(@intFromPtr(buf.ptr));
+            // New ESP
+            stack.pushu32(@intFromPtr(buf.ptr));
 
-                // The value of the EFLAGS register to load.
-                //
-                // HACK: we'll just use the current value, but is that correct??
-                stack.pushu32(asm volatile (
-                    \\ pushf
-                    \\ pop %eax
-                    : [eflags] "={eax}" (-> u32),
-                    :
-                    : "eax", "memory"
-                ));
+            // The value of the EFLAGS register to load.
+            //
+            // HACK: we'll just use the current value (with interrupts turned on), but is that correct??
+            stack.pushu32(asm volatile (
+                \\ pushf
+                \\ pop %%eax
+                \\ or 0x0200, %%eax
+                : [eflags] "={eax}" (-> u32),
+                :
+                : "eax", "memory"
+            ));
 
-                // The code segment selector to change to
-                stack.pushu32(
-                    @as(u16, @bitCast(hw.cpu.SegmentSelector{
-                        .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
-                        .ti = .gdt,
-                        .rpl = .kernel,
-                    })),
-                );
+            // The code segment selector to change to
+            stack.pushu32(
+                @as(u16, @bitCast(hw.cpu.SegmentSelector{
+                    .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
+                    .ti = .gdt,
+                    .rpl = .kernel,
+                })),
+            );
 
-                // eip
-                stack.pushu32(@intFromPtr(proc_main));
+            // eip
+            stack.pushu32(@intFromPtr(proc_main));
 
-                // ebp
-                stack.pushu32(@intFromPtr(buf.ptr));
-                // edi
-                stack.pushu32(0);
-                // esi
-                stack.pushu32(0);
-                // ebx
-                stack.pushu32(0);
+            // ebp
+            stack.pushu32(@intFromPtr(buf.ptr));
+            // edi
+            stack.pushu32(0);
+            // esi
+            stack.pushu32(0);
+            // ebx
+            stack.pushu32(0);
 
-                const esp0 = stack.esp();
+            const esp0 = stack.esp();
 
-                break :blk_esp0 esp0;
-            };
+            break :blk_esp0 esp0;
+        };
 
-            break :blk_regs .{
-                .esp0 = esp0,
-                .esp = esp0,
+        break :blk_proc .{
+            .esp0 = esp0,
+            .esp = esp0,
+            // Use the same page dir as the main kernel process.
+            .cr3 = kernel_proc.cr3,
 
-                // Use the same page dir as the main kernel process.
-                .cr3 = kernel_proc.saved_registers.cr3,
-            };
-        },
+            .id = nextPID(),
+            .state = .stopped,
 
-        .id = nextPID(),
-        .state = .stopped,
+            .parent = kernel_proc,
+            .next = null,
 
-        .parent = kernel_proc,
-        .next = null,
-
-        // Use the same page dir as the main kernel process.
-        .vm = kernel_proc.vm,
+            // Use the same page dir as the main kernel process.
+            .vm = kernel_proc.vm,
+        };
     };
 
     // Add the proc to the proc treap.
@@ -180,8 +176,8 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     asm volatile ("sti");
 }
 
-pub fn switchProc() void {
-    switchProcRaw(false);
+pub fn yield() void {
+    yieldRaw(false);
 }
 
 pub fn schedule() void {
@@ -191,11 +187,11 @@ pub fn schedule() void {
         return;
     }
 
-    switchProcRaw(true);
+    yieldRaw(true);
 }
 
-fn switchProcRaw(in_irq: bool) void {
-    if (curr_proc.next == null) {
+fn yieldRaw(in_irq: bool) void {
+    if (curr_proc == null or curr_proc.?.next == null) {
         return;
     }
 
@@ -242,11 +238,9 @@ const ProcessStackBuilder = struct {
 };
 
 pub const Process = packed struct(u232) {
-    saved_registers: packed struct {
-        esp: u32,
-        esp0: u32,
-        cr3: u32,
-    },
+    esp: u32,
+    esp0: u32,
+    cr3: u32,
 
     id: u32,
     state: enum(u8) {

@@ -20,37 +20,37 @@ switch_proc:
   push edi
   push ebp
 
-  ; move *curr_proc to edi
-  mov edi, [curr_proc]
+  ; esi = curr_proc
+  mov esi, [curr_proc]
 
-  ; save esp in SavedRegisters
-  mov [edi], esp
+  ; esi.*.esp
+  mov [esi], esp
 
-  ; mark curr_proc stopped
-  mov word [edi + 16], 0
+  ; esi.*.state = .stopped
+  mov word [esi + 16], 0
 
-  ; move curr_proc.next to edi
-  mov edi, [edi + 21]
-  ; mark new proc running
-  mov word [edi + 16], 1
+  ; esi = curr_proc.next
+  mov esi, [esi + 21]
+  ; esi.*.state = .running
+  mov word [esi + 16], 1
 
-  ; make proc the curr_proc
+  ; curr_proc = esi
   mov [curr_proc], esi
 
-  ; load proc.esp
-  mov esp, [edi]
+  ; esp = esi.esp
+  mov esp, [esi]
 
-  ; get proc.cr3
-  mov ebx, [edi + 8]
-  ; get current c3
-  mov ecx, cr3
+  ; TODO: update TSS if switching to userspace
+
   ; compare cr3 values; if they're the same, skip updating the register value
+  mov ebx, [esi + 8]
+  mov ecx, cr3
   cmp ebx, ecx
   je .done
+
+.update_cr3:
   ; ...otherwise, update cr3
   mov cr3, ebx
-
-  ; TODO: change TSS if switching to userspace
 
 .done:
   ; restore registers

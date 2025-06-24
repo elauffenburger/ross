@@ -32,7 +32,7 @@ pub fn init(pic_proof: pic.InitProof, proc_proof: kstd.proc.InitProof) !void {
     try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);
 
     // Enable paging!
-    enablePaging(kernel_proc.saved_registers.cr3);
+    enablePaging(kernel_proc.cr3);
 }
 
 fn enablePaging(new_cr3: u32) void {

@@ -89,9 +89,12 @@ const int_handlers = GenInterruptHandlers(struct {
     //
     // NOTE: because this handler calls kstd.proc.schedule, control will _likely_ not return back to this handler.
     pub fn irq0() void {
-        hw.pic.eoi(8);
+        // hw.pic.eoi(8);
 
-        kstd.proc.schedule();
+        // HACK: disable irq-based scheduling.
+        return;
+
+        // kstd.proc.schedule();
     }
 
     // PS/2 keyboard
@@ -256,6 +259,8 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
         const Handler = struct {
             pub fn handler() callconv(.naked) void {
+                // TODO: turn interrupts back on for irq0??
+
                 // Save registers before calling handler.
                 //
                 // NOTE: the direction flag must be clear on entry for SYS V calling conv.
