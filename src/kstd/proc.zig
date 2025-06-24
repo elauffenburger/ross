@@ -184,7 +184,7 @@ pub fn switchProc() void {
     switchProcRaw(false);
 }
 
-pub fn tick() void {
+pub fn schedule() void {
     kstd.time.tick();
 
     if (!proc_irq_switching_enabled) {

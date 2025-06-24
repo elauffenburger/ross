@@ -67,11 +67,4 @@ switch_proc:
   ret
 
 .in_irq:
-  ; turn interrupts back on in the eflags pushed to the stack.
-  .eflags_offset: equ 4 * 2
-
-  mov eax, [esp + .eflags_offset]
-  or eax, 0x0200
-  mov [esp + .eflags_offset], eax
-
   iret

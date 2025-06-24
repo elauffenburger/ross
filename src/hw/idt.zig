@@ -86,9 +86,12 @@ const int_handlers = GenInterruptHandlers(struct {
     }
 
     // PIT
+    //
+    // NOTE: because this handler calls kstd.proc.schedule, control will _likely_ not return back to this handler.
     pub fn irq0() void {
         hw.pic.eoi(8);
-        kstd.proc.tick();
+
+        kstd.proc.schedule();
     }
 
     // PS/2 keyboard
@@ -165,7 +168,7 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
             @compileError(std.fmt.comptimePrint("error parsing interrupt handler name as int: {s}", .{decl.name}));
         };
 
-        const has_err = blk: {
+        const fn_has_err_param = blk: {
             switch (@typeInfo(@TypeOf(@field(orig_handlers, decl.name)))) {
                 .@"fn" => |func| {
                     switch (exc_or_irq) {
@@ -195,8 +198,31 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
             }
         };
 
+        // Figure out if the interrupt handler should have an error parameter.
+        switch (exc_or_irq) {
+            .exc => {
+                switch (int_num) {
+                    8, 10...14, 17, 21 => {
+                        if (!fn_has_err_param) {
+                            @compileError(std.fmt.comptimePrint("exception handler {d} does not have an error parameter but the interrupt number receives one", .{int_num}));
+                        }
+                    },
+                    else => {
+                        if (fn_has_err_param) {
+                            @compileError(std.fmt.comptimePrint("exception handler {d| has an error parameter but the interrupt number does not receive an error code", .{int_num}));
+                        }
+                    },
+                }
+            },
+            .irq => {
+                if (fn_has_err_param) {
+                    @compileError(std.fmt.comptimePrint("irq handler {d} has an error parameter but irq handlers do not receive error codes", .{int_num}));
+                }
+            },
+        }
+
         const Wrapper = blk: {
-            if (!has_err) {
+            if (!fn_has_err_param) {
                 break :blk struct {
                     pub fn wrapper() void {
                         // Call actual handler.
