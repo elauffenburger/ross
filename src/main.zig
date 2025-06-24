@@ -109,20 +109,18 @@ pub fn kmain() !void {
     // Start up kernel processes.
     // try proc.startKProc(&proc_kbd.main);
     // try proc.startKProc(&proc_term.main);
-    // try proc.startKProc(&@import("procs/test.zig").Main("a"));
+    try proc.startKProc(&@import("procs/test.zig").Main("a"));
     try proc.startKProc(&@import("procs/test.zig").Main("b"));
 
     // Turn on process control.
-    //
-    // NOTE: it is _very_ unlikely control will ever return back to this frame after starting the kernel processes since IRQ0 will likely fire
-    // right after this is complete.
     // proc.start();
 
     // HACK: run in cooperative multitasking mode.
     proc.yield();
 
     while (true) {
-        asm volatile ("hlt");
+        // HACK: run in cooperative multitasking mode.
+        proc.yield();
     }
 }
 

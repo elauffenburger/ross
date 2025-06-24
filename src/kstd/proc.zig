@@ -25,7 +25,8 @@ var kernel_proc: *Process = undefined;
 
 // SAFETY: set in init.
 export var last_created_proc: *Process = undefined;
-export var curr_proc: ?*Process = null;
+// SAFETY: set in init.
+export var curr_proc: *Process = undefined;
 
 var proc_int_timer = kstd.time.Timer{
     .on_tick = struct {
@@ -191,8 +192,9 @@ pub fn schedule() void {
 }
 
 fn yieldRaw(in_irq: bool) void {
-    if (curr_proc == null or curr_proc.?.next == null) {
-        return;
+    // TODO: write an actual scheduler instead of a round-robin scheduler!
+    if (curr_proc.next == null) {
+        curr_proc.next = kernel_proc;
     }
 
     switch_proc(in_irq);
