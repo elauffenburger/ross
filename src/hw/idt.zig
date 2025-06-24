@@ -13,6 +13,11 @@ var idt align(4) = [_]InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 // Allocate a pointer to the memory location we pass to lidt.
 var idtr: IdtDescriptor align(4) = @bitCast(@as(u48, 0));
 
+export var curr_isr_info = packed struct {
+    orig_ebp: u32 = 0,
+    orig_esp: u32 = 0,
+}{};
+
 pub const InitProof = kstd.types.UniqueProof();
 
 pub fn init() !InitProof {
@@ -89,12 +94,12 @@ const int_handlers = GenInterruptHandlers(struct {
     //
     // NOTE: because this handler calls kstd.proc.schedule, control will _likely_ not return back to this handler.
     pub fn irq0() void {
-        // hw.pic.eoi(8);
+        hw.pic.eoi(8);
 
-        // HACK: disable irq-based scheduling.
-        return;
-
-        // kstd.proc.schedule();
+        kstd.proc.irqYield(.{
+            .esp = curr_isr_info.orig_ebp,
+            .ebp = curr_isr_info.orig_esp,
+        });
     }
 
     // PS/2 keyboard
@@ -259,7 +264,11 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
 
         const Handler = struct {
             pub fn handler() callconv(.naked) void {
-                // TODO: turn interrupts back on for irq0??
+                // Save isr info for potential use later.
+                asm volatile (
+                    \\ mov %%ebp, (curr_isr_info)
+                    \\ mov %%esp, (curr_isr_info + 4)
+                    ::: "memory");
 
                 // Save registers before calling handler.
                 //

@@ -113,14 +113,10 @@ pub fn kmain() !void {
     try proc.startKProc(&@import("procs/test.zig").Main("b"));
 
     // Turn on process control.
-    // proc.start();
-
-    // HACK: run in cooperative multitasking mode.
-    proc.yield();
+    proc.start();
 
     while (true) {
-        // HACK: run in cooperative multitasking mode.
-        proc.yield();
+        asm volatile ("hlt");
     }
 }
 

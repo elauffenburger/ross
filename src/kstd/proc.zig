@@ -79,15 +79,17 @@ pub fn kernelProc() *const Process {
 
 pub fn start() void {
     asm volatile ("cli");
+    defer asm volatile ("sti");
+
     proc_irq_switching_enabled = true;
 
     proc_int_timer.elapsed_ms = 0;
     proc_int_timer.state = .started;
-    asm volatile ("sti");
 }
 
 pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     asm volatile ("cli");
+    defer asm volatile ("sti");
 
     // Reuse or create a new proc for this kproc.
     const proc = try kstd.mem.kernel_heap_allocator.create(Process);
@@ -95,46 +97,17 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         // Allocate a new kernel stack such that registers will be popped in the following order:
         const esp0 = blk_esp0: {
             // HACK: this leaks.
-            const buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
-            var stack = ProcessStackBuilder.init(buf);
+            const stack_buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
 
-            // New ESP
-            stack.pushu32(@intFromPtr(buf.ptr));
-
-            // The value of the EFLAGS register to load.
-            //
-            // HACK: we'll just use the current value (with interrupts turned on), but is that correct??
-            stack.pushu32(asm volatile (
-                \\ pushf
-                \\ pop %%eax
-                \\ or 0x0200, %%eax
-                : [eflags] "={eax}" (-> u32),
-                :
-                : "eax", "memory"
-            ));
-
-            // The code segment selector to change to
-            stack.pushu32(
-                @as(u16, @bitCast(hw.cpu.SegmentSelector{
+            const esp0 = build_proc_stack_esp(
+                stack_buf,
+                proc_main,
+                hw.cpu.SegmentSelector{
                     .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
                     .ti = .gdt,
                     .rpl = .kernel,
-                })),
+                },
             );
-
-            // eip
-            stack.pushu32(@intFromPtr(proc_main));
-
-            // ebp
-            stack.pushu32(@intFromPtr(buf.ptr));
-            // edi
-            stack.pushu32(0);
-            // esi
-            stack.pushu32(0);
-            // ebx
-            stack.pushu32(0);
-
-            const esp0 = stack.esp();
 
             break :blk_esp0 esp0;
         };
@@ -173,31 +146,44 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     // Update the last created proc's next to be this proc and mark this the last created proc.
     last_created_proc.next = proc;
     last_created_proc = proc;
-
-    asm volatile ("sti");
 }
 
 pub fn yield() void {
-    yieldRaw(false);
+    schedule();
+
+    switch_proc(false);
 }
 
-pub fn schedule() void {
+const StackInfo = struct { ebp: u32, esp: u32 };
+
+pub fn irqYield(restore_stack: StackInfo) void {
     kstd.time.tick();
 
     if (!proc_irq_switching_enabled) {
         return;
     }
 
-    yieldRaw(true);
+    schedule();
+
+    // Restore the stack to what it looked like at the beginning of the ISR handler and call switch_proc.
+    asm volatile (
+        \\ mov %[isr_ebp], %ebp
+        \\ mov %[isr_esp], %esp
+        \\
+        \\ pushw 0x01
+        \\ call switch_proc
+        :
+        : [isr_ebp] "X" (restore_stack.ebp),
+          [isr_esp] "X" (restore_stack.esp),
+        : "memory"
+    );
 }
 
-fn yieldRaw(in_irq: bool) void {
+fn schedule() void {
     // TODO: write an actual scheduler instead of a round-robin scheduler!
     if (curr_proc.next == null) {
-        curr_proc.next = kernel_proc;
+        curr_proc.next = kernel_proc.next;
     }
-
-    switch_proc(in_irq);
 }
 
 var next_pid: u32 = 1;
@@ -207,6 +193,25 @@ fn nextPID() u32 {
 
     return pid;
 }
+
+pub const Process = packed struct(u232) {
+    esp: u32,
+    esp0: u32,
+    cr3: u32,
+
+    id: u32,
+    state: enum(u8) {
+        stopped = 0,
+        running = 1,
+        killed = 2,
+    },
+
+    parent: ?*Process,
+    next: ?*Process,
+
+    // TODO: implement.
+    vm: *hw.vmem.ProcessVirtualMemory,
+};
 
 const ProcessStackBuilder = struct {
     const Self = @This();
@@ -239,21 +244,38 @@ const ProcessStackBuilder = struct {
     }
 };
 
-pub const Process = packed struct(u232) {
-    esp: u32,
-    esp0: u32,
-    cr3: u32,
+fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, code_segment: hw.cpu.SegmentSelector) u32 {
+    var stack = ProcessStackBuilder.init(stack_buf);
 
-    id: u32,
-    state: enum(u8) {
-        stopped = 0,
-        running = 1,
-        killed = 2,
-    },
+    // New ESP
+    stack.pushu32(@intFromPtr(stack_buf.ptr));
 
-    parent: ?*Process,
-    next: ?*Process,
+    // The value of the EFLAGS register to load.
+    //
+    // HACK: we'll just use the current value (with interrupts turned on), but is that correct??
+    stack.pushu32(asm volatile (
+        \\ pushf
+        \\ pop %%eax
+        \\ or 0x0200, %%eax
+        : [eflags] "={eax}" (-> u32),
+        :
+        : "eax", "memory"
+    ));
 
-    // TODO: implement.
-    vm: *hw.vmem.ProcessVirtualMemory,
-};
+    // The code segment selector to change to
+    stack.pushu32(@as(u16, @bitCast(code_segment)));
+
+    // eip
+    stack.pushu32(@intFromPtr(proc_main));
+
+    // ebp
+    stack.pushu32(@intFromPtr(stack_buf.ptr));
+    // edi
+    stack.pushu32(0);
+    // esi
+    stack.pushu32(0);
+    // ebx
+    stack.pushu32(0);
+
+    return stack.esp();
+}

@@ -1,6 +1,8 @@
 extern curr_proc
 extern curr_proc_time_slice_ms
 
+extern curr_isr_info
+
 global switch_proc
 
 section .data
@@ -14,6 +16,16 @@ switch_proc:
   mov eax, [esp + 4]
   mov [switch_proc_in_irq], eax
 
+  ; if we're in an irq, we need to discard the ret addr and in_irq
+  cmp eax, 1
+  jne .save_registers
+
+.fix_stack_for_irq:
+  ; discard return addr and in_irq arg to get us back to the ISR's original esp
+  pop eax
+  pop eax
+
+.save_registers:
   ; save registers
   push ebx
   push esi
