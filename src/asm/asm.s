@@ -17,8 +17,8 @@ switch_proc:
   mov [switch_proc_in_irq], eax
 
   ; if we're in an irq, we need to discard the ret addr and in_irq
-  cmp eax, 1
-  jne .save_registers
+  cmp eax, 0
+  je .save_registers
 
 .fix_stack_for_irq:
   ; discard return addr and in_irq arg to get us back to the ISR's original esp
@@ -35,11 +35,11 @@ switch_proc:
   ; esi = curr_proc
   mov esi, [curr_proc]
 
-  ; esi.*.esp
+  ; curr_proc.*.esp = esp
   mov [esi], esp
 
   ; esi.*.state = .stopped
-  mov word [esi + 16], 0
+  mov byte [esi + 16], 0
 
   ; esi = curr_proc.next
   mov esi, [esi + 21]
