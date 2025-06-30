@@ -16,7 +16,7 @@
 
         // HACK: debugging irq process switching:
         "b 0x00100030",
-        // "b 0x00100069",
+        "b 0x00100062",
       ],
     }
   ]

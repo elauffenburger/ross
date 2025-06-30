@@ -39,7 +39,7 @@ var proc_int_timer = kstd.time.Timer{
 var proc_irq_switching_enabled = false;
 var curr_proc_time_slice_ms: u32 = 0;
 
-extern fn switch_proc(in_irq: bool) void;
+extern fn switch_proc() void;
 
 pub const InitProof = kstd.types.UniqueProof();
 pub fn init() !InitProof {
@@ -92,7 +92,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     defer asm volatile ("sti");
 
     // Reuse or create a new proc for this kproc.
-    const proc = try kstd.mem.kernel_heap_allocator.create(Process);
+    const proc: *Process = try kstd.mem.kernel_heap_allocator.create(Process);
     proc.* = blk_proc: {
         // Allocate a new kernel stack such that registers will be popped in the following order:
         const esp0 = blk_esp0: {
@@ -151,13 +151,11 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 pub fn yield() void {
     schedule();
 
-    switch_proc(false);
+    switch_proc();
 }
 
-const StackInfo = struct { ebp: u32, esp: u32 };
-
-pub fn irqYield(restore_stack: StackInfo) void {
-    kstd.time.tick();
+pub fn irqYield() void {
+    // kstd.time.tick();
 
     if (!proc_irq_switching_enabled) {
         return;
@@ -166,17 +164,7 @@ pub fn irqYield(restore_stack: StackInfo) void {
     schedule();
 
     // Restore the stack to what it looked like at the beginning of the ISR handler and call switch_proc.
-    asm volatile (
-        \\ mov %[isr_ebp], %ebp
-        \\ mov %[isr_esp], %esp
-        \\
-        \\ pushw 0x01
-        \\ call switch_proc
-        :
-        : [isr_ebp] "X" (restore_stack.ebp),
-          [isr_esp] "X" (restore_stack.esp),
-        : "memory"
-    );
+    switch_proc();
 }
 
 fn schedule() void {
@@ -248,7 +236,8 @@ fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, 
     var stack = ProcessStackBuilder.init(stack_buf);
 
     // New ESP
-    stack.pushu32(@intFromPtr(stack_buf.ptr));
+    const stack_top = @intFromPtr(stack_buf.ptr) + stack_buf.len - 1;
+    stack.pushu32(stack_top);
 
     // The value of the EFLAGS register to load.
     //
@@ -256,7 +245,7 @@ fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, 
     stack.pushu32(asm volatile (
         \\ pushf
         \\ pop %%eax
-        \\ or 0x0200, %%eax
+        \\ or $0x0200, %%eax
         : [eflags] "={eax}" (-> u32),
         :
         : "eax", "memory"
@@ -268,14 +257,14 @@ fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, 
     // eip
     stack.pushu32(@intFromPtr(proc_main));
 
-    // ebp
-    stack.pushu32(@intFromPtr(stack_buf.ptr));
+    // ebx
+    stack.pushu32(0);
     // edi
     stack.pushu32(0);
     // esi
     stack.pushu32(0);
-    // ebx
-    stack.pushu32(0);
+    // ebp
+    stack.pushu32(stack_top);
 
     return stack.esp();
 }

@@ -6,8 +6,6 @@ pub fn Main(str: []const u8) fn () anyerror!void {
         fn main() anyerror!void {
             while (true) {
                 vga.writeStr(str);
-
-                kstd.proc.yield();
             }
         }
     }.main;
