@@ -116,5 +116,12 @@ irq0_handler:
   ; restore registers
   popa
 
+  ; re-enable interrupts if they were disabled
+  push eax
+  mov eax, [esp + 12]
+  or eax, 0x0200
+  mov [esp + 12], eax
+  pop eax
+
   ; return to new eip
   iret
