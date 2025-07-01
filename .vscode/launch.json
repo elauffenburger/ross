@@ -15,8 +15,9 @@
         "gdb-remote localhost:1234",
 
         // HACK: debugging irq process switching:
-        "b 0x00100030",
-        "b 0x00100062",
+        // "b 0x001336a3",
+        // "b 0x00100030",
+        // "b 0x00100062",
       ],
     }
   ]

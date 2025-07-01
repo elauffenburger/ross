@@ -36,7 +36,7 @@ var proc_int_timer = kstd.time.Timer{
     }.tick,
 };
 
-var proc_irq_switching_enabled = false;
+export var proc_irq_switching_enabled = false;
 var curr_proc_time_slice_ms: u32 = 0;
 
 extern fn switch_proc() void;
@@ -103,6 +103,11 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
                 stack_buf,
                 proc_main,
                 hw.cpu.SegmentSelector{
+                    .index = @intFromEnum(hw.gdt.GdtSegment.kernelData),
+                    .ti = .gdt,
+                    .rpl = .kernel,
+                },
+                hw.cpu.SegmentSelector{
                     .index = @intFromEnum(hw.gdt.GdtSegment.kernelCode),
                     .ti = .gdt,
                     .rpl = .kernel,
@@ -150,21 +155,15 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
 
 pub fn yield() void {
     schedule();
-
     switch_proc();
 }
 
-pub fn irqYield() void {
-    // kstd.time.tick();
-
+pub fn tick() void {
     if (!proc_irq_switching_enabled) {
         return;
     }
 
     schedule();
-
-    // Restore the stack to what it looked like at the beginning of the ISR handler and call switch_proc.
-    switch_proc();
 }
 
 fn schedule() void {
@@ -232,39 +231,52 @@ const ProcessStackBuilder = struct {
     }
 };
 
-fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, code_segment: hw.cpu.SegmentSelector) u32 {
+fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, stack_segment: hw.cpu.SegmentSelector, code_segment: hw.cpu.SegmentSelector) u32 {
     var stack = ProcessStackBuilder.init(stack_buf);
 
-    // New ESP
+    // Stack selector (SS)
+    stack.pushu32(@as(u16, @bitCast(stack_segment)));
+
+    // ESP
     const stack_top = @intFromPtr(stack_buf.ptr) + stack_buf.len - 1;
     stack.pushu32(stack_top);
 
-    // The value of the EFLAGS register to load.
+    // EFLAGS.
     //
-    // HACK: we'll just use the current value (with interrupts turned on), but is that correct??
+    // HACK: is this right?
     stack.pushu32(asm volatile (
         \\ pushf
         \\ pop %%eax
-        \\ or $0x0200, %%eax
         : [eflags] "={eax}" (-> u32),
         :
         : "eax", "memory"
     ));
 
-    // The code segment selector to change to
+    // Code segment (CS)
     stack.pushu32(@as(u16, @bitCast(code_segment)));
 
-    // eip
+    // EIP
     stack.pushu32(@intFromPtr(proc_main));
 
-    // ebx
+    // Push GP registers in the order they'll be popped via POPA.
+    const pre_pusha_esp = stack.esp();
+
+    // EAX
     stack.pushu32(0);
-    // edi
+    // ECX
     stack.pushu32(0);
-    // esi
+    // EDX
     stack.pushu32(0);
-    // ebp
+    // EBX
+    stack.pushu32(0);
+    // ESP (pre-push)
+    stack.pushu32(pre_pusha_esp);
+    // EBP
     stack.pushu32(stack_top);
+    // ESI
+    stack.pushu32(0);
+    // EDI
+    stack.pushu32(0);
 
     return stack.esp();
 }

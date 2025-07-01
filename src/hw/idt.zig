@@ -7,6 +7,8 @@ const io = @import("io.zig");
 const pic = @import("pic.zig");
 const rtc = @import("timers.zig").rtc;
 
+extern fn irq0_handler() callconv(.naked) void;
+
 // Allocate space for the IDT.
 var idt align(4) = [_]InterruptDescriptor{@bitCast(@as(u64, 0))} ** 256;
 
@@ -28,6 +30,11 @@ pub fn init() !InitProof {
                 addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
             },
         }
+    }
+
+    // Add native handlers.
+    for (native_irq_handlers) |handler| {
+        addIdtEntry(pic.irq_offset + handler.int_num, .interrupt32bits, .kernel, handler.handler);
     }
 
     // Load IDT.
@@ -65,6 +72,24 @@ fn loadIdt() void {
     );
 }
 
+const native_irq_handlers = [_]struct {
+    int_num: u8,
+    handler: *const fn () callconv(.naked) void,
+}{
+    .{
+        .int_num = 0,
+        .handler = irq0_handler,
+    },
+};
+
+// PIT
+export fn on_irq0() void {
+    kstd.time.tick();
+    kstd.proc.tick();
+
+    pic.eoi(0);
+}
+
 const int_handlers = GenInterruptHandlers(struct {
     pub fn exc05() void {
         kstd.log.dbg("shit");
@@ -83,13 +108,6 @@ const int_handlers = GenInterruptHandlers(struct {
     // Page Fault
     pub fn exc14(err_code: u32) void {
         _ = err_code; // autofix
-    }
-
-    // PIT
-    //
-    // NOTE: because this handler calls kstd.proc.schedule, control will _likely_ not return back to this handler.
-    pub fn irq0() void {
-        kstd.proc.irqYield();
     }
 
     // PS/2 keyboard
@@ -227,7 +245,6 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
                         @call(.auto, @field(orig_handlers, decl.name), .{});
 
                         // Trigger EOI on PIC.
-                        //TODO: is this right?? shouldn't this have the offset applied?
                         pic.eoi(int_num);
                     }
                 };
@@ -246,48 +263,85 @@ fn GenInterruptHandlers(orig_handlers: type) [@typeInfo(orig_handlers).@"struct"
                     @call(.auto, @field(orig_handlers, decl.name), .{err});
 
                     // Trigger EOI on PIC.
-                    //TODO: is this right?? shouldn't this have the offset applied?
                     pic.eoi(int_num);
                 }
             };
         };
 
-        const Handler = struct {
-            pub fn handler() callconv(.naked) void {
-                // Save registers before calling handler.
-                //
-                // NOTE: the direction flag must be clear on entry for SYS V calling conv.
-                asm volatile (
-                    \\ pusha
-                    \\ cld
-                );
+        // HACK: we're going to hardcode how to handle PIT interrupts, but let's, uh, not do that forever.
+        comptime ({
+            const Handler = blk: {
+                if (int_num == 0) {
+                    break :blk struct {
+                        pub fn handler() callconv(.naked) void {
+                            // Save registers before calling handler.
+                            //
+                            // NOTE: the direction flag must be clear on entry for SYS V calling conv.
+                            asm volatile (
+                                \\ pusha
+                                \\ cld
+                                ::: "eax", "ecx", "edx", "ebx", "esi", "edi", "memory");
 
-                // Call actual handler.
-                asm volatile (std.fmt.comptimePrint(
-                        \\ push $[.after_gen_int_handler_{s}]
-                        \\ jmp %[wrapper:P]
-                        \\ .after_gen_int_handler_{s}:
-                    ,
-                        .{ decl.name, decl.name },
-                    )
-                    :
-                    : [wrapper] "p" (&Wrapper.wrapper),
-                      [int_num] "X" (int_num),
-                );
+                            // Call actual handler.
+                            asm volatile (std.fmt.comptimePrint(
+                                    \\ push $[.after_gen_int_handler_{s}]
+                                    \\ jmp %[wrapper:P]
+                                    \\ .after_gen_int_handler_{s}:
+                                ,
+                                    .{ decl.name, decl.name },
+                                )
+                                :
+                                : [wrapper] "p" (&Wrapper.wrapper),
+                                  [int_num] "X" (int_num),
+                            );
 
-                // Restore registers and return from interrupt handler.
-                asm volatile (
-                    \\ popa
-                    \\ iret
-                );
-            }
-        };
+                            // Restore registers, modify eflags, and return from interrupt handler.
+                            asm volatile (
+                                \\ popa
+                                \\ iret
+                                ::: "eax", "ecx", "edx", "ebx", "esi", "edi", "memory");
+                        }
+                    };
+                }
 
-        generated_handlers[i] = .{
-            .int_num = int_num,
-            .kind = exc_or_irq,
-            .handler = Handler.handler,
-        };
+                break :blk struct {
+                    pub fn handler() callconv(.naked) void {
+                        // Save registers before calling handler.
+                        //
+                        // NOTE: the direction flag must be clear on entry for SYS V calling conv.
+                        asm volatile (
+                            \\ pusha
+                            \\ cld
+                        );
+
+                        // Call actual handler.
+                        asm volatile (std.fmt.comptimePrint(
+                                \\ push $[.after_gen_int_handler_{s}]
+                                \\ jmp %[wrapper:P]
+                                \\ .after_gen_int_handler_{s}:
+                            ,
+                                .{ decl.name, decl.name },
+                            )
+                            :
+                            : [wrapper] "p" (&Wrapper.wrapper),
+                              [int_num] "X" (int_num),
+                        );
+
+                        // Restore registers and return from interrupt handler.
+                        asm volatile (
+                            \\ popa
+                            \\ iret
+                        );
+                    }
+                };
+            };
+
+            generated_handlers[i] = .{
+                .int_num = int_num,
+                .kind = exc_or_irq,
+                .handler = Handler.handler,
+            };
+        });
     }
 
     return generated_handlers;

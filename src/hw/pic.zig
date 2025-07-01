@@ -69,6 +69,10 @@ pub fn init(idt_proof: idt.InitProof) !InitProof {
 }
 
 pub fn eoi(irq: u8) void {
+    eoiRaw(irq_offset + irq);
+}
+
+fn eoiRaw(irq: u8) void {
     if (irq >= 8) {
         io.outb(pic2.cmd(), @intFromEnum(PicCmd.eoi));
     }
