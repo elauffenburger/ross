@@ -107,10 +107,8 @@ pub fn kmain() !void {
     try hw.vmem.init(pic_proof, proc_proof);
 
     // Start up kernel processes.
-    // try proc.startKProc(&proc_kbd.main);
-    // try proc.startKProc(&proc_term.main);
-    try proc.startKProc(&@import("procs/test.zig").Main("a"));
-    try proc.startKProc(&@import("procs/test.zig").Main("b"));
+    try proc.startKProc(&proc_kbd.main);
+    try proc.startKProc(&proc_term.main);
 
     // Turn on process control.
     proc.start();
