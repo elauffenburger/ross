@@ -5,19 +5,19 @@ const kstd = @import("./kstd.zig");
 const magic: u32 = 0xE85250D6;
 const architecture: u32 = 1;
 
-pub fn Header(tags: []Tag) type {
-    const header_length = blk: {
-        var len = 0;
+pub fn Header(tags: []const Tag) type {
+    const header_length: u32 = blk: {
+        var len: u32 = 0;
         for (tags) |tag| {
-            len += @sizeOf(std.meta.activeTag(tag));
+            len += @sizeOf(@TypeOf(std.meta.activeTag(tag)));
         }
 
         break :blk len;
     };
 
-    const checksum = -(magic + architecture + header_length);
+    const checksum: u32 = ~(magic + architecture + header_length);
 
-    var type_fields = [_]std.builtin.Type.StructField{0} ** (4 + tags.len);
+    var type_fields = [_]std.builtin.Type.StructField{undefined} ** (4 + tags.len);
     type_fields[0] = .{
         .name = "magic",
         .type = u32,
@@ -28,6 +28,7 @@ pub fn Header(tags: []Tag) type {
     type_fields[1] = .{
         .name = "architecture",
         .type = u32,
+        .default_value_ptr = null,
         .is_comptime = false,
         .alignment = 0,
     };
@@ -42,29 +43,35 @@ pub fn Header(tags: []Tag) type {
         .name = "checksum",
         .type = u32,
         .default_value_ptr = &checksum,
-        .is_comptime = true,
+        .is_comptime = false,
         .alignment = 0,
     };
 
     for (tags, 0..) |tag, i| {
+        _ = tag; // autofix
         type_fields[4 + i] = .{
             .name = std.fmt.comptimePrint("tag_{d}", .{i}),
-            .type = std.meta.activeTag(tag),
-            .is_comptime = true,
-            .alignment = 1,
-            .default_value_ptr = &@constCast(tag),
+
+            // HACK: testing out why this won't compile...
+            .type = @FieldType(Tag, "address"),
+            .default_value_ptr = null,
+
+            .is_comptime = false,
+            .alignment = 0,
         };
     }
 
-    return @Type(.{ .@"struct" = std.builtin.Type.Struct{
-        .layout = .@"packed",
-        .is_tuple = false,
-        .decls = &[_]std.builtin.Type.Declaration{},
-        .fields = type_fields,
-    } });
+    return @Type(.{
+        .@"struct" = std.builtin.Type.Struct{
+            .layout = .@"packed",
+            .is_tuple = false,
+            .decls = &[_]std.builtin.Type.Declaration{},
+            .fields = &type_fields,
+        },
+    });
 }
 
-pub const Tag = packed union {
+pub const Tag = union(enum) {
     address: SizedTag(struct {
         type: u16 = 2,
 
@@ -138,18 +145,18 @@ pub const Tag = packed union {
         // This is specified in pixels in a graphics mode, and in characters in a text mode.
         //
         // The value zero indicates that the OS image has no preference.
-        width: u32,
+        width: u32 = 0,
 
         // Contains the number of the lines.
         // This is specified in pixels in a graphics mode, and in characters in a text mode.
         //
         // The value zero indicates that the OS image has no preference.
-        height: u32,
+        height: u32 = 0,
 
         // Contains the number of bits per pixel in a graphics mode, and zero in a text mode.
         //
         // The value zero indicates that the OS image has no preference.
-        depth: u32,
+        depth: u32 = 0,
     }),
 
     // If this tag is present modules must be page aligned.
