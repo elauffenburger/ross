@@ -46,7 +46,7 @@ fn addInstall(b: *std.Build) KernelCompile {
         }),
     });
     kernel.entry = .{ .symbol_name = "_kmain" };
-    kernel.setLinkerScript(b.path("boot/link.ld"));
+    kernel.setLinkerScript(b.path("src/asm/link.ld"));
     kernel.link_gc_sections = false;
 
     const build_asm_lib, const asm_lib_obj = blk: {
@@ -92,38 +92,21 @@ fn addBuildIso(b: *std.Build) void {
 
     // Copy files to the iso staging dir.
     const copy_files = b.addWriteFiles();
-    _ = copy_files.addCopyFile(b.path("boot/stage2_eltorito"), "out/iso/boot/grub/stage2_eltorito");
-    _ = copy_files.addCopyFile(b.path("boot/menu.lst"), "out/iso/boot/grub/menu.lst");
-    const kernel_elf_file = copy_files.addCopyFile(b.path("zig-out/bin/ross"), "out/iso/boot/kernel.elf");
-    const iso_dir = kernel_elf_file.path(b, "../../");
+    _ = copy_files.addCopyFile(b.path("zig-out/bin/ross"), "out/iso/boot/os.bin");
+    const iso_dir = copy_files.addCopyDirectory(b.path("boot"), "out/iso", .{});
 
     // Run mkisofs on iso staging dir.
-    const mkisofs = std.Build.Step.Run.create(b, "mkisofs");
-    mkisofs.addArgs(&.{
-        "mkisofs",
-        "-quiet",
-        "-input-charset",
-        "utf8",
-        "-eltorito-boot",
-        "boot/grub/stage2_eltorito",
-        "-boot-info-table",
-        "-boot-load-size",
-        "4",
-        "-rock",
-        "-no-emul-boot",
-        "-A",
-        "os",
-    });
-    mkisofs.addArg("-o");
-    const iso_file = mkisofs.addOutputFileArg(b.path("out/os.iso").getPath(b));
-    mkisofs.addDirectoryArg(iso_dir);
+    const grub_mkrescue = std.Build.Step.Run.create(b, "mkisofs");
+    grub_mkrescue.addArg("-o");
+    const iso_file = grub_mkrescue.addOutputFileArg(b.path("out/os.iso").getPath(b));
+    grub_mkrescue.addDirectoryArg(iso_dir);
 
     // Install os.iso
     const install_iso_file = b.addInstallFile(iso_file, "os.iso");
 
     // install -> copy_files -> mkiso -> copy_iso -> build_iso
     copy_files.step.dependOn(b.getInstallStep());
-    mkisofs.step.dependOn(&copy_files.step);
-    install_iso_file.step.dependOn(&mkisofs.step);
+    grub_mkrescue.step.dependOn(&copy_files.step);
+    install_iso_file.step.dependOn(&grub_mkrescue.step);
     step.dependOn(&install_iso_file.step);
 }
