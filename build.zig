@@ -3,8 +3,6 @@ const std = @import("std");
 pub fn build(b: *std.Build) !void {
     const kernelc = addInstall(b);
     addTests(b, kernelc);
-
-    addBuildIso(b);
 }
 
 fn addInstall(b: *std.Build) KernelCompile {
@@ -85,28 +83,4 @@ fn addTests(b: *std.Build, kernelc: KernelCompile) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
-}
-
-fn addBuildIso(b: *std.Build) void {
-    const step = b.step("build-iso", "Build iso");
-
-    // Copy files to the iso staging dir.
-    const copy_files = b.addWriteFiles();
-    _ = copy_files.addCopyFile(b.path("zig-out/bin/ross"), "out/iso/boot/os.bin");
-    const iso_dir = copy_files.addCopyDirectory(b.path("boot"), "out/iso", .{});
-
-    // Run mkisofs on iso staging dir.
-    const grub_mkrescue = std.Build.Step.Run.create(b, "mkisofs");
-    grub_mkrescue.addArg("-o");
-    const iso_file = grub_mkrescue.addOutputFileArg(b.path("out/os.iso").getPath(b));
-    grub_mkrescue.addDirectoryArg(iso_dir);
-
-    // Install os.iso
-    const install_iso_file = b.addInstallFile(iso_file, "os.iso");
-
-    // install -> copy_files -> mkiso -> copy_iso -> build_iso
-    copy_files.step.dependOn(b.getInstallStep());
-    grub_mkrescue.step.dependOn(&copy_files.step);
-    install_iso_file.step.dependOn(&grub_mkrescue.step);
-    step.dependOn(&install_iso_file.step);
 }

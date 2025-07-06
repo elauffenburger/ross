@@ -2,6 +2,7 @@
 set -eu -o pipefail
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
+OUT_DIR="$SCRIPT_DIR/../out"
 
 usage() {
   cat <<EOF
@@ -54,10 +55,6 @@ build_kernel() {
     --color on
   )
   if [[ "$VERBOSE" == 1 ]]; then
-    ZIG_ARGS+=(
-      --verbose-link
-    )
-
     # --verbose-link               Enable compiler debug output for linking
     # --verbose-air                Enable compiler debug output for Zig AIR
     # --verbose-llvm-ir[=file]     Enable compiler debug output for LLVM IR
@@ -65,16 +62,69 @@ build_kernel() {
     # --verbose-cimport            Enable compiler debug output for C imports
     # --verbose-cc                 Enable compiler debug output for C compilation
     # --verbose-llvm-cpu-features  Enable compiler debug output for LLVM CPU features
+
+    ZIG_ARGS+=(
+      --verbose-link
+    )
   fi
 
-  zig build build-iso "${ZIG_ARGS[@]}"
+  zig build "${ZIG_ARGS[@]}"
 
   popd >/dev/null
 }
 
+build_iso() {
+  local limine_dir="$SCRIPT_DIR/../vendor/limine"
+
+  pushd "$OUT_DIR" 2>/dev/null
+
+  # Copy our boot dir over.
+  mkdir -p iso/boot
+  cp -r -v "$SCRIPT_DIR/../boot"/* iso/boot/
+
+  # Copy ross binary over.
+  cp -v "$SCRIPT_DIR/../zig-out/bin/ross" iso/boot/multiboot2.elf
+
+  # Copy limine files over.
+  mkdir -p iso/boot/limine
+  cp -v "$limine_dir/"{limine-bios.sys,limine-bios-cd.bin,limine-uefi-cd.bin} iso/boot/limine/
+
+  # Copy limine EFI files over.
+  mkdir -p iso/EFI/BOOT
+  cp -v "$limine_dir/"{BOOTX64.EFI,BOOTIA32.EFI} iso/EFI/BOOT/
+
+  # Create the bootable ISO.
+  xorriso \
+    -as mkisofs \
+    -R -r -J \
+    -b boot/limine/limine-bios-cd.bin \
+    -no-emul-boot \
+    -boot-load-size 4 \
+    -boot-info-table \
+    -hfsplus \
+    -apm-block-size 2048 \
+    --efi-boot boot/limine/limine-uefi-cd.bin \
+    -efi-boot-part \
+    --efi-boot-image \
+    --protective-msdos-label \
+    -o os.iso \
+    iso
+
+  # Install Limine stage 1 and 2 for legacy BIOS boot.
+  "$limine_dir/limine" bios-install os.iso
+
+  popd 2>/dev/null
+}
+
 main() {
+  [[ -d "$OUT_DIR" ]] && rm -rf "$OUT_DIR"
+  mkdir -p "$OUT_DIR"
+
   echo 'building kernel...'
   build_kernel
+
+  echo 'building iso...'
+  build_iso
 
   if [[ "$BUILD_AND_RUN" == 1 ]]; then
     echo 'running...'
@@ -84,7 +134,7 @@ main() {
       -vga std
       -m 4096
       -accel 'tcg,thread=single'
-      -cdrom "$SCRIPT_DIR/../zig-out/os.iso"
+      -cdrom "$OUT_DIR/os.iso"
       -no-reboot
       -d 'cpu_reset,int,guest_errors,page,in_asm,pcall'
       -D /tmp/qemu-monitor
