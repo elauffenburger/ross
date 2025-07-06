@@ -4,10 +4,3 @@ pub const mem = @import("kstd/mem.zig");
 pub const proc = @import("kstd/proc.zig");
 pub const time = @import("kstd/time.zig");
 pub const types = @import("kstd/types.zig");
-
-pub fn yield() void {
-    asm volatile (
-        \\ pusha
-        \\
-    );
-}

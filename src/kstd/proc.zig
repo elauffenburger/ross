@@ -235,6 +235,7 @@ fn build_proc_stack_esp(stack_buf: []u8, proc_main: *const fn () anyerror!void, 
     var stack = ProcessStackBuilder.init(stack_buf);
 
     // Stack selector (SS)
+    // TODO: is this used?? Or am I just burning stack space?
     stack.pushu32(@as(u16, @bitCast(stack_segment)));
 
     // ESP
