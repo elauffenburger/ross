@@ -167,9 +167,6 @@ inline fn loadGdt() void {
         \\ mov %ax, %fs
         \\ mov %ax, %gs
         \\ mov %ax, %ss
-        \\
-        \\ /* restore interrupts */
-        \\ sti
         :
         : [gdtr] "p" (@intFromPtr(&gdtr)),
         : "eax", "ds", "cr0", "es", "fs", "gs", "ss"
