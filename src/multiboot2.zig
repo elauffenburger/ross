@@ -5,70 +5,46 @@ const kstd = @import("./kstd.zig");
 const magic: u32 = 0xE85250D6;
 const architecture: u32 = 1;
 
-pub fn Header(tags: []const Tag) type {
-    const header_length: u32 = blk: {
-        var len: u32 = 0;
-        for (tags) |tag| {
-            len += @sizeOf(@TypeOf(std.meta.activeTag(tag)));
-        }
-
-        break :blk len;
-    };
-
-    const checksum: u32 = ~(magic + architecture + header_length);
-
-    var type_fields = [_]std.builtin.Type.StructField{undefined} ** (4 + tags.len);
-    type_fields[0] = .{
-        .name = "magic",
-        .type = u32,
-        .default_value_ptr = &magic,
-        .is_comptime = false,
-        .alignment = 0,
-    };
-    type_fields[1] = .{
-        .name = "architecture",
-        .type = u32,
-        .default_value_ptr = null,
-        .is_comptime = false,
-        .alignment = 0,
-    };
-    type_fields[2] = .{
-        .name = "header_length",
-        .type = u32,
-        .default_value_ptr = &header_length,
-        .is_comptime = false,
-        .alignment = 0,
-    };
-    type_fields[3] = .{
-        .name = "checksum",
-        .type = u32,
-        .default_value_ptr = &checksum,
-        .is_comptime = false,
-        .alignment = 0,
-    };
-
-    for (tags, 0..) |tag, i| {
-        _ = tag; // autofix
-        type_fields[4 + i] = .{
-            .name = std.fmt.comptimePrint("tag_{d}", .{i}),
-
-            // HACK: testing out why this won't compile...
-            .type = @FieldType(Tag, "address"),
-            .default_value_ptr = null,
-
-            .is_comptime = false,
-            .alignment = 0,
-        };
+fn headerBytesLen(tags: []const Tag) usize {
+    var tags_len: u32 = 0;
+    for (tags) |tag| {
+        tags_len += @sizeOf(@FieldType(Tag, @tagName(std.meta.activeTag(tag))));
     }
 
-    return @Type(.{
-        .@"struct" = std.builtin.Type.Struct{
-            .layout = .@"packed",
-            .is_tuple = false,
-            .decls = &[_]std.builtin.Type.Declaration{},
-            .fields = &type_fields,
-        },
-    });
+    // The total len is len(tags) + len(header_fields)
+    return tags_len + (4 * 4);
+}
+
+pub fn headerBytes(tags: []const Tag) [headerBytesLen(tags)]u8 {
+    const header_length = @as(u32, headerBytesLen(tags));
+    const checksum: u32 = ~(magic + architecture + header_length);
+
+    const ResultList = std.fifo.LinearFifo(u8, .{ .Static = 4096 });
+    var result_bytes: ResultList = ResultList.init();
+
+    try {
+        // Write header fields.
+        try result_bytes.write(&std.mem.toBytes(magic));
+        try result_bytes.write(&std.mem.toBytes(architecture));
+        try result_bytes.write(&std.mem.toBytes(header_length));
+        try result_bytes.write(&std.mem.toBytes(checksum));
+
+        // Write tag values.
+        for (tags) |tag| {
+            const tag_val = @field(tag, @tagName(std.meta.activeTag(tag)));
+            const tag_val_type = @typeInfo(@TypeOf(tag_val));
+            const tag_val_int_type = tag_val_type.@"struct".backing_integer.?;
+
+            try result_bytes.write(&std.mem.toBytes(@as(tag_val_int_type, @bitCast(tag_val))));
+        }
+
+        var results = [_]u8{undefined} ** header_length;
+        @memcpy(&results, result_bytes.readableSlice(0));
+
+        return results;
+    } catch |err| {
+        @compileError(std.fmt.comptimePrint("{?}", .{err}));
+    };
 }
 
 pub const Tag = union(enum) {

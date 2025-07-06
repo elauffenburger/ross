@@ -22,7 +22,7 @@ const proc_term = @import("procs/term.zig");
 //         },
 //     };
 // };
-pub export var multiboot_header align(4) linksection(".multiboot") = multiboot2.Header(&[_]multiboot2.Tag{
+pub export var multiboot_header align(4) linksection(".multiboot") = multiboot2.headerBytes(&[_]multiboot2.Tag{
     multiboot2.Tag{ .module_alignment = .{} },
     multiboot2.Tag{
         .framebuffer = .{
