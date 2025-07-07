@@ -1,33 +1,32 @@
 const std = @import("std");
 
+const multiboot2 = @import("boot/multiboot2.zig");
 const hw = @import("hw.zig");
 const vga = hw.video.vga;
 const kstd = @import("kstd.zig");
 const proc = @import("kstd/proc.zig");
-const multiboot = @import("multiboot.zig");
-const multiboot2 = @import("multiboot2.zig");
 const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
 
 // Write multiboot2 header to .multiboot section.
 pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
     const tags = &.{
-        multiboot2.ModuleAlignmentTag{ .val = .{} },
-        multiboot2.FramebufferTag{
+        multiboot2.tag.ModuleAlignmentTag{ .val = .{} },
+        multiboot2.tag.FramebufferTag{
             .val = .{
                 .width = 1920,
                 .height = 1080,
             },
         },
-        multiboot2.EndTag{ .val = .{} },
+        multiboot2.tag.EndTag{ .val = .{} },
     };
 
-    var converted_tags = [_]multiboot2.Tag{undefined} ** tags.len;
+    var converted_tags = [_]multiboot2.tag.Tag{undefined} ** tags.len;
     for (tags, 0..) |tag, i| {
         converted_tags[i] = tag.tag();
     }
 
-    break :blk multiboot2.headerBytes(&converted_tags);
+    break :blk multiboot2.header.headerBytes(&converted_tags);
 };
 
 pub export fn _kmain() callconv(.naked) noreturn {
