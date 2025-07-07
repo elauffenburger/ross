@@ -10,16 +10,25 @@ const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
 
 // Write multiboot2 header to .multiboot section.
-pub export var multiboot2_header align(4) linksection(".multiboot") = multiboot2.headerBytes(&[_]multiboot2.Tag{
-    multiboot2.Tag{ .module_alignment = .{} },
-    multiboot2.Tag{
-        .framebuffer = .{
-            .width = 1920,
-            .height = 1080,
+pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
+    const tags = &.{
+        multiboot2.ModuleAlignmentTag{ .val = .{} },
+        multiboot2.FramebufferTag{
+            .val = .{
+                .width = 1920,
+                .height = 1080,
+            },
         },
-    },
-    multiboot2.Tag{ .end = .{} },
-});
+        multiboot2.EndTag{ .val = .{} },
+    };
+
+    var converted_tags = [_]multiboot2.Tag{undefined} ** tags.len;
+    for (tags, 0..) |tag, i| {
+        converted_tags[i] = tag.tag();
+    }
+
+    break :blk multiboot2.headerBytes(&converted_tags);
+};
 
 pub export fn _kmain() callconv(.naked) noreturn {
     // Set up kernel stack.
