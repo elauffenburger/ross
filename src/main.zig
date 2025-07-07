@@ -11,13 +11,14 @@ const proc_term = @import("procs/term.zig");
 
 // Write multiboot2 header to .multiboot section.
 pub export var multiboot2_header align(4) linksection(".multiboot") = multiboot2.headerBytes(&[_]multiboot2.Tag{
-    // multiboot2.Tag{ .module_alignment = .{} },
-    // multiboot2.Tag{
-    //     .framebuffer = .{
-    //         .width = 1920,
-    //         .height = 1080,
-    //     },
-    // },
+    multiboot2.Tag{ .module_alignment = .{} },
+    multiboot2.Tag{
+        .framebuffer = .{
+            .width = 1920,
+            .height = 1080,
+        },
+    },
+    multiboot2.Tag{ .end = .{} },
 });
 
 pub export fn _kmain() callconv(.naked) noreturn {
