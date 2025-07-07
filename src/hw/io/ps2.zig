@@ -182,7 +182,7 @@ const Port = struct {
         // TODO: is it okay to just drop a byte like this?
         try self.buffer.ensureUnusedCapacity(1);
 
-        try self.buffer.write(&[_]u8{byte});
+        try self.buffer.write(&.{byte});
     }
 
     const AckErr = error{NotAck};
@@ -219,13 +219,13 @@ const Port = struct {
                 // NOTE: this can come out of order for some reason!
                 const options = if (self.health_check_sends_null_terminator)
                     &[_][]const u8{
-                        &[_]u8{ 0xfa, 0xaa, 0x00 },
-                        &[_]u8{ 0xaa, 0xfa, 0x00 },
+                        &.{ 0xfa, 0xaa, 0x00 },
+                        &.{ 0xaa, 0xfa, 0x00 },
                     }
                 else
                     &[_][]const u8{
-                        &[_]u8{ 0xfa, 0xaa },
-                        &[_]u8{ 0xaa, 0xfa },
+                        &.{ 0xfa, 0xaa },
+                        &.{ 0xaa, 0xfa },
                     };
 
                 for (options) |opt| {

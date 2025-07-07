@@ -199,7 +199,7 @@ fn AutoTag(def: type) type {
         .@"struct" = .{
             .layout = .@"packed",
             .fields = @constCast(&fields),
-            .decls = &[_]std.builtin.Type.Declaration{},
+            .decls = &.{},
             .is_tuple = false,
         },
     });

@@ -203,7 +203,7 @@ pub const Process = packed struct(u232) {
 const ProcessStackBuilder = struct {
     const Self = @This();
 
-    buf: []u8 = &[_]u8{},
+    buf: []u8 = &.{},
     head: usize = 0,
 
     pub fn init(buf: []u8) Self {

@@ -26,7 +26,7 @@ var kernel_tss: TaskStateSegment = undefined;
 pub inline fn init() void {
     @setRuntimeSafety(false);
 
-    gdt = [_]GdtSegmentDescriptor{
+    gdt = .{
         // Mandatory null entry.
         @bitCast(@as(u64, 0)),
 
