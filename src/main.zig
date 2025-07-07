@@ -9,30 +9,16 @@ const multiboot2 = @import("multiboot2.zig");
 const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
 
-pub export var multiboot_header align(4) linksection(".multiboot") = blk: {
-    const flags = multiboot.Header.Flags.Align | multiboot.Header.Flags.MemInfo | multiboot.Header.Flags.VideoMode;
-
-    break :blk multiboot.Header{
-        .flags = flags,
-        .checksum = chk: {
-            const checksum_magic: i32 = @intCast(multiboot.Header.Magic);
-            const checksum_flags: i32 = @intCast(flags);
-
-            break :chk @bitCast(-(checksum_magic + checksum_flags));
-        },
-    };
-};
-
-// // Write multiboot2 header to .multiboot section.
-// pub export var multiboot_header align(4) linksection(".multiboot") = multiboot2.headerBytes(&[_]multiboot2.Tag{
-//     multiboot2.Tag{ .module_alignment = .{} },
-//     multiboot2.Tag{
-//         .framebuffer = .{
-//             .width = 1920,
-//             .height = 1080,
-//         },
-//     },
-// });
+// Write multiboot2 header to .multiboot section.
+pub export var multiboot2_header align(4) linksection(".multiboot") = multiboot2.headerBytes(&[_]multiboot2.Tag{
+    // multiboot2.Tag{ .module_alignment = .{} },
+    // multiboot2.Tag{
+    //     .framebuffer = .{
+    //         .width = 1920,
+    //         .height = 1080,
+    //     },
+    // },
+});
 
 pub export fn _kmain() callconv(.naked) noreturn {
     // Set up kernel stack.
