@@ -5,23 +5,18 @@ const kstd = @import("./kstd.zig");
 const magic: u32 = 0xE85250D6;
 const architecture: u32 = 1;
 
-fn headerBytesLen(reqs: []const Tag) usize {
-    var req_tags_len: u32 = 0;
-    for (reqs) |tag| {
-        req_tags_len += @sizeOf(@FieldType(Tag, @tagName(std.meta.activeTag(tag))));
+fn headerBytesLen(tags: []const Tag) usize {
+    var tags_len: u32 = 0;
+    for (tags) |tag| {
+        tags_len += @sizeOf(@FieldType(Tag, @tagName(std.meta.activeTag(tag))));
     }
 
-    // The total len is len(info_req_tag) + len(req_tags) + len(end_tag) + len(header_fields)
-    return infoRequestTagSize(reqs) + req_tags_len + (8) + (4 * 4);
+    // The total len is len(tags) + len(header_fields)
+    return tags_len + (4 * 4);
 }
 
-fn infoRequestTagSize(reqs: []const Tag) u32 {
-    // The info request tag len is 2 (type) + 2 (flags) + 4 (size) + (4 * reqs.len) (a u32 per type id).
-    return 8 + (4 * reqs.len);
-}
-
-pub fn headerBytes(reqs: []const Tag) [headerBytesLen(reqs)]u8 {
-    const header_length = @as(u32, headerBytesLen(reqs));
+pub fn headerBytes(tags: []const Tag) [headerBytesLen(tags)]u8 {
+    const header_length = @as(u32, headerBytesLen(tags));
 
     const checksum: u32 = 0xffffffff - (magic + architecture + header_length - 1);
     std.debug.assert((magic + architecture + header_length) +% checksum == 0);
@@ -36,34 +31,14 @@ pub fn headerBytes(reqs: []const Tag) [headerBytesLen(reqs)]u8 {
         try result_bytes.write(&std.mem.toBytes(header_length));
         try result_bytes.write(&std.mem.toBytes(checksum));
 
-        // Write info request tag.
-        {
-            // Write type and flags.
-            try result_bytes.write(&std.mem.toBytes(@as(u16, 1)));
-            try result_bytes.write(&std.mem.toBytes(@as(u16, 0)));
-
-            // Write size.
-            try result_bytes.write(&std.mem.toBytes(@as(u32, infoRequestTagSize(reqs))));
-
-            // Write each req id.
-            for (reqs) |req| {
-                const req_val = @field(req, @tagName(std.meta.activeTag(req)));
-
-                try result_bytes.write(&std.mem.toBytes(@as(u32, req_val.type)));
-            }
-        }
-
         // Write tag values.
-        for (reqs) |req| {
-            const req_val = @field(req, @tagName(std.meta.activeTag(req)));
-            const req_val_type = @typeInfo(@TypeOf(req_val));
-            const req_val_int_type = req_val_type.@"struct".backing_integer.?;
+        for (tags) |tag| {
+            const tag_val = @field(tag, @tagName(std.meta.activeTag(tag)));
+            const tag_val_type = @typeInfo(@TypeOf(tag_val));
+            const tag_val_int_type = tag_val_type.@"struct".backing_integer.?;
 
-            try result_bytes.write(&std.mem.toBytes(@as(req_val_int_type, @bitCast(req_val))));
+            try result_bytes.write(&std.mem.toBytes(@as(tag_val_int_type, @bitCast(tag_val))));
         }
-
-        // Write end tag.
-        try result_bytes.write(&std.mem.toBytes(@as(u64, @bitCast((Tag{ .end = .{} }).end))));
 
         var results = [_]u8{undefined} ** header_length;
         @memcpy(&results, result_bytes.readableSlice(0));
