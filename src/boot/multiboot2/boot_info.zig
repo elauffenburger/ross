@@ -65,9 +65,23 @@ pub const FrameBufferInfo = packed struct {
     },
 };
 
+pub const VBEInfo = packed struct {
+    pub const Type = 7;
+
+    header: TagHeader,
+
+    vbe_mode: u16,
+    vbe_interface_seg: u16,
+    vbe_interface_off: u16,
+    vbe_interface_len: u16,
+    vbe_control_info: u4096,
+    vbe_mode_info: u2048,
+};
+
 pub const BootInfo = struct {
     cmd_line: ?*BootCommandLineInfo = null,
     frame_buffer: ?*FrameBufferInfo = null,
+    vbe_info: ?*VBEInfo = null,
 };
 
 pub fn parse(info_addr: usize) BootInfo {
@@ -99,6 +113,9 @@ pub fn parse(info_addr: usize) BootInfo {
             FrameBufferInfo.Type => {
                 result.frame_buffer = @ptrFromInt(head);
             },
+            VBEInfo.Type => {
+                result.vbe_info = @ptrFromInt(head);
+            },
             0 => break,
             else => {
                 if (block_type < 0 or block_type > 22) {
@@ -108,13 +125,33 @@ pub fn parse(info_addr: usize) BootInfo {
         }
 
         // Skip forward to the end of the block and align to 8 byte boundary.
-        head = std.mem.alignForward(u32, head + header.size, 8);
+        head += header.size;
+
+        if (!std.mem.isAligned(head, 8)) {
+            head = std.mem.alignForward(u32, head, 8);
+        }
     }
 
     if (result.frame_buffer) |buf_ptr| {
         const buf = buf_ptr.*;
         const addr = buf.framebuffer_addr;
+        const typ = buf.framebuffer_type;
+        _ = typ; // autofix
         _ = addr; // autofix
+    }
+
+    if (result.vbe_info) |vbe_ptr| {
+        const vbe = vbe_ptr.*;
+
+        const seg = vbe.vbe_interface_seg;
+        _ = seg; // autofix
+        const off = vbe.vbe_interface_off;
+        _ = off; // autofix
+        const len = vbe.vbe_interface_len;
+        _ = len; // autofix
+
+        const mode = vbe.vbe_mode;
+        _ = mode; // autofix
     }
 
     return result;
