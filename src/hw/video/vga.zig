@@ -77,7 +77,7 @@ pub fn init(frame_buffer_info: multiboot2.boot_info.FrameBufferInfo) void {
 
         .target = blk: {
             switch (frame_buffer_info.framebuffer_type) {
-                .ega => break :blk TextModeFrameBufferTarget(80, 20).target(),
+                .ega => break :blk TextModeFrameBufferTarget(80, 25).target(),
                 else => std.debug.panic("unsupported framebuffer type: {}", .{frame_buffer_info.framebuffer_type}),
             }
         },
@@ -231,8 +231,6 @@ fn TextModeFrameBufferTarget(buf_width: u32, buf_height: u32) type {
         const width = buf_width;
         const height = buf_height;
 
-        var temp_buf: [width * height]u16 = .{0} ** (width * height);
-
         pub fn target() FrameBufferTarget {
             return .{
                 // SAFETY: unused
@@ -266,12 +264,13 @@ fn TextModeFrameBufferTarget(buf_width: u32, buf_height: u32) type {
         pub fn scroll(_: *const anyopaque, frame_buf: *FrameBuffer) void {
             const buffer = bufferSlice(frame_buf);
 
+            // HACK: use a shared temp buf.
             // Copy vga buffer to temp buffer offset by one line.
-            const tmp_buf = temp_buf[0..(width * height - width)];
-            @memcpy(tmp_buf, buffer[width..(width * height)]);
+            var tmp_buf = [_]u16{0} ** (width * height - width);
+            @memcpy(&tmp_buf, buffer[width..(width * height)]);
 
             // Copy tmp buf back to vga buf and clear the last line.
-            @memcpy(buffer[0 .. (width * height) - width], tmp_buf);
+            @memcpy(buffer[0 .. (width * height) - width], &tmp_buf);
             @memcpy(buffer[(width * height) - width ..], &([_]u16{Char.Empty.code()} ** width));
 
             frame_buf.setCursor(0, height - 1);
