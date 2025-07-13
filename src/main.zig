@@ -10,7 +10,12 @@ const proc_term = @import("procs/term.zig");
 
 // Write multiboot2 header to .multiboot section.
 pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
+    const InfoRequest = multiboot2.tag.InformationRequestTag(&.{
+        multiboot2.boot_info.FrameBufferInfo.Type,
+    });
+
     const tags = &.{
+        InfoRequest{ .val = .{} },
         multiboot2.tag.ModuleAlignmentTag{ .val = .{} },
         multiboot2.tag.FramebufferTag{
             .val = .{
@@ -28,6 +33,8 @@ pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
 
     break :blk multiboot2.header.headerBytes(&converted_tags);
 };
+
+extern var multiboot2_info_addr: u32;
 
 pub export fn _kmain() callconv(.naked) noreturn {
     // Set up kernel stack.
@@ -70,6 +77,8 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
+    _ = multiboot2.boot_info.parse(multiboot2_info_addr);
+
     // Init kernel memory management.
     kstd.mem.init();
 

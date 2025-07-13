@@ -8,7 +8,12 @@ const architecture: u32 = 1;
 fn headerBytesLen(tags: []const tag.Tag) usize {
     var tags_len: u32 = 0;
     for (tags) |t| {
-        tags_len += t.len();
+        const tag_len = t.len();
+        tags_len += tag_len;
+
+        // Figure out any padding we have to add to keep everything 8-byte aligned.
+        const padding = @mod(tag_len, 8);
+        tags_len += padding;
     }
 
     // The total len is len(req_tags) + len(header_fields)
@@ -34,10 +39,14 @@ pub fn headerBytes(tags: []const tag.Tag) [headerBytesLen(tags)]u8 {
         // Write tag values.
         for (tags) |t| {
             try t.write(t.context, &result_bytes);
+
+            // Re-align to 8 bytes after write.
+            const padding = @mod(result_bytes.readableLength(), 8);
+            try result_bytes.write(&std.mem.toBytes(padding));
         }
 
         var results = [_]u8{undefined} ** header_length;
-        @memcpy(&results, result_bytes.readableSlice(0));
+        @memcpy(&results, result_bytes.readableSlice(0)[0..header_length]);
 
         return results;
     } catch |err| {

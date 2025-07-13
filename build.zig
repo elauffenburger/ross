@@ -43,7 +43,7 @@ fn addInstall(b: *std.Build) KernelCompile {
             .red_zone = false,
         }),
     });
-    kernel.entry = .{ .symbol_name = "_kmain" };
+    kernel.entry = .{ .symbol_name = "_kentry" };
     kernel.setLinkerScript(b.path("src/asm/link.ld"));
     kernel.link_gc_sections = false;
 

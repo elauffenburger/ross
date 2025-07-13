@@ -4,21 +4,35 @@
   // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
   "version": "0.2.0",
   "configurations": [
-    {
-      "name": "Remote attach",
-      "type": "lldb",
-      "request": "launch",
-      "targetCreateCommands": [
-        "target create -a i386 ${workspaceFolder}/zig-out/bin/ross"
-      ],
-      "processCreateCommands": [
-        "gdb-remote localhost:1234",
+    // {
+    //   "name": "Remote attach",
+    //   "type": "lldb",
+    //   "request": "launch",
+    //   "targetCreateCommands": [
+    //     "target create -a i386 ${workspaceFolder}/zig-out/bin/ross"
+    //   ],
+    //   "processCreateCommands": [
+    //     "gdb-remote localhost:1234",
 
+    //     // HACK: debugging irq process switching:
+    //     // "b 0x00100057",
+    //     // "b 0x00100030",
+    //     // "b 0x00100062",
+    //   ],
+    // }
+    {
+      "name": "Remote attach (cpp)",
+      "type": "cppdbg",
+      "request": "launch",
+      "cwd": ".",
+      "program": "${workspaceFolder}/zig-out/bin/ross",
+      "miDebuggerServerAddress": "localhost:1234",
+      "postRemoteConnectCommands": [
         // HACK: debugging irq process switching:
-        // "b 0x001336a3",
+        { "text": "b 0x00100057" },
         // "b 0x00100030",
         // "b 0x00100062",
-      ],
+      ]
     }
   ]
 }

@@ -128,6 +128,38 @@ pub const RelocatableHeader = AutoTag(struct {
     },
 });
 
+pub fn InformationRequestTag(req_ids: []const u32) type {
+    var fields = [_]std.builtin.Type.StructField{undefined} ** (req_ids.len + 1);
+    fields[0] = .{
+        .name = "type",
+        .type = u16,
+        .default_value_ptr = &@as(u16, 1),
+        .is_comptime = false,
+        .alignment = 0,
+    };
+
+    for (req_ids, 1..) |id, i| {
+        fields[i] = .{
+            .name = std.fmt.comptimePrint("req_id_{d}", .{i}),
+            .type = u32,
+            .default_value_ptr = &id,
+            .is_comptime = false,
+            .alignment = 0,
+        };
+    }
+
+    return AutoTag(
+        @Type(.{
+            .@"struct" = .{
+                .layout = .auto,
+                .fields = &fields,
+                .decls = &.{},
+                .is_tuple = false,
+            },
+        }),
+    );
+}
+
 fn AutoTag(def: type) type {
     const def_info = @typeInfo(def);
 
@@ -225,7 +257,7 @@ fn AutoTag(def: type) type {
         }
 
         pub fn len() usize {
-            return @intCast(@sizeOf(backing_integer));
+            return @intCast(@bitSizeOf(backing_integer) / 8);
         }
     };
 }

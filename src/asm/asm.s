@@ -1,17 +1,36 @@
+extern _kmain
 extern curr_proc
 extern curr_proc_time_slice_ms
 extern proc_irq_switching_enabled
 extern on_irq0
 
-global switch_proc
-global irq0_handler
+multiboot2_magic equ 0x36d76289
 
 section .data
-  switch_proc_in_irq db 0
+  global multiboot2_info_addr
+  multiboot2_info_addr dd 0
 
 section .text
 
+global _kentry
+_kentry:
+  ; make sure eax has the multiboot2 magic number
+  cmp eax, multiboot2_magic
+  jne .fail
+
+  ; move ebx to multiboot2_info_addr
+  mov [multiboot2_info_addr], ebx
+
+  ; jump to _kmain
+  jmp _kmain
+
+; HACK: how should we surface this?
+.fail:
+  hlt
+  jmp .fail
+
 ; switch_proc() void
+global switch_proc
 switch_proc:
   ; save registers
   push ebx
@@ -61,6 +80,7 @@ switch_proc:
   ret
 
 ; irq0_handler() void
+global irq0_handler
 irq0_handler:
   ; save registers
   pusha
