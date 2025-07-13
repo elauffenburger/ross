@@ -160,7 +160,7 @@ pub fn InformationRequestTag(req_ids: []const u32) type {
     );
 }
 
-fn AutoTag(def: type) type {
+pub fn AutoTag(def: type) type {
     const def_info = @typeInfo(def);
 
     const @"type" = blk: {

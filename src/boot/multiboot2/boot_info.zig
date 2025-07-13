@@ -15,7 +15,9 @@ pub const BootCommandLineInfo = packed struct {
 
     header: TagHeader,
 
-    // NOTE: the actual content is a c-style null-terminated string.
+    pub fn str(self: *@This()) [*c]u8 {
+        return @ptrFromInt(@intFromPtr(self) + (@bitSizeOf(TagHeader) / 8));
+    }
 };
 
 pub const FrameBufferInfo = packed struct {
@@ -73,16 +75,26 @@ pub fn parse(info_addr: usize) BootInfo {
 
     const start = info_addr;
     const end = start + @as(usize, @intCast(info_start.total_size));
+    _ = end; // autofix
 
     var result: BootInfo = .{};
 
     var head: u32 = @intFromPtr(info_start) + 8;
-    while (head < end) {
+    // HACK: disabling safety check to see what happens.
+    // while (head < end) {
+    while (true) {
         const header: *TagHeader = @ptrFromInt(head);
         const block_type = header.type;
         switch (block_type) {
             BootCommandLineInfo.Type => {
                 result.cmd_line = @ptrFromInt(head);
+
+                var buf = [_]u8{0} ** 256;
+
+                const cmd_line = std.fmt.bufPrint(&buf, "{s}\n", .{result.cmd_line.?.str()}) catch blk: {
+                    break :blk &.{};
+                };
+                _ = cmd_line; // autofix
             },
             FrameBufferInfo.Type => {
                 result.frame_buffer = @ptrFromInt(head);
@@ -95,7 +107,14 @@ pub fn parse(info_addr: usize) BootInfo {
             },
         }
 
-        head += header.size;
+        // Skip forward to the end of the block and align to 8 byte boundary.
+        head = std.mem.alignForward(u32, head + header.size, 8);
+    }
+
+    if (result.frame_buffer) |buf_ptr| {
+        const buf = buf_ptr.*;
+        const addr = buf.framebuffer_addr;
+        _ = addr; // autofix
     }
 
     return result;

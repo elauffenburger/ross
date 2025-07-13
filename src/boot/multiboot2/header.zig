@@ -41,8 +41,12 @@ pub fn headerBytes(tags: []const tag.Tag) [headerBytesLen(tags)]u8 {
             try t.write(t.context, &result_bytes);
 
             // Re-align to 8 bytes after write.
-            const padding = @mod(result_bytes.readableLength(), 8);
-            try result_bytes.write(&std.mem.toBytes(padding));
+            const aligned_len = std.mem.alignForward(u32, result_bytes.readableLength(), 8);
+            const padding_len = aligned_len - result_bytes.readableLength();
+
+            for (0..padding_len) |_| {
+                try result_bytes.write(&.{0});
+            }
         }
 
         var results = [_]u8{undefined} ** header_length;

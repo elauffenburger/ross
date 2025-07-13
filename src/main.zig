@@ -10,12 +10,25 @@ const proc_term = @import("procs/term.zig");
 
 // Write multiboot2 header to .multiboot section.
 pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
-    const InfoRequest = multiboot2.tag.InformationRequestTag(&.{
-        multiboot2.boot_info.FrameBufferInfo.Type,
+    // const InfoRequest = multiboot2.tag.InformationRequestTag(&.{
+    //     multiboot2.boot_info.FrameBufferInfo.Type,
+    //     multiboot2.boot_info.BootCommandLineInfo.Type,
+    // });
+
+    const InfoRequest = multiboot2.tag.AutoTag(struct {
+        type: u16 = 1,
+
+        req_ids_1: u32 = 1,
+        req_ids_2: u32 = 2,
+        req_ids_3: u32 = 7,
     });
 
     const tags = &.{
-        InfoRequest{ .val = .{} },
+        InfoRequest{
+            .val = .{
+                .flags = .{ .optional = true },
+            },
+        },
         multiboot2.tag.ModuleAlignmentTag{ .val = .{} },
         multiboot2.tag.FramebufferTag{
             .val = .{
