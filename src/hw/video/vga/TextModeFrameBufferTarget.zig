@@ -39,7 +39,6 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
             .clearRaw = clearRaw,
             .writeChAt = writeChAt,
             .scroll = scroll,
-            .syncCursor = syncCursor,
             .posBufIndex = posBufIndex,
         },
     };
@@ -79,16 +78,6 @@ pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     // Copy tmp buf back to vga buf and clear the last line.
     @memcpy(buf[0 .. (width * height) - width], self.temp_buf);
     @memcpy(buf[(width * height) - width ..], self.empty_line);
-}
-
-pub fn syncCursor(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
-    const self = fromCtx(ctx);
-
-    const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index = @as(u16, @intCast(self.bufIndex(frame_buf.pos.x, frame_buf.pos.y)));
-
-    regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
-    regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
 }
 
 pub fn posBufIndex(ctx: *const anyopaque, _: *FrameBuffer, pos: vga.Position) u32 {

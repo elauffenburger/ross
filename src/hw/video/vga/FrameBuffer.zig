@@ -2,13 +2,13 @@ const std = @import("std");
 
 const vga = @import("../vga.zig");
 const FrameBuffer = @import("FrameBuffer.zig");
+const regs = @import("registers.zig");
 
 pub const FrameBufferTarget = struct {
     context: *anyopaque,
     clearRaw: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
     writeChAt: *const fn (ctx: *const anyopaque, *FrameBuffer, ch: vga.Char, x: u32, y: u32) void,
     scroll: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
-    syncCursor: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
     posBufIndex: *const fn (ctx: *const anyopaque, *FrameBuffer, vga.Position) u32,
 };
 
@@ -52,13 +52,14 @@ pub fn writer(self: *Self) anyopaque {
 
 pub fn clear(self: *Self) void {
     self.target.clearRaw(self.target.context, self);
+
     self.setCursor(0, 0);
-    self.target.syncCursor(self.target.context, self);
+    self.syncCursor();
 }
 
 pub fn writeCh(self: *Self, ch: u8) void {
     self.writeChInternal(ch);
-    self.target.syncCursor(self.target.context, self);
+    self.syncCursor();
 }
 
 pub fn writeStr(self: *Self, data: []const u8) void {
@@ -70,7 +71,7 @@ pub fn writeStr(self: *Self, data: []const u8) void {
         self.writeChInternal(c);
     }
 
-    self.target.syncCursor(self.target.context, self);
+    self.syncCursor();
 }
 
 pub fn printf(self: *Self, comptime format: []const u8, args: anytype) void {
@@ -103,6 +104,14 @@ pub fn setCursor(self: *Self, x: u32, y: u32) void {
 pub fn bufferSlice(self: *Self) []volatile u16 {
     const buf: [*]volatile u16 = @ptrFromInt(self.addr);
     return buf[0..(self.width * self.height)];
+}
+
+fn syncCursor(self: *Self) void {
+    const loc_reg = regs.crt_ctrl.cursor_location;
+    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self, self.pos));
+
+    regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
+    regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
 }
 
 fn writeChInternal(self: *Self, ch: u8) void {
