@@ -97,7 +97,7 @@ pub fn kmain() !void {
     try kstd.log.init(serial_proof);
 
     // Init VGA.
-    vga.init(kallocator, boot_info.frame_buffer.?.*);
+    try vga.init(kallocator, boot_info.frame_buffer.?.*);
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");

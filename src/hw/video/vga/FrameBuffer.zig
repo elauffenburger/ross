@@ -9,6 +9,7 @@ pub const FrameBufferTarget = struct {
     writeChAt: *const fn (ctx: *const anyopaque, *FrameBuffer, ch: vga.Char, x: u32, y: u32) void,
     scroll: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
     syncCursor: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
+    posBufIndex: *const fn (ctx: *const anyopaque, *FrameBuffer, vga.Position) u32,
 };
 
 const Self = @This();
@@ -30,6 +31,7 @@ pixel_width: u32,
 pos: vga.Position = .{ .x = 0, .y = 0 },
 colors: vga.ColorPair,
 
+// NOTE: if we change any properties like width, height, etc., we _must_ recreate the target!
 target: *FrameBufferTarget,
 
 pub fn init() Self {}
@@ -50,6 +52,7 @@ pub fn writer(self: *Self) anyopaque {
 
 pub fn clear(self: *Self) void {
     self.target.clearRaw(self.target.context, self);
+    self.setCursor(0, 0);
     self.target.syncCursor(self.target.context, self);
 }
 
@@ -91,8 +94,15 @@ pub fn setCursor(self: *Self, x: u32, y: u32) void {
 
     if (self.pos.y == self.height) {
         self.target.scroll(self.target.context, self);
+        self.setCursor(0, self.height - 1);
+
         return;
     }
+}
+
+pub fn bufferSlice(self: *Self) []volatile u16 {
+    const buf: [*]volatile u16 = @ptrFromInt(self.addr);
+    return buf[0..(self.width * self.height)];
 }
 
 fn writeChInternal(self: *Self, ch: u8) void {

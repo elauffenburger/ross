@@ -13,14 +13,10 @@ width: u32,
 height: u32,
 
 temp_buf: []u16,
-empty_line: []u16,
 
 target: FrameBuffer.FrameBufferTarget,
 
 pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
-    const empty_line = try allocator.alloc(u16, width);
-    @memset(empty_line, Char.Empty.code());
-
     const temp_buf = try allocator.alloc(u16, width * height - width);
 
     const self = try allocator.create(Self);
@@ -31,7 +27,6 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
         .height = height,
 
         .temp_buf = temp_buf,
-        .empty_line = empty_line,
 
         .target = .{
             .context = self,
@@ -47,38 +42,41 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
     return self;
 }
 
-pub fn clearRaw(_: *const anyopaque, frame_buf: *FrameBuffer) void {
-    const buf = frame_buf.bufferSlice();
+pub fn clearRaw(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
+    const self = fromCtx(ctx);
+    const buf = self.bufferSlice(frame_buf);
+    _ = buf; // autofix
 
-    @memset(buf, Char.code(.{ .colors = frame_buf.colors, .ch = ' ' }));
+    @panic("unimplemented!");
 }
 
 pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, x: u32, y: u32) void {
     const self = fromCtx(ctx);
     const index = self.bufIndex(x, y);
+    _ = index; // autofix
 
     var code: u16 = @intCast(ch.colors.code());
     code <<= 8;
     code |= ch.ch;
 
-    const buffer = frame_buf.bufferSlice();
-    buffer[index] = code;
+    const buffer = self.bufferSlice(frame_buf);
+    _ = buffer; // autofix
+
+    @panic("unimplemented!");
 }
 
 pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     const self = fromCtx(ctx);
 
     const width = self.width;
+    _ = width; // autofix
     const height = self.height;
+    _ = height; // autofix
 
-    const buf = frame_buf.bufferSlice();
+    const buf = self.bufferSlice(frame_buf);
+    _ = buf; // autofix
 
-    // Copy vga buffer to temp buffer offset by one line.
-    @memcpy(self.temp_buf, buf[width..(width * height)]);
-
-    // Copy tmp buf back to vga buf and clear the last line.
-    @memcpy(buf[0 .. (width * height) - width], self.temp_buf);
-    @memcpy(buf[(width * height) - width ..], self.empty_line);
+    @panic("unimplemented!");
 }
 
 pub fn syncCursor(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
@@ -97,7 +95,15 @@ pub fn posBufIndex(ctx: *const anyopaque, _: *FrameBuffer, pos: vga.Position) u3
 }
 
 inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
-    return y * self.width + x;
+    _ = self; // autofix
+    _ = x; // autofix
+    _ = y; // autofix
+    @panic("unimplemented!");
+}
+
+fn bufferSlice(self: *Self, frame_buf: *FrameBuffer) []volatile u16 {
+    const buf: [*]volatile u16 = @ptrFromInt(frame_buf.addr);
+    return buf[0..(self.width * self.height)];
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {

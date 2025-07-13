@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const multiboot2 = @import("../../boot/multiboot2.zig");
+const DirectModeFrameBufferTarget = @import("vga/DirectModeFrameBufferTarget.zig");
 const FrameBuffer = @import("vga/FrameBuffer.zig");
 pub const regs = @import("vga/registers.zig");
 const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
@@ -10,13 +11,16 @@ var frame_buffer: FrameBuffer = undefined;
 
 pub fn writer() anyopaque {}
 
-pub fn init(allocator: std.mem.Allocator, frame_buffer_info: multiboot2.boot_info.FrameBufferInfo) void {
+pub fn init(allocator: std.mem.Allocator, frame_buffer_info: multiboot2.boot_info.FrameBufferInfo) !void {
+    const width, const height = .{ frame_buffer_info.framebuffer_width, frame_buffer_info.framebuffer_height };
+
     // Save frame buffer info.
     frame_buffer = .{
         .addr = @intCast(frame_buffer_info.framebuffer_addr),
 
-        .width = frame_buffer_info.framebuffer_width,
-        .height = frame_buffer_info.framebuffer_height,
+        .width = width,
+        .height = height,
+
         .pitch = frame_buffer_info.framebuffer_pitch,
         .pixel_width = 8 * frame_buffer_info.framebuffer_bpp,
 
@@ -28,14 +32,11 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: multiboot2.boot_inf
         .target = blk: {
             switch (frame_buffer_info.framebuffer_type) {
                 .ega => {
-                    const target = TextModeFrameBufferTarget.create(
-                        allocator,
-                        frame_buffer_info.framebuffer_width,
-                        frame_buffer_info.framebuffer_height,
-                    ) catch |err| {
-                        std.debug.panic("unable to create frame buffer target: {}", .{err});
-                    };
-
+                    const target = try TextModeFrameBufferTarget.create(allocator, width, height);
+                    break :blk &target.target;
+                },
+                .direct => {
+                    const target = try DirectModeFrameBufferTarget.create(allocator, width, height);
                     break :blk &target.target;
                 },
                 else => std.debug.panic("unsupported framebuffer type: {}", .{frame_buffer_info.framebuffer_type}),
