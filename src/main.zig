@@ -17,15 +17,15 @@ pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
     });
 
     const tags = &.{
-        multiboot2.tag.FramebufferTag{
-            .val = .{
-                .width = 800,
-                .height = 600,
-            },
-        },
+        // multiboot2.tag.FramebufferTag{
+        //     .val = .{
+        //         .width = 800,
+        //         .height = 600,
+        //     },
+        // },
         InfoRequest{
             .val = .{
-                .flags = .{ .optional = false },
+                .flags = .{ .optional = true },
             },
         },
         multiboot2.tag.ModuleAlignmentTag{ .val = .{} },
@@ -83,7 +83,7 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
-    _ = multiboot2.boot_info.parse(multiboot2_info_addr);
+    const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
 
     // Init kernel memory management.
     kstd.mem.init();
@@ -95,7 +95,7 @@ pub fn kmain() !void {
     try kstd.log.init(serial_proof);
 
     // Init VGA.
-    vga.init();
+    vga.init(boot_info.frame_buffer.?.*);
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");

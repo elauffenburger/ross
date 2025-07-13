@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const BootInfoStart = packed struct {
+const BootInfoStart = packed struct {
     total_size: u32,
     reserved: u32 = undefined,
 };
@@ -85,6 +85,18 @@ pub const BootInfo = struct {
 };
 
 pub fn parse(info_addr: usize) BootInfo {
+    // NOTE: here's what we're currently getting:
+    // 1 cmd line
+    // 2 bootloader name
+    // 4 memory info
+    // 6 memory map
+    // 8 framebuffer
+    // 9 ELF
+    // 13 efi system table
+    // 14 rsdp acpi
+    //
+    // TODO: we want to use VESA extensions at some point, but the bootloader isn't reporting that to us even though it's not claiming it doesn't support the tag...weird.
+
     const info_start: *BootInfoStart = @ptrFromInt(info_addr);
 
     const start = info_addr;
