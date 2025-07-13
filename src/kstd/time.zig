@@ -40,7 +40,7 @@ pub fn registerTimer(timer: *Timer) !void {
     var entry = timers.getEntryFor(timer);
 
     // TODO: make sure this entry isn't already taken somehow.
-    entry.set(try kstd.mem.kernel_heap_allocator.create(TimerTreap.Node));
+    entry.set(try kstd.mem.kheap_allocator.create(TimerTreap.Node));
 }
 
 pub fn tick() void {

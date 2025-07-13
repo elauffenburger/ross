@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub const kernel_heap_allocator = @import("mem/KernelHeapAllocator.zig").kernel_heap_allocator;
+pub var kheap_allocator = @import("mem/KernelHeapAllocator.zig").allocator;
 pub const stack = @import("mem/stack.zig");
 
 // Reserve a 512MiB heap in .bss section.

@@ -88,7 +88,7 @@ fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: Vir
 }
 
 fn newPageTable() !*PageTable {
-    return &(try kstd.mem.kernel_heap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
+    return &(try kstd.mem.kheap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
 }
 
 pub const ProcessVirtualMemory = struct {

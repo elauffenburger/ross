@@ -50,9 +50,9 @@ pub fn init() !InitProof {
 
     // Init the kernel_proc.
     {
-        const vm = try kstd.mem.kernel_heap_allocator.create(hw.vmem.ProcessVirtualMemory);
+        const vm = try kstd.mem.kheap_allocator.create(hw.vmem.ProcessVirtualMemory);
 
-        kernel_proc = try kstd.mem.kernel_heap_allocator.create(Process);
+        kernel_proc = try kstd.mem.kheap_allocator.create(Process);
         kernel_proc.* = .{
             .esp = 0,
             .esp0 = 0,
@@ -92,12 +92,12 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
     defer asm volatile ("sti");
 
     // Reuse or create a new proc for this kproc.
-    const proc: *Process = try kstd.mem.kernel_heap_allocator.create(Process);
+    const proc: *Process = try kstd.mem.kheap_allocator.create(Process);
     proc.* = blk_proc: {
         // Allocate a new kernel stack such that registers will be popped in the following order:
         const esp0 = blk_esp0: {
             // HACK: this leaks.
-            const stack_buf = try kstd.mem.kernel_heap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+            const stack_buf = try kstd.mem.kheap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
 
             const esp0 = build_proc_stack_esp(
                 stack_buf,
@@ -145,7 +145,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         }
 
         // ...otherwise, create a new node for this entry.
-        proc_entry.set(try kstd.mem.kernel_heap_allocator.create(ProcessTreap.Node));
+        proc_entry.set(try kstd.mem.kheap_allocator.create(ProcessTreap.Node));
     }
 
     // Update the last created proc's next to be this proc and mark this the last created proc.
