@@ -7,7 +7,7 @@ const regs = @import("registers.zig");
 pub const FrameBufferTarget = struct {
     context: *anyopaque,
     clearRaw: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
-    writeChAt: *const fn (ctx: *const anyopaque, *FrameBuffer, ch: vga.Char, x: u32, y: u32) void,
+    writeChAt: *const fn (ctx: *const anyopaque, *FrameBuffer, ch: vga.Char, pos: vga.Position) void,
     scroll: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
     posBufIndex: *const fn (ctx: *const anyopaque, *FrameBuffer, vga.Position) u32,
 };
@@ -120,7 +120,7 @@ fn writeChInternal(self: *Self, ch: u8) void {
         return;
     }
 
-    self.target.writeChAt(self.target.context, self, .{ .ch = ch, .colors = self.colors }, self.pos.x, self.pos.y);
+    self.target.writeChAt(self.target.context, self, .{ .ch = ch, .colors = self.colors }, self.pos);
     self.setCursor(self.pos.x + 1, self.pos.y);
 }
 

@@ -44,22 +44,16 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
 pub fn clearRaw(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     const self = fromCtx(ctx);
     const buf = self.bufferSlice(frame_buf);
-    _ = buf; // autofix
 
-    @panic("unimplemented!");
+    @memset(buf, Char.Empty.code());
 }
 
-pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, x: u32, y: u32) void {
+pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
+    _ = pos; // autofix
+    _ = frame_buf; // autofix
+    _ = ch; // autofix
     const self = fromCtx(ctx);
-    const index = self.bufIndex(x, y);
-    _ = index; // autofix
-
-    var code: u16 = @intCast(ch.colors.code());
-    code <<= 8;
-    code |= ch.ch;
-
-    const buffer = self.bufferSlice(frame_buf);
-    _ = buffer; // autofix
+    _ = self; // autofix
 
     @panic("unimplemented!");
 }
@@ -78,16 +72,19 @@ pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     @panic("unimplemented!");
 }
 
-pub fn posBufIndex(ctx: *const anyopaque, _: *FrameBuffer, pos: vga.Position) u32 {
-    const self = fromCtx(ctx);
-    return self.bufIndex(pos.x, pos.y);
+pub fn posBufIndex(_: *const anyopaque, frame_buf: *FrameBuffer, pos: vga.Position) u32 {
+    return bufIndex(frame_buf, pos.x, pos.y);
 }
 
-inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
-    _ = self; // autofix
-    _ = x; // autofix
-    _ = y; // autofix
-    @panic("unimplemented!");
+pub fn drawPixel(_: *Self, frame_buf: *FrameBuffer, pos: vga.Position, color: RGBColor) void {
+    const index = bufIndex(frame_buf, pos.x, pos.y);
+    const pixel: *u32 = @ptrFromInt(frame_buf.addr + index);
+
+    pixel.* = @bitCast(color);
+}
+
+inline fn bufIndex(frame_buf: *FrameBuffer, x: u32, y: u32) u32 {
+    return y * frame_buf.pitch + x * frame_buf.pixel_width;
 }
 
 fn bufferSlice(self: *Self, frame_buf: *FrameBuffer) []volatile u16 {
@@ -98,3 +95,11 @@ fn bufferSlice(self: *Self, frame_buf: *FrameBuffer) []volatile u16 {
 fn fromCtx(ctx: *const anyopaque) *Self {
     return @alignCast(@constCast(@ptrCast(ctx)));
 }
+
+// NOTE: this is 0x00RRGGBB but encoded as little-endian.
+const RGBColor = packed struct(u32) {
+    blue: u8 = 0,
+    green: u8 = 0,
+    red: u8 = 0,
+    _r1: u8 = 0,
+};

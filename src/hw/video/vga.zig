@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const multiboot2 = @import("../../boot/multiboot2.zig");
+const kstd = @import("../../kstd.zig");
 const DirectModeFrameBufferTarget = @import("vga/DirectModeFrameBufferTarget.zig");
 const FrameBuffer = @import("vga/FrameBuffer.zig");
 pub const regs = @import("vga/registers.zig");
@@ -9,20 +10,42 @@ const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
 // SAFETY: set in init.
 var frame_buffer: FrameBuffer = undefined;
 
-pub fn writer() anyopaque {}
+pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_info.FrameBufferInfo) !void {
+    const width, const height = .{ frame_buffer_info.width, frame_buffer_info.height };
 
-pub fn init(allocator: std.mem.Allocator, frame_buffer_info: multiboot2.boot_info.FrameBufferInfo) !void {
-    const width, const height = .{ frame_buffer_info.framebuffer_width, frame_buffer_info.framebuffer_height };
+    const color_info = frame_buffer_info.color_info;
+    kstd.log.dbgf(
+        \\ addr: 0x{x}
+        \\ bpp: {}
+        \\ red_field_position: {}
+        \\ red_mask_size: {}
+        \\ green_field_position: {}
+        \\ green_mask_size: {}
+        \\ blue_field_position: {}
+        \\ blue_mask_size: {}
+        \\
+    ,
+        .{
+            frame_buffer_info.addr,
+            frame_buffer_info.bpp,
+            color_info.direct.red_field_position,
+            color_info.direct.red_mask_size,
+            color_info.direct.green_field_position,
+            color_info.direct.green_mask_size,
+            color_info.direct.blue_field_position,
+            color_info.direct.blue_mask_size,
+        },
+    );
 
     // Save frame buffer info.
     frame_buffer = .{
-        .addr = @intCast(frame_buffer_info.framebuffer_addr),
+        .addr = @intCast(frame_buffer_info.addr),
 
         .width = width,
         .height = height,
 
-        .pitch = frame_buffer_info.framebuffer_pitch,
-        .pixel_width = 8 * frame_buffer_info.framebuffer_bpp,
+        .pitch = frame_buffer_info.pitch,
+        .pixel_width = @as(u32, frame_buffer_info.bpp) / 8,
 
         .colors = ColorPair{
             .fg = Color.LightGray,
@@ -54,22 +77,42 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: multiboot2.boot_inf
 
     // Clear screen.
     clear();
+
+    // HACK: test
+    const t = @as(*DirectModeFrameBufferTarget, @alignCast(@constCast(@ptrCast(frame_buffer.target.context))));
+    for (0..100, 0..100) |x, y| {
+        // const red = 0x00ff0000;
+
+        // const addr = frame_buffer.addr + (x * frame_buffer.pixel_width) + (y * frame_buffer.pitch);
+        // const pixel: *u32 = @ptrFromInt(addr);
+        // pixel.* = red;
+
+        t.drawPixel(
+            &frame_buffer,
+            .{ .x = x, .y = y },
+            .{ .green = 0xff },
+        );
+    }
 }
 
 pub fn clear() void {
-    frame_buffer.clear();
+    // frame_buffer.clear();
 }
 
 pub fn writeCh(ch: u8) void {
-    frame_buffer.writeCh(ch);
+    _ = ch; // autofix
+    // frame_buffer.writeCh(ch);
 }
 
 pub fn writeStr(data: []const u8) void {
-    frame_buffer.writeStr(data);
+    _ = data; // autofix
+    // frame_buffer.writeStr(data);
 }
 
 pub fn printf(comptime format: []const u8, args: anytype) void {
-    frame_buffer.printf(format, args);
+    _ = format; // autofix
+    _ = args; // autofix
+    // frame_buffer.printf(format, args);
 }
 
 pub const Position = struct {

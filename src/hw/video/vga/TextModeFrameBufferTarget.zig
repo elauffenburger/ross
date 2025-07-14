@@ -52,9 +52,9 @@ pub fn clearRaw(_: *const anyopaque, frame_buf: *FrameBuffer) void {
     @memset(buf, Char.code(.{ .colors = frame_buf.colors, .ch = ' ' }));
 }
 
-pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, x: u32, y: u32) void {
+pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
     const self = fromCtx(ctx);
-    const index = self.bufIndex(x, y);
+    const index = self.bufIndex(pos.x, pos.y);
 
     var code: u16 = @intCast(ch.colors.code());
     code <<= 8;

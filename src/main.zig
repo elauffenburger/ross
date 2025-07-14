@@ -17,12 +17,12 @@ pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
     });
 
     const tags = &.{
-        // multiboot2.tag.FramebufferTag{
-        //     .val = .{
-        //         .width = 800,
-        //         .height = 600,
-        //     },
-        // },
+        multiboot2.tag.FramebufferTag{
+            .val = .{
+                .width = 800,
+                .height = 600,
+            },
+        },
         InfoRequest{
             .val = .{
                 .flags = .{ .optional = true },
@@ -97,7 +97,7 @@ pub fn kmain() !void {
     try kstd.log.init(serial_proof);
 
     // Init VGA.
-    try vga.init(kallocator, boot_info.frame_buffer.?.*);
+    try vga.init(kallocator, boot_info.frame_buffer.?);
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");

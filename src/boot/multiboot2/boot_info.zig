@@ -25,11 +25,11 @@ pub const FrameBufferInfo = packed struct {
 
     header: TagHeader,
 
-    framebuffer_addr: u64,
-    framebuffer_pitch: u32,
-    framebuffer_width: u32,
-    framebuffer_height: u32,
-    framebuffer_bpp: u8,
+    addr: u64,
+    pitch: u32,
+    width: u32,
+    height: u32,
+    bpp: u8,
 
     framebuffer_type: enum(u8) {
         indexed = 0,
@@ -42,7 +42,7 @@ pub const FrameBufferInfo = packed struct {
     // NOTE: the remaining content is a variable-size color_info field.
     color_info: packed union {
         indexed: packed struct {
-            framebuffer_palette_num_colors: u32,
+            palette_num_colors: u32,
 
             // NOTE: the remaining content is an array of color descriptors.
             const ColorDescriptor = packed struct {
@@ -53,12 +53,14 @@ pub const FrameBufferInfo = packed struct {
         },
 
         direct: packed struct {
-            framebuffer_red_field_position: u8,
-            framebuffer_red_mask_size: u8,
-            framebuffer_green_field_position: u8,
-            framebuffer_green_mask_size: u8,
-            framebuffer_blue_field_position: u8,
-            framebuffer_blue_mask_size: u8,
+            red_field_position: u8,
+            red_mask_size: u8,
+
+            green_field_position: u8,
+            green_mask_size: u8,
+
+            blue_field_position: u8,
+            blue_mask_size: u8,
         },
 
         ega: packed struct {},
@@ -146,7 +148,7 @@ pub fn parse(info_addr: usize) BootInfo {
 
     if (result.frame_buffer) |buf_ptr| {
         const buf = buf_ptr.*;
-        const addr = buf.framebuffer_addr;
+        const addr = buf.addr;
         const typ = buf.framebuffer_type;
         _ = typ; // autofix
         _ = addr; // autofix
