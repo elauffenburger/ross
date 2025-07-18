@@ -13,30 +13,6 @@ var frame_buffer: FrameBuffer = undefined;
 pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_info.FrameBufferInfo) !void {
     const width, const height = .{ frame_buffer_info.width, frame_buffer_info.height };
 
-    const color_info = frame_buffer_info.color_info;
-    kstd.log.dbgf(
-        \\ addr: 0x{x}
-        \\ bpp: {}
-        \\ red_field_position: {}
-        \\ red_mask_size: {}
-        \\ green_field_position: {}
-        \\ green_mask_size: {}
-        \\ blue_field_position: {}
-        \\ blue_mask_size: {}
-        \\
-    ,
-        .{
-            frame_buffer_info.addr,
-            frame_buffer_info.bpp,
-            color_info.direct.red_field_position,
-            color_info.direct.red_mask_size,
-            color_info.direct.green_field_position,
-            color_info.direct.green_mask_size,
-            color_info.direct.blue_field_position,
-            color_info.direct.blue_mask_size,
-        },
-    );
-
     // Save frame buffer info.
     frame_buffer = .{
         .addr = @intCast(frame_buffer_info.addr),
@@ -77,26 +53,10 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_in
 
     // Clear screen.
     clear();
-
-    // HACK: test
-    const t = @as(*DirectModeFrameBufferTarget, @alignCast(@constCast(@ptrCast(frame_buffer.target.context))));
-    for (0..100, 0..100) |x, y| {
-        // const red = 0x00ff0000;
-
-        // const addr = frame_buffer.addr + (x * frame_buffer.pixel_width) + (y * frame_buffer.pitch);
-        // const pixel: *u32 = @ptrFromInt(addr);
-        // pixel.* = red;
-
-        t.drawPixel(
-            &frame_buffer,
-            .{ .x = x, .y = y },
-            .{ .green = 0xff },
-        );
-    }
 }
 
 pub fn clear() void {
-    // frame_buffer.clear();
+    frame_buffer.clear();
 }
 
 pub fn writeCh(ch: u8) void {

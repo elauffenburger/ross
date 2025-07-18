@@ -45,7 +45,7 @@ pub fn clearRaw(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     const self = fromCtx(ctx);
     const buf = self.bufferSlice(frame_buf);
 
-    @memset(buf, Char.Empty.code());
+    @memset(buf, 0);
 }
 
 pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
@@ -87,9 +87,9 @@ inline fn bufIndex(frame_buf: *FrameBuffer, x: u32, y: u32) u32 {
     return y * frame_buf.pitch + x * frame_buf.pixel_width;
 }
 
-fn bufferSlice(self: *Self, frame_buf: *FrameBuffer) []volatile u16 {
-    const buf: [*]volatile u16 = @ptrFromInt(frame_buf.addr);
-    return buf[0..(self.width * self.height)];
+fn bufferSlice(self: *Self, frame_buf: *FrameBuffer) []volatile u32 {
+    const buf: [*]volatile u32 = @ptrFromInt(frame_buf.addr);
+    return buf[0 .. bufIndex(frame_buf, self.width, self.height) + 1];
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {
