@@ -5,6 +5,7 @@ const kstd = @import("../../kstd.zig");
 const DirectModeFrameBufferTarget = @import("vga/DirectModeFrameBufferTarget.zig");
 const FrameBuffer = @import("vga/FrameBuffer.zig");
 pub const regs = @import("vga/registers.zig");
+const psf = @import("vga/text/psf.zig");
 const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
 
 // SAFETY: set in init.
@@ -12,6 +13,30 @@ var frame_buffer: FrameBuffer = undefined;
 
 pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_info.FrameBufferInfo) !void {
     const width, const height = .{ frame_buffer_info.width, frame_buffer_info.height };
+
+    const color_info = frame_buffer_info.color_info;
+    kstd.log.dbgf(
+        \\ addr: 0x{x}
+        \\ bpp: {}
+        \\ red_field_position: {}
+        \\ red_mask_size: {}
+        \\ green_field_position: {}
+        \\ green_mask_size: {}
+        \\ blue_field_position: {}
+        \\ blue_mask_size: {}
+        \\
+    ,
+        .{
+            frame_buffer_info.addr,
+            frame_buffer_info.bpp,
+            color_info.direct.red_field_position,
+            color_info.direct.red_mask_size,
+            color_info.direct.green_field_position,
+            color_info.direct.green_mask_size,
+            color_info.direct.blue_field_position,
+            color_info.direct.blue_mask_size,
+        },
+    );
 
     // Save frame buffer info.
     frame_buffer = .{
@@ -27,6 +52,8 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_in
             .fg = Color.LightGray,
             .bg = Color.Black,
         },
+
+        .font = psf.Fonts.@"Uni1-Fixed16",
 
         .target = blk: {
             switch (frame_buffer_info.framebuffer_type) {
@@ -53,6 +80,22 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_in
 
     // Clear screen.
     clear();
+
+    // HACK: test
+    const t = @as(*DirectModeFrameBufferTarget, @alignCast(@constCast(@ptrCast(frame_buffer.target.context))));
+    for (0..100, 0..100) |x, y| {
+        // const red = 0x00ff0000;
+
+        // const addr = frame_buffer.addr + (x * frame_buffer.pixel_width) + (y * frame_buffer.pitch);
+        // const pixel: *u32 = @ptrFromInt(addr);
+        // pixel.* = red;
+
+        t.drawPixel(
+            &frame_buffer,
+            .{ .x = x, .y = y },
+            .{ .green = 0xff },
+        );
+    }
 }
 
 pub fn clear() void {
@@ -60,19 +103,15 @@ pub fn clear() void {
 }
 
 pub fn writeCh(ch: u8) void {
-    _ = ch; // autofix
-    // frame_buffer.writeCh(ch);
+    frame_buffer.writeCh(ch);
 }
 
 pub fn writeStr(data: []const u8) void {
-    _ = data; // autofix
-    // frame_buffer.writeStr(data);
+    frame_buffer.writeStr(data);
 }
 
 pub fn printf(comptime format: []const u8, args: anytype) void {
-    _ = format; // autofix
-    _ = args; // autofix
-    // frame_buffer.printf(format, args);
+    frame_buffer.printf(format, args);
 }
 
 pub const Position = struct {

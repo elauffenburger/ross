@@ -3,6 +3,7 @@ const std = @import("std");
 const vga = @import("../vga.zig");
 const FrameBuffer = @import("FrameBuffer.zig");
 const regs = @import("registers.zig");
+const psf = @import("text/psf.zig");
 
 pub const FrameBufferTarget = struct {
     context: *anyopaque,
@@ -30,6 +31,8 @@ pixel_width: u32,
 
 pos: vga.Position = .{ .x = 0, .y = 0 },
 colors: vga.ColorPair,
+
+font: psf.Font,
 
 // NOTE: if we change any properties like width, height, etc., we _must_ recreate the target!
 target: *FrameBufferTarget,

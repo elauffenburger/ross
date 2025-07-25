@@ -83,6 +83,8 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 }
 
 pub fn kmain() !void {
+    // TODO: make sure a20 line is enabled; this _should_ happen after serial communication, but we need to make sure.
+
     // Verify the boot was successful.
     const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
 
