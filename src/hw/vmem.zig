@@ -24,9 +24,10 @@ pub fn init(pic_proof: pic.InitProof, proc_proof: kstd.proc.InitProof) !void {
     const kernel_proc = kstd.proc.kernelProc();
 
     // Identity-map the kernel into the kernel_proc.
-    // try mapPages(proc.kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
-    // HACK: we're just going to map the entire address space.
     try mapPages(kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
+
+    // HACK: manually map in the frame buffer (but the number of bytes is totally arbitrary; there's something really weird here but i don't know what's going on with the byte limits).
+    try mapPages(kernel_proc.vm, 0xfd00_0000, .{ .addr = 0xfd00_0000 }, 0x00c0_0000);
 
     // Map the kernel into the shared process virtual memory.
     try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);

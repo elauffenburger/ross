@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const kstd = @import("../../../kstd.zig");
 const vga = @import("../vga.zig");
 const Char = vga.Char;
 const FrameBuffer = @import("FrameBuffer.zig");
@@ -49,13 +50,32 @@ pub fn clearRaw(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
 }
 
 pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
-    _ = pos; // autofix
-    _ = frame_buf; // autofix
-    _ = ch; // autofix
     const self = fromCtx(ctx);
-    _ = self; // autofix
 
-    @panic("unimplemented!");
+    // HACK: think about how to handle characters that won't fit on the current line
+    const font_char = frame_buf.font.chars[ch.ch];
+    var i: usize = 0;
+
+    for (0..frame_buf.font.char_info.height) |y| {
+        const row = font_char.bitmap[y];
+
+        for (0..frame_buf.font.char_info.width) |x| {
+            const bit = @as(u8, 1) << (7 - @as(u3, @intCast(x)));
+            if (row & bit != 0) {
+                kstd.log.dbgf("x", .{});
+
+                self.drawPixel(
+                    frame_buf,
+                    .{ .x = pos.x + x, .y = pos.y + y },
+                    .{ .red = 0, .green = 0, .blue = 255 },
+                );
+            } else {
+                kstd.log.dbgf(" ", .{});
+            }
+
+            i += 1;
+        }
+    }
 }
 
 pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
@@ -97,7 +117,7 @@ fn fromCtx(ctx: *const anyopaque) *Self {
 }
 
 // NOTE: this is 0x00RRGGBB but encoded as little-endian.
-const RGBColor = packed struct(u32) {
+pub const RGBColor = packed struct(u32) {
     blue: u8 = 0,
     green: u8 = 0,
     red: u8 = 0,

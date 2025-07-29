@@ -24,11 +24,11 @@
       "cwd": ".",
       "program": "${workspaceFolder}/zig-out/bin/ross",
       "miDebuggerServerAddress": "localhost:1234",
+      "stopAtEntry": true,
       "postRemoteConnectCommands": [
         // HACK: debugging irq process switching:
+        { "text": "b 0x00148348" },
         { "text": "b 0x00100057" },
-        // "b 0x00100030",
-        // "b 0x00100062",
       ]
     }
   ]

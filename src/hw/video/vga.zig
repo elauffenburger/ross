@@ -2,14 +2,14 @@ const std = @import("std");
 
 const multiboot2 = @import("../../boot/multiboot2.zig");
 const kstd = @import("../../kstd.zig");
-const DirectModeFrameBufferTarget = @import("vga/DirectModeFrameBufferTarget.zig");
-const FrameBuffer = @import("vga/FrameBuffer.zig");
+pub const DirectModeFrameBufferTarget = @import("vga/DirectModeFrameBufferTarget.zig");
+pub const FrameBuffer = @import("vga/FrameBuffer.zig");
 pub const regs = @import("vga/registers.zig");
-const psf = @import("vga/text/psf.zig");
-const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
+pub const psf = @import("vga/text/psf.zig");
+pub const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
 
 // SAFETY: set in init.
-var frame_buffer: FrameBuffer = undefined;
+pub var frame_buffer: FrameBuffer = undefined;
 
 pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_info.FrameBufferInfo) !void {
     const width, const height = .{ frame_buffer_info.width, frame_buffer_info.height };
@@ -80,22 +80,6 @@ pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_in
 
     // Clear screen.
     clear();
-
-    // HACK: test
-    const t = @as(*DirectModeFrameBufferTarget, @alignCast(@constCast(@ptrCast(frame_buffer.target.context))));
-    for (0..100, 0..100) |x, y| {
-        // const red = 0x00ff0000;
-
-        // const addr = frame_buffer.addr + (x * frame_buffer.pixel_width) + (y * frame_buffer.pitch);
-        // const pixel: *u32 = @ptrFromInt(addr);
-        // pixel.* = red;
-
-        t.drawPixel(
-            &frame_buffer,
-            .{ .x = x, .y = y },
-            .{ .green = 0xff },
-        );
-    }
 }
 
 pub fn clear() void {
