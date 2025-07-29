@@ -70,7 +70,7 @@ pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: 
                     .{ .red = 0, .green = 0, .blue = 255 },
                 );
             } else {
-                kstd.log.dbgf(" ", .{});
+                kstd.log.dbgf("o", .{});
             }
 
             i += 1;
