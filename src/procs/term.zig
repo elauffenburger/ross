@@ -7,7 +7,8 @@ const kstd = @import("../kstd.zig");
 const InputBuf = std.fifo.LinearFifo(u8, .{ .Static = 2048 });
 
 pub fn main() !void {
-    kstd.log.dbg("in term!");
+    // HACK: disabled because i _think_ we have some kind of race condition with the serial driver or something; if this is enabled we _sometimes_ just fail to finish logging everything to serial from the "enabling portx scan codes..." messages.
+    // kstd.log.dbg("in term!");
 
     var input_buf: InputBuf = InputBuf.init();
     var events_buf: [10]hw.io.keyboard.KeyEvent = undefined;

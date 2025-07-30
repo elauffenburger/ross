@@ -56,25 +56,30 @@ pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: 
     const font_char = frame_buf.font.chars[ch.ch];
     var i: usize = 0;
 
-    for (0..frame_buf.font.char_info.height) |y| {
+    const width = frame_buf.font.char_info.width;
+    const height = frame_buf.font.char_info.height;
+
+    for (0..height) |y| {
         const row = font_char.bitmap[y];
 
-        for (0..frame_buf.font.char_info.width) |x| {
+        for (0..width) |x| {
             const bit = @as(u8, 1) << (7 - @as(u3, @intCast(x)));
             if (row & bit != 0) {
                 kstd.log.dbgf("x", .{});
 
                 self.drawPixel(
                     frame_buf,
-                    .{ .x = pos.x + x, .y = pos.y + y },
+                    .{ .x = (pos.x * width) + x, .y = (pos.y * height) + y },
                     .{ .red = 0, .green = 0, .blue = 255 },
                 );
             } else {
-                kstd.log.dbgf("o", .{});
+                kstd.log.dbgf(" ", .{});
             }
 
             i += 1;
         }
+
+        kstd.log.dbg("");
     }
 }
 

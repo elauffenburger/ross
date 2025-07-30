@@ -6,24 +6,22 @@ pub const Fonts = struct {
     fn ParsedFont(buf: []const u8) type {
         const Parser = struct {
             fn Psf1() type {
-                @setEvalBranchQuota(2048);
+                @setEvalBranchQuota(20000);
+
+                // TODO: handle padding for fonts that aren't whole byte numbers in size.
 
                 // Parse the header.
-                const header = std.mem.bytesToValue(psf1.Header, buf[0..32]);
+                const header = std.mem.bytesToValue(psf1.Header, buf[0..4]);
 
                 // Calculate character dimensions.
                 const ch_width = 8;
-                const ch_height = header.char_size - ch_width;
+                const ch_height = header.char_size;
 
                 // Calculate char info.
-                const chars_bytes = buf[33..];
+                const chars_bytes = buf[4..];
                 const num_chars = if (header.font_mode.has_512_glyphs) 512 else 256;
 
                 comptime var font_chars = [_]Font.Char{undefined} ** num_chars;
-
-                // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
-                const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []u16, usize }, .{ .Static = num_chars });
-                comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
 
                 // Parse each character.
                 var head: usize = 0;
@@ -36,50 +34,66 @@ pub const Fonts = struct {
                     head += header.char_size;
                 }
 
-                // If the font has a unicode table, we can now add the unicode lookup info.
-                for (0..num_chars) |char_i| {
-                    // Add single-point entries.
-                    while (head < font_chars.len) {
-                        const code_point_buf = font_chars[head .. head + 2];
-                        const code_point = std.mem.bytesToValue(u16, code_point_buf);
+                // // If the font has a unicode table, we can now add the unicode lookup info.
+                // if (header.font_mode.has_table or header.font_mode.seq) {
+                //     // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
+                //     const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []const u16, usize }, .{ .Static = num_chars * 3 });
+                //     comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
 
-                        head += 2;
+                //     for (0..num_chars) |char_i| {
+                //         // Add single-point entries.
+                //         while (head < chars_bytes.len) {
+                //             const code_point_buf = chars_bytes[head .. head + 2];
+                //             const code_point = std.mem.bytesToValue(u16, code_point_buf);
 
-                        switch (code_point) {
-                            0xfffe => break,
-                            else => {
-                                font_chars_lookup_entries_raw.writeItem(.{ code_point_buf, char_i });
-                            },
-                        }
-                    }
+                //             head += 2;
 
-                    // Add multi-point sequences.
-                    var uni_char_head = head;
-                    while (head < font_chars.len) {
-                        const code_point_buf = font_chars[head .. head + 2];
-                        const code_point = std.mem.bytesToValue(u16, code_point_buf);
+                //             switch (code_point) {
+                //                 0xfffe => break,
+                //                 else => {
+                //                     font_chars_lookup_entries_raw.writeItem(.{ &[_]u16{code_point}, char_i }) catch |err| {
+                //                         @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
+                //                     };
+                //                 },
+                //             }
+                //         }
 
-                        head += 2;
+                //         // Add multi-point sequences.
+                //         var uni_char_head = head;
+                //         while (head < chars_bytes.len) {
+                //             const code_point_buf = chars_bytes[head .. head + 2];
+                //             const code_point = std.mem.bytesToValue(u16, code_point_buf);
 
-                        switch (code_point) {
-                            0xfffe => {
-                                const as_u16s: [*:0]const u16 = @ptrCast(font_chars[uni_char_head .. head - 2].ptr);
-                                font_chars_lookup_entries_raw.writeItem(.{ as_u16s[0..], char_i });
+                //             head += 2;
 
-                                uni_char_head = head;
-                            },
-                            0xffff => break,
-                        }
-                    }
-                }
+                //             switch (code_point) {
+                //                 0xfffe => {
+                //                     const as_u16s: [*:0]const u16 = @ptrCast(chars_bytes[uni_char_head .. head - 2].ptr);
+                //                     font_chars_lookup_entries_raw.writeItem(.{ as_u16s[0..], char_i }) catch |err| {
+                //                         @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
+                //                     };
 
-                comptime var font_chars_lookup_entries: @TypeOf(font_chars_lookup_entries_raw.buf) = undefined;
-                @memcpy(&font_chars_lookup_entries, &font_chars_lookup_entries_raw.buf);
+                //                     uni_char_head = head;
+                //                 },
+                //                 0xffff => break,
+                //             }
+                //         }
+                //     }
+                // }
+
+                // // HACK: testing
+                // for (font_chars[65].bitmap) |byte| {
+                //     var line = [_]u8{0} ** 8;
+                //     for (0..8) |bit| {
+                //         line[bit] = if (byte & (1 << (7 - bit)) != 0) '1' else ' ';
+                //     }
+
+                //     @compileLog(line);
+                // }
 
                 // Return the Font type with the parsed chars.
                 return struct {
                     const chars = font_chars;
-                    const chars_lookup_entries = font_chars_lookup_entries;
 
                     pub fn font() Font {
                         return .{
@@ -89,19 +103,7 @@ pub const Fonts = struct {
                             },
 
                             .chars = &chars,
-
-                            .charIndexFromCodePoints = charIndexFromCodePoints,
                         };
-                    }
-
-                    fn charIndexFromCodePoints(char_points: []u16) ?usize {
-                        inline for (chars_lookup_entries) |item| {
-                            if (std.mem.eql(u16, item.@"0", char_points)) {
-                                return item.@"1";
-                            }
-                        }
-
-                        return null;
                     }
                 };
             }
@@ -128,7 +130,7 @@ pub const Fonts = struct {
 // NOTE: All field values are little-endian.
 
 const psf1 = struct {
-    const Header = packed struct {
+    const Header = packed struct(u32) {
         const Magic = 0x0436;
 
         magic: u16 = Magic,
@@ -187,5 +189,4 @@ pub const Font = struct {
         height: u8,
     },
     chars: []const Char,
-    charIndexFromCodePoints: *const fn (char_points: []u16) ?usize,
 };
