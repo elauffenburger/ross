@@ -81,16 +81,6 @@ pub const Fonts = struct {
                 //     }
                 // }
 
-                // // HACK: testing
-                // for (font_chars[65].bitmap) |byte| {
-                //     var line = [_]u8{0} ** 8;
-                //     for (0..8) |bit| {
-                //         line[bit] = if (byte & (1 << (7 - bit)) != 0) '1' else ' ';
-                //     }
-
-                //     @compileLog(line);
-                // }
-
                 // Return the Font type with the parsed chars.
                 return struct {
                     const chars = font_chars;

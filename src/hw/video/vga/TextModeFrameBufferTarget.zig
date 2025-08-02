@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const vga = @import("../vga.zig");
-const Char = vga.Char;
 const FrameBuffer = @import("FrameBuffer.zig");
 const regs = @import("registers.zig");
 
@@ -49,12 +48,12 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
 pub fn clearRaw(_: *const anyopaque, frame_buf: *FrameBuffer) void {
     const buf = frame_buf.bufferSlice();
 
-    @memset(buf, Char.code(.{ .colors = frame_buf.colors, .ch = ' ' }));
+    @memset(buf, Char.code(.{ .colors = ColorPair.fromRGB(frame_buf.colors), .ch = ' ' }));
 }
 
 pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
     const self = fromCtx(ctx);
-    const index = self.bufIndex(pos.x, pos.y);
+    const index = self.bufIndex(pos.@"0", pos.@"1");
 
     var code: u16 = @intCast(ch.colors.code());
     code <<= 8;
@@ -92,3 +91,56 @@ inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
 fn fromCtx(ctx: *const anyopaque) *Self {
     return @alignCast(@constCast(@ptrCast(ctx)));
 }
+
+pub const Color = enum(u8) {
+    Black = 0,
+    Blue = 1,
+    Green = 2,
+    Cyan = 3,
+    Red = 4,
+    Magenta = 5,
+    Brown = 6,
+    LightGray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
+    LightGreen = 10,
+    LightCyan = 11,
+    LightRed = 12,
+    LightMagenta = 13,
+    LightBrown = 14,
+    White = 15,
+
+    pub fn fromRGB(color: vga.RGBColor) Color {
+        _ = color; // autofix
+    }
+};
+
+pub const ColorPair = packed struct {
+    bg: Color,
+    fg: Color,
+
+    pub fn code(self: @This()) u8 {
+        return (@intFromEnum(self.bg) << 4) | @intFromEnum(self.fg);
+    }
+};
+
+pub const Char = packed struct {
+    pub const Empty = Char{
+        .ch = ' ',
+        .colors = .{
+            .fg = Color.Black,
+            .bg = Color.Black,
+        },
+    };
+
+    colors: ColorPair,
+    ch: u8,
+
+    pub fn code(self: @This()) u16 {
+        var res: u16 = @intCast(self.colors.code());
+        res <<= 8;
+        res |= self.ch;
+
+        return res;
+    }
+};

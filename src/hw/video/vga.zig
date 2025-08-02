@@ -11,63 +11,40 @@ pub const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig
 // SAFETY: set in init.
 pub var frame_buffer: FrameBuffer = undefined;
 
-pub fn init(allocator: std.mem.Allocator, frame_buffer_info: *multiboot2.boot_info.FrameBufferInfo) !void {
-    const width, const height = .{ frame_buffer_info.width, frame_buffer_info.height };
-
-    const color_info = frame_buffer_info.color_info;
-    kstd.log.dbgf(
-        \\ addr: 0x{x}
-        \\ bpp: {}
-        \\ red_field_position: {}
-        \\ red_mask_size: {}
-        \\ green_field_position: {}
-        \\ green_mask_size: {}
-        \\ blue_field_position: {}
-        \\ blue_mask_size: {}
-        \\
-    ,
-        .{
-            frame_buffer_info.addr,
-            frame_buffer_info.bpp,
-            color_info.direct.red_field_position,
-            color_info.direct.red_mask_size,
-            color_info.direct.green_field_position,
-            color_info.direct.green_mask_size,
-            color_info.direct.blue_field_position,
-            color_info.direct.blue_mask_size,
-        },
-    );
+pub fn init(allocator: std.mem.Allocator, mb2_frame_buffer: *multiboot2.boot_info.FrameBufferInfo) !void {
+    const width, const height = .{ mb2_frame_buffer.width, mb2_frame_buffer.height };
 
     // Save frame buffer info.
     frame_buffer = .{
-        .addr = @intCast(frame_buffer_info.addr),
+        .addr = @intCast(mb2_frame_buffer.addr),
 
         .width = width,
         .height = height,
 
-        .pitch = frame_buffer_info.pitch,
-        .pixel_width = @as(u32, frame_buffer_info.bpp) / 8,
+        .pitch = mb2_frame_buffer.pitch,
+        .pixel_width = @as(u32, mb2_frame_buffer.bpp) / 8,
 
-        .colors = ColorPair{
-            .fg = Color.LightGray,
-            .bg = Color.Black,
+        .text = .{
+            .font = psf.Fonts.@"Uni1-Fixed16",
+            .colors = .{
+                .fg = .green,
+                .bg = .black,
+            },
         },
 
-        .font = psf.Fonts.@"Uni1-Fixed16",
+        .target = null,
+    };
 
-        .target = blk: {
-            switch (frame_buffer_info.framebuffer_type) {
-                .ega => {
-                    const target = try TextModeFrameBufferTarget.create(allocator, width, height);
-                    break :blk &target.target;
-                },
-                .direct => {
-                    const target = try DirectModeFrameBufferTarget.create(allocator, width, height);
-                    break :blk &target.target;
-                },
-                else => std.debug.panic("unsupported framebuffer type: {}", .{frame_buffer_info.framebuffer_type}),
-            }
+    frame_buffer.target = blk: switch (mb2_frame_buffer.framebuffer_type) {
+        .ega => {
+            const target = try TextModeFrameBufferTarget.create(allocator, &frame_buffer.ctx);
+            break :blk &target.target;
         },
+        .direct => {
+            const target = try DirectModeFrameBufferTarget.create(allocator, &frame_buffer.ctx);
+            break :blk &target.target;
+        },
+        else => std.debug.panic("unsupported framebuffer type: {}", .{mb2_frame_buffer.framebuffer_type}),
     };
 
     // Set IO addr select register.
@@ -98,56 +75,25 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
     frame_buffer.printf(format, args);
 }
 
-pub const Position = struct {
-    x: u32,
-    y: u32,
+pub const Position = struct { u32, u32 };
+
+pub const TextColor = enum(u8) {
+    black,
+    blue,
+    green,
+    cyan,
+    red,
+    magenta,
+    brown,
+    lightGray,
+    darkGray,
+    lightBlue,
+    lightGreen,
+    lightCyan,
+    lightRed,
+    lightMagenta,
+    lightBrown,
+    white,
 };
 
-pub const Color = enum(u8) {
-    Black = 0,
-    Blue = 1,
-    Green = 2,
-    Cyan = 3,
-    Red = 4,
-    Magenta = 5,
-    Brown = 6,
-    LightGray = 7,
-    DarkGray = 8,
-    LightBlue = 9,
-    LightGreen = 10,
-    LightCyan = 11,
-    LightRed = 12,
-    LightMagenta = 13,
-    LightBrown = 14,
-    White = 15,
-};
-
-pub const ColorPair = packed struct {
-    bg: Color,
-    fg: Color,
-
-    pub fn code(self: @This()) u8 {
-        return (@intFromEnum(self.bg) << 4) | @intFromEnum(self.fg);
-    }
-};
-
-pub const Char = packed struct {
-    pub const Empty = Char{
-        .ch = ' ',
-        .colors = .{
-            .fg = Color.Black,
-            .bg = Color.Black,
-        },
-    };
-
-    colors: ColorPair,
-    ch: u8,
-
-    pub fn code(self: @This()) u16 {
-        var res: u16 = @intCast(self.colors.code());
-        res <<= 8;
-        res |= self.ch;
-
-        return res;
-    }
-};
+pub const TextColorPair = struct { fg: TextColor, bg: TextColor };

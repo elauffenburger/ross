@@ -7,10 +7,11 @@ const psf = @import("text/psf.zig");
 
 pub const FrameBufferTarget = struct {
     context: *anyopaque,
-    clearRaw: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
-    writeChAt: *const fn (ctx: *const anyopaque, *FrameBuffer, ch: vga.Char, pos: vga.Position) void,
-    scroll: *const fn (ctx: *const anyopaque, *FrameBuffer) void,
-    posBufIndex: *const fn (ctx: *const anyopaque, *FrameBuffer, vga.Position) u32,
+
+    clearRaw: *const fn (ctx: *const anyopaque) void,
+    writeChAt: *const fn (ctx: *const anyopaque, ch: u8, pos: vga.Position) void,
+    scroll: *const fn (ctx: *const anyopaque) void,
+    posBufIndex: *const fn (ctx: *const anyopaque, vga.Position) u32,
 };
 
 const Self = @This();
@@ -29,10 +30,11 @@ pitch: u32,
 // pixel_width is the number of bytes in VRAM a pixel occupies.
 pixel_width: u32,
 
-pos: vga.Position = .{ .x = 0, .y = 0 },
-colors: vga.ColorPair,
-
-font: psf.Font,
+text: struct {
+    font: psf.Font,
+    colors: vga.TextColorPair,
+    pos: vga.Position = .{ 0, 0 },
+},
 
 // NOTE: if we change any properties like width, height, etc., we _must_ recreate the target!
 target: *FrameBufferTarget,
@@ -54,7 +56,7 @@ pub fn writer(self: *Self) anyopaque {
 }
 
 pub fn clear(self: *Self) void {
-    self.target.clearRaw(self.target.context, self);
+    self.target.clearRaw(self.target.context);
 
     self.setCursor(0, 0);
     self.syncCursor();
@@ -91,14 +93,14 @@ pub fn setCursor(self: *Self, x: u32, y: u32) void {
     self.pos.x = x;
     self.pos.y = y;
 
-    if (self.pos.x == self.width) {
+    if (self.pos.x == self.text.grid_width) {
         self.newline();
         return;
     }
 
-    if (self.pos.y == self.height) {
-        self.target.scroll(self.target.context, self);
-        self.setCursor(0, self.height - 1);
+    if (self.pos.y == self.text.grid_height) {
+        self.target.scroll(self.target.context);
+        self.setCursor(0, self.text.grid_height - 1);
 
         return;
     }
@@ -109,9 +111,18 @@ pub fn bufferSlice(self: *Self) []volatile u16 {
     return buf[0..(self.width * self.height)];
 }
 
+pub fn textGridDimensions(self: Self) struct { u16, u16 } {
+    const ch_info = self.text.font.ch_info;
+
+    return .{
+        self.width / ch_info.width,
+        self.height / ch_info.height,
+    };
+}
+
 fn syncCursor(self: *Self) void {
     const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self, self.pos));
+    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self.pos));
 
     regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
     regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
@@ -123,10 +134,10 @@ fn writeChInternal(self: *Self, ch: u8) void {
         return;
     }
 
-    self.target.writeChAt(self.target.context, self, .{ .ch = ch, .colors = self.colors }, self.pos);
-    self.setCursor(self.pos.x + 1, self.pos.y);
+    self.target.writeChAt(self.target.context, ch, self.text.pos);
+    self.setCursor(self.text.pos.@"0" + 1, self.text.pos.@"1");
 }
 
 fn newline(self: *Self) void {
-    self.setCursor(0, self.pos.y + 1);
+    self.setCursor(0, self.text.pos.@"1" + 1);
 }
