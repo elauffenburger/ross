@@ -111,7 +111,7 @@ pub const Color = enum(u8) {
     White = 15,
 
     pub fn fromRGB(color: vga.RGBColor) Color {
-        _ = color; // autofix
+        
     }
 };
 

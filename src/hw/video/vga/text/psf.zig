@@ -34,52 +34,74 @@ pub const Fonts = struct {
                     head += header.char_size;
                 }
 
-                // // If the font has a unicode table, we can now add the unicode lookup info.
-                // if (header.font_mode.has_table or header.font_mode.seq) {
-                //     // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
-                //     const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []const u16, usize }, .{ .Static = num_chars * 3 });
-                //     comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
+                // If the font has a unicode table, we can now add the unicode lookup info.
+                if (header.font_mode.has_table or header.font_mode.seq) {
+                    // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
+                    const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []const u16, usize }, .{ .Static = num_chars * 3 });
+                    comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
 
-                //     for (0..num_chars) |char_i| {
-                //         // Add single-point entries.
-                //         while (head < chars_bytes.len) {
-                //             const code_point_buf = chars_bytes[head .. head + 2];
-                //             const code_point = std.mem.bytesToValue(u16, code_point_buf);
+                    // Grammar (see https://aeb.win.tue.nl/linux/kbd/font-formats-1.html):
+                    //
+                    // <unicodedescription> := <uc>*<seq>*<term>
+                    // <seq> := <ss><uc><uc>*
+                    // <ss> := psf1 ? 0xFFFE : 0xFE
+                    // <term> := psf1 ? 0xFFFF : 0xFF
+                    for (0..num_chars) |char_i| {
+                        var state: enum { char, seq } = .char;
+                        var seq_head = 0;
 
-                //             head += 2;
+                        while (head < chars_bytes.len) {
+                            // Read the next u16 code point and advance the head.
+                            const code_point_buf = chars_bytes[head .. head + 2];
+                            const code_point = std.mem.bytesToValue(u16, code_point_buf);
+                            head += 2;
 
-                //             switch (code_point) {
-                //                 0xfffe => break,
-                //                 else => {
-                //                     font_chars_lookup_entries_raw.writeItem(.{ &[_]u16{code_point}, char_i }) catch |err| {
-                //                         @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
-                //                     };
-                //                 },
-                //             }
-                //         }
+                            switch (state) {
+                                // If we're still in single-character (<uc>) mode:
+                                .char => switch (code_point) {
+                                    // If the val is 0xfffe, we're done with single-code-point mode and we're now parsing sequences.
+                                    0xfffe => {
+                                        state = .seq;
+                                        seq_head = head;
+                                    },
 
-                //         // Add multi-point sequences.
-                //         var uni_char_head = head;
-                //         while (head < chars_bytes.len) {
-                //             const code_point_buf = chars_bytes[head .. head + 2];
-                //             const code_point = std.mem.bytesToValue(u16, code_point_buf);
+                                    // If the val is 0xffff, we're done!
+                                    0xffff => break,
 
-                //             head += 2;
+                                    // Otherwise, this is just a regular single-code-point mapping.
+                                    else => {
+                                        font_chars_lookup_entries_raw.writeItem(.{ &[_]u16{code_point}, char_i }) catch |err| {
+                                            @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
+                                        };
+                                    },
+                                },
 
-                //             switch (code_point) {
-                //                 0xfffe => {
-                //                     const as_u16s: [*:0]const u16 = @ptrCast(chars_bytes[uni_char_head .. head - 2].ptr);
-                //                     font_chars_lookup_entries_raw.writeItem(.{ as_u16s[0..], char_i }) catch |err| {
-                //                         @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
-                //                     };
+                                // If we're in sequence (<seq>) mode:
+                                .seq => switch (code_point) {
+                                    // If the character is 0xfffe or 0xffff we're ending the sequence or ending the entire character; either way we want to save the current sequence!
+                                    0xfffe | 0xffff => {
+                                        const as_u16s: [*:0]const u16 = @ptrCast(chars_bytes[seq_head .. head - 2].ptr);
+                                        font_chars_lookup_entries_raw.writeItem(.{ as_u16s[0..], char_i }) catch |err| {
+                                            @compileError(std.fmt.comptimePrint("woah what happened: {}", .{err}));
+                                        };
 
-                //                     uni_char_head = head;
-                //                 },
-                //                 0xffff => break,
-                //             }
-                //         }
-                //     }
-                // }
+                                        // If we're done, we're done!
+                                        if (code_point == 0xffff) {
+                                            break;
+                                        }
+
+                                        // ...otherwise, update the sequence head.
+                                        seq_head = head;
+                                    },
+                                },
+                            }
+                        }
+                    }
+
+                    @compileLog(font_chars_lookup_entries_raw.count);
+                    @compileLog(@sizeOf(@typeInfo(@TypeOf(font_chars_lookup_entries_raw.buf)).array.child));
+                    @compileLog(font_chars_lookup_entries_raw.count * @sizeOf(@typeInfo(@TypeOf(font_chars_lookup_entries_raw.buf)).array.child));
+                }
 
                 // Return the Font type with the parsed chars.
                 return struct {
