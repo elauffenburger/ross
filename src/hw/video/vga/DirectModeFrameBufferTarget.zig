@@ -49,13 +49,17 @@ pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
 
     const font = self.fb.text.font;
 
-    // HACK: think about how to handle characters that won't fit on the current line
     const font_char = font.chars[ch];
     var i: usize = 0;
 
+    // TODO: if a character won't fit into the remaining space on the current line, we need to go down a line first
     const ch_width = font.char_info.width;
     const ch_height = font.char_info.height;
 
+    // TODO: we don't support widths that aren't 8; if they're larger (or smaller?) we need to make some changes to the code below to support that (since now a row could actually span multiple bytes).
+    std.debug.assert(ch_width == 8);
+
+    // TODO: drawing individual pixels is fine for now, but we should really be drawing as close to a row at a time as we can.
     for (0..ch_height) |y| {
         const row = font_char.bitmap[y];
 
@@ -116,7 +120,7 @@ const RGBColor = packed struct(u32) {
     _r1: u8 = 0,
 
     pub fn fromVGA(color: vga.TextColor) @This() {
-        // TODO: implement
+        // TODO: fully implement
         return switch (color) {
             .black => .{ .red = 0xff, .green = 0xff, .blue = 0xff },
             .red => .{ .red = 0xff },

@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const multiboot2 = @import("../../../boot/multiboot2.zig");
 const vga = @import("../vga.zig");
 const FrameBuffer = @import("FrameBuffer.zig");
 const regs = @import("registers.zig");
@@ -21,7 +22,7 @@ addr: u32,
 width: u32,
 height: u32,
 
-// pitch is the number of bytes in VRAM you should skip to down down one pixel.
+// pitch is the number of bytes in VRAM you should skip to go down one pixel.
 //
 // I guess this is used for in-hardware 2D horizontal scrolling?
 // see: https://wiki.osdev.org/Drawing_In_a_Linear_Framebuffer#Plotting_Pixels
@@ -39,7 +40,41 @@ text: struct {
 // NOTE: if we change any properties like width, height, etc., we _must_ recreate the target!
 target: *FrameBufferTarget,
 
-pub fn init() Self {}
+// TODO: decouple this from multiboot2.
+pub fn create(allocator: std.mem.Allocator, mb2_frame_buffer: *multiboot2.boot_info.FrameBufferInfo) !*Self {
+    const frame_buffer = try allocator.create(Self);
+    frame_buffer.* = .{
+        .addr = @intCast(mb2_frame_buffer.addr),
+
+        .width = mb2_frame_buffer.width,
+        .height = mb2_frame_buffer.height,
+
+        .pitch = mb2_frame_buffer.pitch,
+        .pixel_width = @as(u32, mb2_frame_buffer.bpp) / 8,
+
+        .text = .{
+            .font = psf.Fonts.@"Uni1-Fixed16",
+            .colors = .{
+                .fg = .green,
+                .bg = .black,
+            },
+        },
+
+        .target = blk: switch (mb2_frame_buffer.framebuffer_type) {
+            .ega => {
+                const target = try vga.TextModeFrameBufferTarget.create(allocator, frame_buffer);
+                break :blk &target.target;
+            },
+            .direct => {
+                const target = try vga.DirectModeFrameBufferTarget.create(allocator, frame_buffer);
+                break :blk &target.target;
+            },
+            else => std.debug.panic("unsupported framebuffer type: {}", .{mb2_frame_buffer.framebuffer_type}),
+        },
+    };
+
+    return frame_buffer;
+}
 
 pub fn writer(self: *Self) anyopaque {
     return std.io.AnyWriter{

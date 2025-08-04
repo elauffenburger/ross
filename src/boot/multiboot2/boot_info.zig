@@ -29,6 +29,8 @@ pub const FrameBufferInfo = packed struct {
     pitch: u32,
     width: u32,
     height: u32,
+
+    // Bits per pixel.
     bpp: u8,
 
     framebuffer_type: enum(u8) {

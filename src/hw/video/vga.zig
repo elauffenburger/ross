@@ -9,43 +9,11 @@ pub const psf = @import("vga/text/psf.zig");
 pub const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig");
 
 // SAFETY: set in init.
-pub var frame_buffer: FrameBuffer = undefined;
+pub var frame_buffer: *FrameBuffer = undefined;
 
 pub fn init(allocator: std.mem.Allocator, mb2_frame_buffer: *multiboot2.boot_info.FrameBufferInfo) !void {
-    const width, const height = .{ mb2_frame_buffer.width, mb2_frame_buffer.height };
-
-    // Save frame buffer info.
-    {
-        frame_buffer = .{
-            .addr = @intCast(mb2_frame_buffer.addr),
-
-            .width = width,
-            .height = height,
-
-            .pitch = mb2_frame_buffer.pitch,
-            .pixel_width = @as(u32, mb2_frame_buffer.bpp) / 8,
-
-            .text = .{
-                .font = psf.Fonts.@"Uni1-Fixed16",
-                .colors = .{
-                    .fg = .green,
-                    .bg = .black,
-                },
-            },
-
-            .target = blk: switch (mb2_frame_buffer.framebuffer_type) {
-                .ega => {
-                    const target = try TextModeFrameBufferTarget.create(allocator, &frame_buffer);
-                    break :blk &target.target;
-                },
-                .direct => {
-                    const target = try DirectModeFrameBufferTarget.create(allocator, &frame_buffer);
-                    break :blk &target.target;
-                },
-                else => std.debug.panic("unsupported framebuffer type: {}", .{mb2_frame_buffer.framebuffer_type}),
-            },
-        };
-    }
+    // Create new frame buffer.
+    frame_buffer = try FrameBuffer.create(allocator, mb2_frame_buffer);
 
     // Set IO addr select register.
     regs.misc_out.write(blk: {
