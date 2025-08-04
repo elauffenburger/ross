@@ -15,37 +15,37 @@ pub fn init(allocator: std.mem.Allocator, mb2_frame_buffer: *multiboot2.boot_inf
     const width, const height = .{ mb2_frame_buffer.width, mb2_frame_buffer.height };
 
     // Save frame buffer info.
-    frame_buffer = .{
-        .addr = @intCast(mb2_frame_buffer.addr),
+    {
+        frame_buffer = .{
+            .addr = @intCast(mb2_frame_buffer.addr),
 
-        .width = width,
-        .height = height,
+            .width = width,
+            .height = height,
 
-        .pitch = mb2_frame_buffer.pitch,
-        .pixel_width = @as(u32, mb2_frame_buffer.bpp) / 8,
+            .pitch = mb2_frame_buffer.pitch,
+            .pixel_width = @as(u32, mb2_frame_buffer.bpp) / 8,
 
-        .text = .{
-            .font = psf.Fonts.@"Uni1-Fixed16",
-            .colors = .{
-                .fg = .green,
-                .bg = .black,
+            .text = .{
+                .font = psf.Fonts.@"Uni1-Fixed16",
+                .colors = .{
+                    .fg = .green,
+                    .bg = .black,
+                },
             },
-        },
 
-        .target = null,
-    };
-
-    frame_buffer.target = blk: switch (mb2_frame_buffer.framebuffer_type) {
-        .ega => {
-            const target = try TextModeFrameBufferTarget.create(allocator, &frame_buffer.ctx);
-            break :blk &target.target;
-        },
-        .direct => {
-            const target = try DirectModeFrameBufferTarget.create(allocator, &frame_buffer.ctx);
-            break :blk &target.target;
-        },
-        else => std.debug.panic("unsupported framebuffer type: {}", .{mb2_frame_buffer.framebuffer_type}),
-    };
+            .target = blk: switch (mb2_frame_buffer.framebuffer_type) {
+                .ega => {
+                    const target = try TextModeFrameBufferTarget.create(allocator, &frame_buffer);
+                    break :blk &target.target;
+                },
+                .direct => {
+                    const target = try DirectModeFrameBufferTarget.create(allocator, &frame_buffer);
+                    break :blk &target.target;
+                },
+                else => std.debug.panic("unsupported framebuffer type: {}", .{mb2_frame_buffer.framebuffer_type}),
+            },
+        };
+    }
 
     // Set IO addr select register.
     regs.misc_out.write(blk: {
@@ -75,7 +75,7 @@ pub fn printf(comptime format: []const u8, args: anytype) void {
     frame_buffer.printf(format, args);
 }
 
-pub const Position = struct { u32, u32 };
+pub const Position = struct { x: u32, y: u32 };
 
 pub const TextColor = enum(u8) {
     black,

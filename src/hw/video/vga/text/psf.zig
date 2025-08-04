@@ -34,11 +34,12 @@ pub const Fonts = struct {
                     head += header.char_size;
                 }
 
+                // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
+                const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []const u16, usize }, .{ .Static = num_chars * 3 });
+                comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
+
                 // If the font has a unicode table, we can now add the unicode lookup info.
                 if (header.font_mode.has_table or header.font_mode.seq) {
-                    // HACK: we might need to do some calculations to get the worst-case for this based on the number of bytes after the bitmap table.
-                    const FontCharsLookupFifo = std.fifo.LinearFifo(struct { []const u16, usize }, .{ .Static = num_chars * 3 });
-                    comptime var font_chars_lookup_entries_raw: FontCharsLookupFifo = FontCharsLookupFifo.init();
 
                     // Grammar (see https://aeb.win.tue.nl/linux/kbd/font-formats-1.html):
                     //
@@ -97,15 +98,12 @@ pub const Fonts = struct {
                             }
                         }
                     }
-
-                    @compileLog(font_chars_lookup_entries_raw.count);
-                    @compileLog(@sizeOf(@typeInfo(@TypeOf(font_chars_lookup_entries_raw.buf)).array.child));
-                    @compileLog(font_chars_lookup_entries_raw.count * @sizeOf(@typeInfo(@TypeOf(font_chars_lookup_entries_raw.buf)).array.child));
                 }
 
                 // Return the Font type with the parsed chars.
                 return struct {
                     const chars = font_chars;
+                    const code_points_lookup = font_chars_lookup_entries_raw.buf;
 
                     pub fn font() Font {
                         return .{
@@ -116,6 +114,16 @@ pub const Fonts = struct {
 
                             .chars = &chars,
                         };
+                    }
+
+                    pub fn indexFromUnicode(code_points: []u16) ?usize {
+                        for (code_points_lookup) |entry| {
+                            if (std.mem.eql(u16, entry.@"0", code_points)) {
+                                return entry.@"1";
+                            }
+                        }
+
+                        return null;
                     }
                 };
             }

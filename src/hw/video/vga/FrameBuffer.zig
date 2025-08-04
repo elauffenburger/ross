@@ -33,7 +33,7 @@ pixel_width: u32,
 text: struct {
     font: psf.Font,
     colors: vga.TextColorPair,
-    pos: vga.Position = .{ 0, 0 },
+    pos: vga.Position = .{ .x = 0, .y = 0 },
 },
 
 // NOTE: if we change any properties like width, height, etc., we _must_ recreate the target!
@@ -90,17 +90,16 @@ pub fn printf(self: *Self, comptime format: []const u8, args: anytype) void {
 }
 
 pub fn setCursor(self: *Self, x: u32, y: u32) void {
-    self.pos.x = x;
-    self.pos.y = y;
+    self.text.pos = .{ .x = x, .y = y };
 
-    if (self.pos.x == self.text.grid_width) {
+    if (self.text.pos.x == self.textGrid().width) {
         self.newline();
         return;
     }
 
-    if (self.pos.y == self.text.grid_height) {
+    if (self.text.pos.y == self.textGrid().height) {
         self.target.scroll(self.target.context);
-        self.setCursor(0, self.text.grid_height - 1);
+        self.setCursor(0, self.textGrid().height - 1);
 
         return;
     }
@@ -122,7 +121,7 @@ pub fn textGridDimensions(self: Self) struct { u16, u16 } {
 
 fn syncCursor(self: *Self) void {
     const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self.pos));
+    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self.text.pos));
 
     regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
     regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
@@ -135,9 +134,17 @@ fn writeChInternal(self: *Self, ch: u8) void {
     }
 
     self.target.writeChAt(self.target.context, ch, self.text.pos);
-    self.setCursor(self.text.pos.@"0" + 1, self.text.pos.@"1");
+    self.setCursor(self.text.pos.x + 1, self.text.pos.y);
 }
 
 fn newline(self: *Self) void {
-    self.setCursor(0, self.text.pos.@"1" + 1);
+    self.setCursor(0, self.text.pos.y + 1);
+}
+
+// TODO: cache this and make it a field.
+inline fn textGrid(self: Self) struct { width: usize, height: usize } {
+    return .{
+        .width = self.width / self.text.font.char_info.width,
+        .height = self.height / self.text.font.char_info.height,
+    };
 }

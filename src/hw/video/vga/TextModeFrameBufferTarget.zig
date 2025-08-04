@@ -7,27 +7,23 @@ const regs = @import("registers.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
-
-width: u32,
-height: u32,
+fb: *FrameBuffer,
 
 temp_buf: []u16,
 empty_line: []u16,
 
 target: FrameBuffer.FrameBufferTarget,
 
-pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
-    const empty_line = try allocator.alloc(u16, width);
+pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
+    const empty_line = try allocator.alloc(u16, fb.width);
     @memset(empty_line, Char.Empty.code());
 
-    const temp_buf = try allocator.alloc(u16, width * height - width);
+    const temp_buf = try allocator.alloc(u16, fb.width * fb.height - fb.width);
 
     const self = try allocator.create(Self);
     self.* = .{
         .allocator = allocator,
-
-        .width = width,
-        .height = height,
+        .fb = fb,
 
         .temp_buf = temp_buf,
         .empty_line = empty_line,
@@ -45,31 +41,38 @@ pub fn create(allocator: std.mem.Allocator, width: u32, height: u32) !*Self {
     return self;
 }
 
-pub fn clearRaw(_: *const anyopaque, frame_buf: *FrameBuffer) void {
-    const buf = frame_buf.bufferSlice();
+pub fn clearRaw(ctx: *const anyopaque) void {
+    const self = fromCtx(ctx);
+    const buf = self.fb.bufferSlice();
 
-    @memset(buf, Char.code(.{ .colors = ColorPair.fromRGB(frame_buf.colors), .ch = ' ' }));
+    @memset(buf, Char.Empty.code());
 }
 
-pub fn writeChAt(ctx: *const anyopaque, frame_buf: *FrameBuffer, ch: Char, pos: vga.Position) void {
+pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
     const self = fromCtx(ctx);
-    const index = self.bufIndex(pos.@"0", pos.@"1");
+    const index = self.bufIndex(pos.x, pos.y);
 
-    var code: u16 = @intCast(ch.colors.code());
-    code <<= 8;
-    code |= ch.ch;
+    const char = Char{
+        .ch = ch,
 
-    const buffer = frame_buf.bufferSlice();
-    buffer[index] = code;
+        // TODO: cache this value.
+        .colors = .{
+            .fg = Color.fromVGA(self.fb.text.colors.fg),
+            .bg = Color.fromVGA(self.fb.text.colors.bg),
+        },
+    };
+
+    const buffer = self.fb.bufferSlice();
+    buffer[index] = char.code();
 }
 
-pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
+pub fn scroll(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
 
-    const width = self.width;
-    const height = self.height;
+    const width = self.fb.width;
+    const height = self.fb.height;
 
-    const buf = frame_buf.bufferSlice();
+    const buf = self.fb.bufferSlice();
 
     // Copy vga buffer to temp buffer offset by one line.
     @memcpy(self.temp_buf, buf[width..(width * height)]);
@@ -79,13 +82,13 @@ pub fn scroll(ctx: *const anyopaque, frame_buf: *FrameBuffer) void {
     @memcpy(buf[(width * height) - width ..], self.empty_line);
 }
 
-pub fn posBufIndex(ctx: *const anyopaque, _: *FrameBuffer, pos: vga.Position) u32 {
+pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
     const self = fromCtx(ctx);
     return self.bufIndex(pos.x, pos.y);
 }
 
 inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
-    return y * self.width + x;
+    return y * self.fb.width + x;
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {
@@ -110,8 +113,9 @@ pub const Color = enum(u8) {
     LightBrown = 14,
     White = 15,
 
-    pub fn fromRGB(color: vga.RGBColor) Color {
-        
+    pub fn fromVGA(color: vga.TextColor) Color {
+        _ = color; // autofix
+        @panic("unimplemented");
     }
 };
 

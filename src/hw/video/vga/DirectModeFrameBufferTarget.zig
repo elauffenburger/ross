@@ -2,7 +2,6 @@ const std = @import("std");
 
 const kstd = @import("../../../kstd.zig");
 const vga = @import("../vga.zig");
-const Char = vga.Char;
 const FrameBuffer = @import("FrameBuffer.zig");
 const regs = @import("registers.zig");
 
@@ -40,18 +39,18 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
 
 pub fn clearRaw(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
-    const buf = self.bufferSlice(self.fb);
+    const buf = self.bufferSlice();
 
     @memset(buf, 0);
 }
 
-pub fn writeChAt(ctx: *const anyopaque, ch: Char, pos: vga.Position) void {
+pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
     const self = fromCtx(ctx);
 
     const font = self.fb.text.font;
 
     // HACK: think about how to handle characters that won't fit on the current line
-    const font_char = font.chars[ch.ch];
+    const font_char = font.chars[ch];
     var i: usize = 0;
 
     const ch_width = font.char_info.width;
@@ -64,7 +63,10 @@ pub fn writeChAt(ctx: *const anyopaque, ch: Char, pos: vga.Position) void {
             const bit = @as(u8, 1) << (7 - @as(u3, @intCast(x)));
             if (row & bit != 0) {
                 self.drawPixel(
-                    .{ (pos.x * ch_width) + x, (pos.y * ch_height) + y },
+                    .{
+                        .x = (pos.x * ch_width) + x,
+                        .y = (pos.y * ch_height) + y,
+                    },
                     self.fb.text.colors.fg,
                 );
             }
@@ -76,31 +78,21 @@ pub fn writeChAt(ctx: *const anyopaque, ch: Char, pos: vga.Position) void {
 
 pub fn scroll(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
-
-    const width = self.width;
-    _ = width; // autofix
-    const height = self.height;
-    _ = height; // autofix
-
-    const buf = self.bufferSlice();
-    _ = buf; // autofix
+    _ = self; // autofix
 
     @panic("unimplemented!");
 }
 
-pub fn posBufIndex(self: *const anyopaque, pos: vga.Position) u32 {
+pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
+    const self = fromCtx(ctx);
     return self.bufIndex(pos.x, pos.y);
 }
 
-pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.RGBColor) void {
+pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.TextColor) void {
     const index = self.bufIndex(pos.x, pos.y);
     const pixel: *u32 = @ptrFromInt(self.fb.addr + index);
 
-    pixel.* = @bitCast(RGBColor{
-        .red = color.red,
-        .blue = color.blue,
-        .green = color.green,
-    });
+    pixel.* = @bitCast(RGBColor.fromVGA(color));
 }
 
 inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
@@ -109,7 +101,7 @@ inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
 
 fn bufferSlice(self: *Self) []volatile u32 {
     const buf: [*]volatile u32 = @ptrFromInt(self.fb.addr);
-    return buf[0 .. self.bufIndex(self.width, self.height) + 1];
+    return buf[0 .. self.bufIndex(self.fb.width, self.fb.height) + 1];
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {
@@ -122,4 +114,15 @@ const RGBColor = packed struct(u32) {
     green: u8 = 0,
     red: u8 = 0,
     _r1: u8 = 0,
+
+    pub fn fromVGA(color: vga.TextColor) @This() {
+        // TODO: implement
+        return switch (color) {
+            .black => .{ .red = 0xff, .green = 0xff, .blue = 0xff },
+            .red => .{ .red = 0xff },
+            .green => .{ .green = 0xff },
+            .blue => .{ .blue = 0xff },
+            else => std.debug.panic("unimplemented!", .{}),
+        };
+    }
 };
