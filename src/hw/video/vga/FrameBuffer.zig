@@ -12,7 +12,7 @@ pub const FrameBufferTarget = struct {
     clearRaw: *const fn (ctx: *const anyopaque) void,
     writeChAt: *const fn (ctx: *const anyopaque, ch: u8, pos: vga.Position) void,
     scroll: *const fn (ctx: *const anyopaque) void,
-    posBufIndex: *const fn (ctx: *const anyopaque, vga.Position) u32,
+    u8BufIndex: *const fn (ctx: *const anyopaque, vga.Position) usize,
 };
 
 const Self = @This();
@@ -154,7 +154,7 @@ pub fn bufferSlice(self: *Self) []volatile u16 {
 
 fn syncCursor(self: *Self) void {
     const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index: u16 = @intCast(self.target.posBufIndex(self.target.context, self.text.pos));
+    const cursor_index: u16 = @intCast(self.target.u8BufIndex(self.target.context, self.text.pos));
 
     regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
     regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));

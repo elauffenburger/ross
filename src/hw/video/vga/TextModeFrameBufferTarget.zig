@@ -34,7 +34,7 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
             .clearRaw = clearRaw,
             .writeChAt = writeChAt,
             .scroll = scroll,
-            .posBufIndex = posBufIndex,
+            .u8BufIndex = u8BufIndex,
         },
     };
 
@@ -50,7 +50,7 @@ pub fn clearRaw(ctx: *const anyopaque) void {
 
 pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
     const self = fromCtx(ctx);
-    const index = self.bufIndex(pos.x, pos.y);
+    const index = self.bufIndexInternal(pos.x, pos.y);
 
     const char = Char{
         .ch = ch,
@@ -82,12 +82,13 @@ pub fn scroll(ctx: *const anyopaque) void {
     @memcpy(buf[(width * height) - width ..], self.empty_line);
 }
 
-pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
+pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
     const self = fromCtx(ctx);
-    return self.bufIndex(pos.x, pos.y);
+
+    return self.bufIndexInternal(pos.x, pos.y);
 }
 
-inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
+inline fn bufIndexInternal(self: *Self, x: u32, y: u32) usize {
     return y * self.fb.width + x;
 }
 

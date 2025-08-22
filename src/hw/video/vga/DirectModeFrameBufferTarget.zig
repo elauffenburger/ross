@@ -26,7 +26,7 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
             .clearRaw = clearRaw,
             .writeChAt = writeChAt,
             .scroll = scroll,
-            .posBufIndex = posBufIndex,
+            .u8BufIndex = u8BufIndex,
         },
     };
 
@@ -76,14 +76,16 @@ pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
     }
 }
 
-inline fn bufTextLine(self: *const Self, buf: []volatile u32, line: u32) []volatile u32 {
-    return buf[self.bufCharIndex(0, line)..self.bufCharIndex(0, line + 1)];
+inline fn bufTextLine(self: *const Self, text_buf: []volatile u32, line: u32) []volatile u32 {
+    return text_buf[self.u8BufCharIndex(0, line)..self.u8BufCharIndex(0, line + 1)];
 }
 
 pub fn scroll(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
 
     const buf = self.bufferSlice();
+    const text_buf: []volatile u32 = @alignCast(std.mem.bytesAsSlice(u32, buf));
+
     const text_grid_dims = self.fb.textGrid();
     _ = text_grid_dims; // autofix
 
@@ -94,41 +96,56 @@ pub fn scroll(ctx: *const anyopaque) void {
     // @memcpy(self.bufTextLine(buf, line_i - 1), self.bufTextLine(buf, line_i));
     // }
 
-    @memset(self.bufTextLine(buf, 0), @bitCast(RGBColor.fromVGA(.red)));
-    @memset(self.bufTextLine(buf, 1), @bitCast(RGBColor.fromVGA(.green)));
-    @memset(self.bufTextLine(buf, 2), @bitCast(RGBColor.fromVGA(.blue)));
-    @memset(self.bufTextLine(buf, 3), @bitCast(RGBColor.fromVGA(.red)));
+    @memset(self.bufTextLine(text_buf, 0), @bitCast(RGBColor.fromVGA(.red)));
+    // @memset(self.bufTextLine(buf, 1), @bitCast(RGBColor.fromVGA(.green)));
+    // @memset(self.bufTextLine(buf, 2), @bitCast(RGBColor.fromVGA(.blue)));
+    // @memset(self.bufTextLine(buf, 3), @bitCast(RGBColor.fromVGA(.red)));
+
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 0), .red);
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 1), .green);
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 2), .blue);
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 3), .red);
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 4), .green);
+    // self.drawPixelAtIndex(self.bufCharIndex(10, 5), .blue);
 
     // Clear last line.
     // @memset(self.bufTextLine(buf, last_line), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
 }
 
-pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
+pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
     const self = fromCtx(ctx);
-    return self.bufIndex(pos.x, pos.y);
+
+    return self.u8BufIndexInternal(pos.x, pos.y);
 }
 
 pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.TextColor) void {
-    const index = self.bufIndex(pos.x, pos.y);
+    const index = self.u8BufIndexInternal(pos.x, pos.y);
     const pixel: *u32 = @ptrFromInt(self.fb.addr + index);
 
     pixel.* = @bitCast(RGBColor.fromVGA(color));
 }
 
-inline fn bufIndex(self: *const Self, x: u32, y: u32) u32 {
+pub fn drawPixelAtIndex(self: *Self, index: usize, color: vga.TextColor) void {
+    const pixel: *u32 = @ptrFromInt(self.fb.addr + index);
+
+    pixel.* = @bitCast(RGBColor.fromVGA(color));
+}
+
+inline fn u8BufIndexInternal(self: *const Self, x: u32, y: u32) usize {
     return y * self.fb.pitch + x * self.fb.pixel_width;
 }
 
-inline fn bufCharIndex(self: *const Self, x: u32, y: u32) u32 {
+inline fn u8BufCharIndex(self: *const Self, x: u32, y: u32) usize {
     const char_info = self.fb.text.font.char_info;
 
-    // HACK: wtf is this y*4 thing and why does it work??
-    return self.bufIndex(x * char_info.width, y * 4);
+    // NOTE: we're dividing by 4 because each character is a u32, but we always consider the buffer we're indexing into to be a []u8,
+    // so we need to map the logical character (u32) index to the physical buffer byte (u8) index.
+    return self.u8BufIndexInternal((x * char_info.width) / 4, (y * char_info.height) / 4);
 }
 
-fn bufferSlice(self: *const Self) []volatile u32 {
-    const buf: [*]volatile u32 = @ptrFromInt(self.fb.addr);
-    return buf[0 .. self.bufIndex(self.fb.width, self.fb.height) + 1];
+fn bufferSlice(self: *const Self) []volatile u8 {
+    const buf: [*]volatile u8 = @ptrFromInt(self.fb.addr);
+    return buf[0..self.u8BufIndexInternal(self.fb.width, self.fb.height)];
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {
