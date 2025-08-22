@@ -15,12 +15,10 @@ fb: *FrameBuffer,
 target: FrameBuffer.FrameBufferTarget,
 
 pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
-    const temp_buf = try allocator.alloc(u16, fb.width * fb.height - fb.width);
-
     const self = try allocator.create(Self);
     self.* = .{
         .allocator = allocator,
-        .temp_buf = temp_buf,
+        .temp_buf = try allocator.alloc(u16, fb.width * fb.height - bufIndexInternal(0, fb.text.font.char_info.height, fb.pitch, fb.pixel_width)),
 
         .fb = fb,
 
@@ -82,9 +80,24 @@ pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
 
 pub fn scroll(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
-    _ = self; // autofix
 
-    @panic("unimplemented!");
+    const text_dims = self.fb.textGridDimensions();
+
+    const line_2_index = self.bufIndex(0, self.fb.text.font.char_info.height);
+    const last_line_index = self.bufIndex(0, (text_dims.@"1" - 1) * self.fb.text.font.char_info.height);
+
+    // Copy the screen buffer starting at line 2 to the temp buffer.
+    const buf = self.fb.bufferSlice();
+    @memcpy(self.temp_buf, buf[line_2_index..]);
+
+    // Write temp buffer back to real buffer.
+    @memcpy(buf[0 .. buf.len - line_2_index], self.temp_buf);
+
+    // Clear last line.
+    @memset(
+        @as([]volatile u32, @alignCast(@ptrCast(buf)))[(last_line_index / 2)..],
+        @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)),
+    );
 }
 
 pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
@@ -100,7 +113,11 @@ pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.TextColor) void {
 }
 
 inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
-    return y * self.fb.pitch + x * self.fb.pixel_width;
+    return bufIndexInternal(x, y, self.fb.pitch, self.fb.pixel_width);
+}
+
+inline fn bufIndexInternal(x: u32, y: u32, fb_pitch: u32, fb_pixel_width: u32) u32 {
+    return y * fb_pitch + x * fb_pixel_width;
 }
 
 fn bufferSlice(self: *Self) []volatile u32 {

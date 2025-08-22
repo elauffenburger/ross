@@ -145,8 +145,8 @@ pub fn bufferSlice(self: *Self) []volatile u16 {
     return buf[0..(self.width * self.height)];
 }
 
-pub fn textGridDimensions(self: Self) struct { u16, u16 } {
-    const ch_info = self.text.font.ch_info;
+pub fn textGridDimensions(self: Self) struct { u32, u32 } {
+    const ch_info = self.text.font.char_info;
 
     return .{
         self.width / ch_info.width,
@@ -164,7 +164,8 @@ fn syncCursor(self: *Self) void {
 
 fn writeChInternal(self: *Self, ch: u8) void {
     if (ch == '\n') {
-        self.newline();
+        // HACK: just testing this out!
+        self.target.scroll(self.target.context);
         return;
     }
 
