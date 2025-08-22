@@ -132,9 +132,16 @@ pub fn setCursor(self: *Self, x: u32, y: u32) void {
         return;
     }
 
-    if (self.text.pos.y == self.textGrid().height) {
-        self.target.scroll(self.target.context);
-        self.setCursor(0, self.textGrid().height - 1);
+    // HACK: just testing this out!
+    // if (self.text.pos.y == self.textGrid().height) {
+    //     self.target.scroll(self.target.context);
+    //     self.setCursor(0, self.textGrid().height - 1);
+
+    //     return;
+    // }
+
+    if (self.text.pos.y == 5) {
+        self.scroll();
 
         return;
     }
@@ -143,15 +150,6 @@ pub fn setCursor(self: *Self, x: u32, y: u32) void {
 pub fn bufferSlice(self: *Self) []volatile u16 {
     const buf: [*]volatile u16 = @ptrFromInt(self.addr);
     return buf[0..(self.width * self.height)];
-}
-
-pub fn textGridDimensions(self: Self) struct { u32, u32 } {
-    const ch_info = self.text.font.char_info;
-
-    return .{
-        self.width / ch_info.width,
-        self.height / ch_info.height,
-    };
 }
 
 fn syncCursor(self: *Self) void {
@@ -164,8 +162,7 @@ fn syncCursor(self: *Self) void {
 
 fn writeChInternal(self: *Self, ch: u8) void {
     if (ch == '\n') {
-        // HACK: just testing this out!
-        self.target.scroll(self.target.context);
+        self.scroll();
         return;
     }
 
@@ -178,9 +175,19 @@ fn newline(self: *Self) void {
 }
 
 // TODO: cache this and make it a field.
-inline fn textGrid(self: Self) struct { width: usize, height: usize } {
+pub inline fn textGrid(self: Self) struct { width: u32, height: u32 } {
+    const ch_info = self.text.font.char_info;
+
     return .{
-        .width = self.width / self.text.font.char_info.width,
-        .height = self.height / self.text.font.char_info.height,
+        .width = self.width / ch_info.width,
+        .height = self.height / ch_info.height,
     };
+}
+
+fn scroll(self: *Self) void {
+    self.target.scroll(self.target.context);
+
+    // HACK: testing this out!
+    // self.setCursor(0, self.textGrid().height - 1);
+    self.setCursor(0, 1);
 }

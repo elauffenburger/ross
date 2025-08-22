@@ -8,7 +8,6 @@ const regs = @import("registers.zig");
 const Self = @This();
 
 allocator: std.mem.Allocator,
-temp_buf: []u16,
 
 fb: *FrameBuffer,
 
@@ -18,7 +17,6 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
     const self = try allocator.create(Self);
     self.* = .{
         .allocator = allocator,
-        .temp_buf = try allocator.alloc(u16, fb.width * fb.height - bufIndexInternal(0, fb.text.font.char_info.height, fb.pitch, fb.pixel_width)),
 
         .fb = fb,
 
@@ -78,26 +76,31 @@ pub fn writeChAt(ctx: *const anyopaque, ch: u8, pos: vga.Position) void {
     }
 }
 
+inline fn bufTextLine(self: *const Self, buf: []volatile u32, line: u32) []volatile u32 {
+    return buf[self.bufCharIndex(0, line)..self.bufCharIndex(0, line + 1)];
+}
+
 pub fn scroll(ctx: *const anyopaque) void {
     const self = fromCtx(ctx);
 
-    const text_dims = self.fb.textGridDimensions();
+    const buf = self.bufferSlice();
+    const text_grid_dims = self.fb.textGrid();
+    _ = text_grid_dims; // autofix
 
-    const line_2_index = self.bufIndex(0, self.fb.text.font.char_info.height);
-    const last_line_index = self.bufIndex(0, (text_dims.@"1" - 1) * self.fb.text.font.char_info.height);
+    // HACK: testing this out
+    // const last_line = text_grid_dims.height - 1;
+    // for (1..last_line - 1) |line_i| {
+    //     // Copy the current line to the previous line.
+    // @memcpy(self.bufTextLine(buf, line_i - 1), self.bufTextLine(buf, line_i));
+    // }
 
-    // Copy the screen buffer starting at line 2 to the temp buffer.
-    const buf = self.fb.bufferSlice();
-    @memcpy(self.temp_buf, buf[line_2_index..]);
-
-    // Write temp buffer back to real buffer.
-    @memcpy(buf[0 .. buf.len - line_2_index], self.temp_buf);
+    @memset(self.bufTextLine(buf, 0), @bitCast(RGBColor.fromVGA(.red)));
+    @memset(self.bufTextLine(buf, 1), @bitCast(RGBColor.fromVGA(.green)));
+    @memset(self.bufTextLine(buf, 2), @bitCast(RGBColor.fromVGA(.blue)));
+    @memset(self.bufTextLine(buf, 3), @bitCast(RGBColor.fromVGA(.red)));
 
     // Clear last line.
-    @memset(
-        @as([]volatile u32, @alignCast(@ptrCast(buf)))[(last_line_index / 2)..],
-        @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)),
-    );
+    // @memset(self.bufTextLine(buf, last_line), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
 }
 
 pub fn posBufIndex(ctx: *const anyopaque, pos: vga.Position) u32 {
@@ -112,15 +115,18 @@ pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.TextColor) void {
     pixel.* = @bitCast(RGBColor.fromVGA(color));
 }
 
-inline fn bufIndex(self: *Self, x: u32, y: u32) u32 {
-    return bufIndexInternal(x, y, self.fb.pitch, self.fb.pixel_width);
+inline fn bufIndex(self: *const Self, x: u32, y: u32) u32 {
+    return y * self.fb.pitch + x * self.fb.pixel_width;
 }
 
-inline fn bufIndexInternal(x: u32, y: u32, fb_pitch: u32, fb_pixel_width: u32) u32 {
-    return y * fb_pitch + x * fb_pixel_width;
+inline fn bufCharIndex(self: *const Self, x: u32, y: u32) u32 {
+    const char_info = self.fb.text.font.char_info;
+
+    // HACK: wtf is this y*4 thing and why does it work??
+    return self.bufIndex(x * char_info.width, y * 4);
 }
 
-fn bufferSlice(self: *Self) []volatile u32 {
+fn bufferSlice(self: *const Self) []volatile u32 {
     const buf: [*]volatile u32 = @ptrFromInt(self.fb.addr);
     return buf[0 .. self.bufIndex(self.fb.width, self.fb.height) + 1];
 }
