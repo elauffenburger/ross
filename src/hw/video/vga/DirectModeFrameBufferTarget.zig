@@ -85,31 +85,19 @@ pub fn scroll(ctx: *const anyopaque) void {
 
     const buf = self.bufferSlice();
     const text_buf: []volatile u32 = @alignCast(std.mem.bytesAsSlice(u32, buf));
-
     const text_grid_dims = self.fb.textGrid();
-    _ = text_grid_dims; // autofix
 
-    // HACK: testing this out
-    // const last_line = text_grid_dims.height - 1;
-    // for (1..last_line - 1) |line_i| {
-    //     // Copy the current line to the previous line.
-    // @memcpy(self.bufTextLine(buf, line_i - 1), self.bufTextLine(buf, line_i));
-    // }
-
-    @memset(self.bufTextLine(text_buf, 0), @bitCast(RGBColor.fromVGA(.red)));
-    // @memset(self.bufTextLine(buf, 1), @bitCast(RGBColor.fromVGA(.green)));
-    // @memset(self.bufTextLine(buf, 2), @bitCast(RGBColor.fromVGA(.blue)));
-    // @memset(self.bufTextLine(buf, 3), @bitCast(RGBColor.fromVGA(.red)));
-
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 0), .red);
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 1), .green);
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 2), .blue);
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 3), .red);
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 4), .green);
-    // self.drawPixelAtIndex(self.bufCharIndex(10, 5), .blue);
+    const last_line = text_grid_dims.height - 1;
+    for (1..last_line - 1) |line_i| {
+        // Copy the current line to the previous line.
+        @memcpy(
+            self.bufTextLine(text_buf, line_i - 1),
+            self.bufTextLine(text_buf, line_i),
+        );
+    }
 
     // Clear last line.
-    // @memset(self.bufTextLine(buf, last_line), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
+    @memset(self.bufTextLine(text_buf, last_line), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
 }
 
 pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
@@ -162,7 +150,7 @@ const RGBColor = packed struct(u32) {
     pub fn fromVGA(color: vga.TextColor) @This() {
         // TODO: fully implement
         return switch (color) {
-            .black => .{ .red = 0xff, .green = 0xff, .blue = 0xff },
+            .black => .{},
             .red => .{ .red = 0xff },
             .green => .{ .green = 0xff },
             .blue => .{ .blue = 0xff },
