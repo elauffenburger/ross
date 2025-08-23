@@ -13,6 +13,7 @@ pub const FrameBufferTarget = struct {
     writeChAt: *const fn (ctx: *const anyopaque, ch: u8, pos: vga.Position) void,
     scroll: *const fn (ctx: *const anyopaque) void,
     u8BufIndex: *const fn (ctx: *const anyopaque, vga.Position) usize,
+    syncCursor: ?*const fn (ctx: *const anyopaque) void,
 };
 
 const Self = @This();
@@ -94,12 +95,18 @@ pub fn clear(self: *Self) void {
     self.target.clearRaw(self.target.context);
 
     self.setCursor(0, 0);
-    self.syncCursor();
+
+    if (self.target.syncCursor) |sync| {
+        sync(self.target.context);
+    }
 }
 
 pub fn writeCh(self: *Self, ch: u8) void {
     self.writeChInternal(ch);
-    self.syncCursor();
+
+    if (self.target.syncCursor) |sync| {
+        sync(self.target.context);
+    }
 }
 
 pub fn writeStr(self: *Self, data: []const u8) void {
@@ -111,7 +118,9 @@ pub fn writeStr(self: *Self, data: []const u8) void {
         self.writeChInternal(c);
     }
 
-    self.syncCursor();
+    if (self.target.syncCursor) |sync| {
+        sync(self.target.context);
+    }
 }
 
 pub fn printf(self: *Self, comptime format: []const u8, args: anytype) void {
@@ -127,22 +136,15 @@ pub fn printf(self: *Self, comptime format: []const u8, args: anytype) void {
 pub fn setCursor(self: *Self, x: u32, y: u32) void {
     self.text.pos = .{ .x = x, .y = y };
 
-    if (self.text.pos.x == self.textGrid().width) {
+    const text_grid = self.textGrid();
+
+    if (self.text.pos.x == text_grid.width) {
         self.newline();
         return;
     }
 
-    // HACK: just testing this out!
-    // if (self.text.pos.y == self.textGrid().height) {
-    //     self.target.scroll(self.target.context);
-    //     self.setCursor(0, self.textGrid().height - 1);
-
-    //     return;
-    // }
-
-    if (self.text.pos.y == 5) {
+    if (self.text.pos.y >= text_grid.height) {
         self.scroll();
-
         return;
     }
 }
@@ -152,17 +154,9 @@ pub fn bufferSlice(self: *Self) []volatile u16 {
     return buf[0..(self.width * self.height)];
 }
 
-fn syncCursor(self: *Self) void {
-    const loc_reg = regs.crt_ctrl.cursor_location;
-    const cursor_index: u16 = @intCast(self.target.u8BufIndex(self.target.context, self.text.pos));
-
-    regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
-    regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
-}
-
 fn writeChInternal(self: *Self, ch: u8) void {
     if (ch == '\n') {
-        self.scroll();
+        self.setCursor(0, self.text.pos.y + 1);
         return;
     }
 
@@ -188,6 +182,6 @@ fn scroll(self: *Self) void {
     self.target.scroll(self.target.context);
 
     // HACK: testing this out!
-    // self.setCursor(0, self.textGrid().height - 1);
-    self.setCursor(0, 1);
+    self.text.pos.x = 0;
+    self.text.pos.y = self.textGrid().height - 1;
 }

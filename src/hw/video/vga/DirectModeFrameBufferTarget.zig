@@ -27,6 +27,7 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
             .writeChAt = writeChAt,
             .scroll = scroll,
             .u8BufIndex = u8BufIndex,
+            .syncCursor = null,
         },
     };
 

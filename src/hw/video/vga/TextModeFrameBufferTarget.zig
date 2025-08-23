@@ -30,11 +30,11 @@ pub fn create(allocator: std.mem.Allocator, fb: *FrameBuffer) !*Self {
 
         .target = .{
             .context = self,
-
             .clearRaw = clearRaw,
             .writeChAt = writeChAt,
             .scroll = scroll,
             .u8BufIndex = u8BufIndex,
+            .syncCursor = syncCursor,
         },
     };
 
@@ -86,6 +86,17 @@ pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
     const self = fromCtx(ctx);
 
     return self.bufIndexInternal(pos.x, pos.y);
+}
+
+pub fn syncCursor(ctx: *const anyopaque) void {
+    const self = fromCtx(ctx);
+
+    // HACK: is this text-mode only?
+    const loc_reg = regs.crt_ctrl.cursor_location;
+    const cursor_index: u16 = @intCast(self.target.u8BufIndex(self.target.context, self.fb.text.pos));
+
+    regs.crt_ctrl.write(loc_reg.lo, @intCast(cursor_index & 0xff));
+    regs.crt_ctrl.write(loc_reg.hi, @intCast((cursor_index >> 8) & 0xff));
 }
 
 inline fn bufIndexInternal(self: *Self, x: u32, y: u32) usize {
