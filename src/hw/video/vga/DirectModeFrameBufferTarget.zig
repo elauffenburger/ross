@@ -88,8 +88,7 @@ pub fn scroll(ctx: *const anyopaque) void {
     const text_buf: []volatile u32 = @alignCast(std.mem.bytesAsSlice(u32, buf));
     const text_grid_dims = self.fb.textGrid();
 
-    const last_line = text_grid_dims.height - 1;
-    for (1..last_line - 1) |line_i| {
+    for (1..text_grid_dims.height) |line_i| {
         // Copy the current line to the previous line.
         @memcpy(
             self.bufTextLine(text_buf, line_i - 1),
@@ -98,7 +97,7 @@ pub fn scroll(ctx: *const anyopaque) void {
     }
 
     // Clear last line.
-    @memset(self.bufTextLine(text_buf, last_line), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
+    @memset(self.bufTextLine(text_buf, text_grid_dims.height - 1), @bitCast(RGBColor.fromVGA(self.fb.text.colors.bg)));
 }
 
 pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
