@@ -126,7 +126,8 @@ inline fn u8BufPixelIndex(self: *const Self, x: u32, y: u32) usize {
 inline fn u8BufCharIndex(self: *const Self, x: u32, y: u32) usize {
     const char_info = self.fb.text.font.char_info;
 
-    // NOTE: we need to convert from character units to pixel units before calling u8BufPixelIndex.
+    // NOTE: we need to convert from character units to pixel units before calling u8BufPixelIndel.
+    // additionally, this may not even be the right conversion; do we need to look at charwidth?
     return self.u8BufPixelIndex((x * char_info.width) / 4, (y * char_info.height) / 4);
 }
 
