@@ -103,11 +103,11 @@ pub fn scroll(ctx: *const anyopaque) void {
 pub fn u8BufIndex(ctx: *const anyopaque, pos: vga.Position) usize {
     const self = fromCtx(ctx);
 
-    return self.u8BufIndexInternal(pos.x, pos.y);
+    return self.u8BufPixelIndex(pos.x, pos.y);
 }
 
 pub fn drawPixel(self: *Self, pos: vga.Position, color: vga.TextColor) void {
-    const index = self.u8BufIndexInternal(pos.x, pos.y);
+    const index = self.u8BufPixelIndex(pos.x, pos.y);
     const pixel: *u32 = @ptrFromInt(self.fb.addr + index);
 
     pixel.* = @bitCast(RGBColor.fromVGA(color));
@@ -119,21 +119,20 @@ pub fn drawPixelAtIndex(self: *Self, index: usize, color: vga.TextColor) void {
     pixel.* = @bitCast(RGBColor.fromVGA(color));
 }
 
-inline fn u8BufIndexInternal(self: *const Self, x: u32, y: u32) usize {
+inline fn u8BufPixelIndex(self: *const Self, x: u32, y: u32) usize {
     return y * self.fb.pitch + x * self.fb.pixel_width;
 }
 
 inline fn u8BufCharIndex(self: *const Self, x: u32, y: u32) usize {
     const char_info = self.fb.text.font.char_info;
 
-    // NOTE: we're dividing by 4 because each character is a u32, but we always consider the buffer we're indexing into to be a []u8,
-    // so we need to map the logical character (u32) index to the physical buffer byte (u8) index.
-    return self.u8BufIndexInternal((x * char_info.width) / 4, (y * char_info.height) / 4);
+    // NOTE: we need to convert from character units to pixel units before calling u8BufPixelIndex.
+    return self.u8BufPixelIndex((x * char_info.width) / 4, (y * char_info.height) / 4);
 }
 
 fn bufferSlice(self: *const Self) []volatile u8 {
     const buf: [*]volatile u8 = @ptrFromInt(self.fb.addr);
-    return buf[0..self.u8BufIndexInternal(self.fb.width, self.fb.height)];
+    return buf[0..self.u8BufPixelIndex(self.fb.width, self.fb.height)];
 }
 
 fn fromCtx(ctx: *const anyopaque) *Self {
