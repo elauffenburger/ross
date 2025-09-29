@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#MISE description="Translates a virtual to physical memory address"
 set -eu -o pipefail
 
 VIRT_HEX="$1"
@@ -14,3 +15,4 @@ table:     $(bw_hex "$VIRT_HEX >> 22")
 page:   $(bw_hex "($VIRT_HEX >> 12) & 0x03ff")
 offset:  $(bw_hex "$VIRT_HEX & 0x00000fff")
 EOF
+

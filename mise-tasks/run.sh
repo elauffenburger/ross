@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#MISE description="Build and run OS image"
 set -eu -o pipefail
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")

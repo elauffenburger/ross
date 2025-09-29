@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+#MISE description="Decodes a psf1 file for debugging purposes"
 set -eu -o pipefail
 
 usage() {
@@ -67,5 +68,5 @@ if [[ "$PRINT_BITMAP" == 1 ]]; then
 fi
 
 if [[ "$PRINT_TABLE" == 1 ]]; then
-  xxd <"$PSF1_FILE" -s $(( 4 + (512 * 16) )) -c 2 | cut -d ' ' -f 2,3
+  xxd <"$PSF1_FILE" -s $((4 + (512 * 16))) -c 2 | cut -d ' ' -f 2,3
 fi
