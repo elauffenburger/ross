@@ -9,4 +9,3 @@ READELF=/opt/homebrew/opt/binutils/bin/readelf
 SORTED_KERNEL_ELFS=$(find "$SCRIPT_DIR/../.zig-cache" -type f -iwholename '*kernel.elf' -print0 | xargs -0 ls -tl)
 
 "$READELF" "$(head <<<"$SORTED_KERNEL_ELFS" -n 1 | rev | cut -d ' ' -f 1 | rev)" "$@"
-

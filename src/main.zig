@@ -42,25 +42,6 @@ pub export var multiboot2_header align(4) linksection(".multiboot") = blk: {
 
 extern var multiboot2_info_addr: u32;
 
-pub export fn _kmain() callconv(.naked) noreturn {
-    // Set up kernel stack.
-    kstd.mem.stack.reset();
-
-    // Set up GDT and virtual memory before jumping into kmain since we need to map kernel space to the appropriate
-    // segments and pages before we jump into it (or else our segment registers will be screwed up)!
-    hw.gdt.init();
-
-    // Reset kernel stack.
-    kstd.mem.stack.reset();
-
-    // Transfer to kmain.
-    asm volatile (
-        \\ jmp %[kmain:P]
-        :
-        : [kmain] "X" (&kmain),
-    );
-}
-
 pub const panic = std.debug.FullPanic(panicHandler);
 
 fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
@@ -82,7 +63,7 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
     unreachable;
 }
 
-pub fn kmain() !void {
+pub export fn kmain() !void {
     // TODO: make sure a20 line is enabled; this _should_ happen after serial communication, but we need to make sure.
 
     // Verify the boot was successful.
@@ -121,15 +102,7 @@ pub fn kmain() !void {
     try hw.io.ps2.init(pic_proof);
 
     // Init process control.
-    const proc_proof = try proc.init();
-
-    // Set up virtual memory.
-    //
-    // NOTE: we're identity-mapping the kernel so it's okay to set this up outside of _kmain (the physical and virtual addresses
-    // of kernel code/data will be identical, so anything we've already set up by this point won't be invalidated).
-    //
-    // NOTE: a GPF will fire as soon as we enable paging, so this has to happen after we've set up interrupts!
-    try hw.vmem.init(pic_proof, proc_proof);
+    _ = try proc.init();
 
     // Start up kernel processes.
     try proc.startKProc(&proc_kbd.main);

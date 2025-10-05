@@ -15,80 +15,6 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
-pub fn init(pic_proof: pic.InitProof, proc_proof: kstd.proc.InitProof) !void {
-    try pic_proof.prove();
-    try proc_proof.prove();
-
-    const kernel_proc = kstd.proc.kernelProc();
-
-    kstd.log.dbgvf("kernel size: {?}\n", .{kernelSize()});
-
-    // Identity-map the kernel into the kernel_proc.
-    try mapPages(kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
-
-    // HACK: manually map in the frame buffer (but the number of bytes is totally arbitrary; there's something really weird here but i don't know what's going on with the byte limits).
-    try mapPages(kernel_proc.vm, 0xfd00_0000, .{ .addr = 0xfd00_0000 }, 0x00c0_0000);
-
-    // Enable paging!
-    enablePaging(kernel_proc.cr3);
-}
-
-fn enablePaging(new_cr3: u32) void {
-    asm volatile (
-        \\ mov %[pdt_addr], %%cr3
-        \\
-        \\ mov %%cr0, %%eax
-        \\ or $0x80000000, %%eax
-        \\ mov %%eax, %%cr0
-        :
-        : [pdt_addr] "r" (new_cr3),
-        : "eax", "cr0", "cr3"
-    );
-}
-
-fn mapPages(vm: *ProcessVirtualMemory, start_phys_addr: u32, start_virt_add: VirtualAddress, num_bytes: u32) !void {
-    const num_pages: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_bytes)) / 4096));
-    const num_tables: u32 = @intFromFloat(std.math.ceil(@as(f32, @floatFromInt(num_pages)) / 1024));
-
-    const start_table, const end_table = .{ start_virt_add.table(), start_virt_add.table() + num_tables };
-
-    // Map page tables into the page dir until we've mapped all the bytes.
-    var num_pages_mapped: u32 = 0;
-    for (start_table..end_table) |page_table_i| {
-        // Create a new page table and add it to the page dir.
-        const page_table = try newPageTable();
-
-        vm.page_tables[page_table_i] = page_table;
-        vm.page_dir[page_table_i] = try PageDirectoryEntry.new(.{
-            .present = true,
-            .rw = true,
-            .page_table = page_table,
-        });
-
-        // Fill the page table.
-        for (0..page_table.len) |page_i| {
-            // If we're done mapping pages, we still need to zero out the rest of the pages in the table.
-            if (num_pages_mapped >= num_pages) {
-                page_table[page_i] = .{ .present = false };
-                continue;
-            }
-
-            // ...Otherwise, add a new page!
-            page_table[page_i] = try Page.new(.{
-                .present = true,
-                .rw = true,
-                .addr = start_phys_addr + (page_i * Page.NUM_BYES_MANAGED),
-            });
-
-            num_pages_mapped += 1;
-        }
-    }
-}
-
-fn newPageTable() !*PageTable {
-    return &(try kstd.mem.kheap_allocator.alignedAlloc(PageTable, 4096, 1))[0];
-}
-
 pub const ProcessVirtualMemory = struct {
     // Each process gets its own page directory and each page dir entry has an associated page table.
     //
@@ -146,31 +72,6 @@ const PageDirectoryEntry = packed struct(u32) {
         @"4MiB" = 1,
     };
 
-    pub fn new(
-        args: kstd.types.And(
-            kstd.types.Exclude(@This(), .{"addr"}),
-            struct { page_table: *PageTable },
-        ),
-    ) !@This() {
-        const page_table_addr: u32 = @intFromPtr(args.page_table);
-
-        // Make sure the PageTable address is properly aligned.
-        std.debug.assert(try std.math.mod(u32, page_table_addr, 4096) == 0);
-
-        return .{
-            .present = args.present,
-            .rw = args.rw,
-            .user_accessible = args.user_accessible,
-            .pwt = args.pwt,
-            .cache_disable = args.cache_disable,
-            .accessed = args.accessed,
-            ._r1 = args._r1,
-            .page_size = args.page_size,
-            .meta = args.meta,
-            .addr = @intCast(page_table_addr >> 12),
-        };
-    }
-
     pub inline fn pageTable(self: @This()) *PageTable {
         return @ptrFromInt(@as(u32, self.addr) << 12);
     }
@@ -194,30 +95,6 @@ const Page = packed struct(u32) {
     global: bool = false,
     meta: u3 = 0,
     addr: u20 = 0,
-
-    pub fn new(
-        args: kstd.types.And(
-            kstd.types.Exclude(Page, .{"addr"}),
-            struct { addr: u32 },
-        ),
-    ) !@This() {
-        // Make sure the address is properly aligned.
-        std.debug.assert(try std.math.mod(u32, args.addr, 4096) == 0);
-
-        return .{
-            .present = args.present,
-            .rw = args.rw,
-            .user_accessible = args.user_accessible,
-            .pwt = args.pwt,
-            .cache_disable = args.cache_disable,
-            .accessed = args.accessed,
-            .dirty = args.dirty,
-            .pat = args.pat,
-            .global = args.global,
-            .meta = args.meta,
-            .addr = @intCast(args.addr >> 12),
-        };
-    }
 
     test "0x00801004" {
         const addr = VirtualAddress{ .addr = 0x00801004 };
