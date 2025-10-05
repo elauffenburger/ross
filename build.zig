@@ -11,6 +11,7 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
         // .code_model = .kernel,
 
         .name = "ross",
+        .linkage = .static,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = b.standardTargetOptions(.{
@@ -40,6 +41,7 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .link_libc = false,
             .link_libcpp = false,
             .dwarf_format = .@"32",
+            .pic = true,
 
             // Disable red zone to prevent stack-clobbering nonsense in IRQ handlers.
             .red_zone = false,

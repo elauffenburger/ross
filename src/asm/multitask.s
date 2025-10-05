@@ -1,5 +1,7 @@
 BITS 32
 
+%include "macros.s"
+
 extern curr_proc
 
 extern proc_irq_switching_enabled

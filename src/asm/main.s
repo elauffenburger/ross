@@ -28,9 +28,10 @@ section .text
     mov [multiboot2_info_addr], ebx
 
     ; load the GDT
-;   mov dword [gdtr + gdt_desc.addr], gdt
-;   mov word [gdtr + gdt_desc.limit], gdt_len
-;    load_gdt [rel gdtr] gdt_kernel_tss_index
+    mov dword [gdtr + gdt_desc.addr], gdt
+    mov dword eax, gdt_len
+    mov word [gdtr + gdt_desc.limit], ax
+    load_gdt [gdtr], gdt_kernel_tss_index
 
     ; load the kernel TSS as the active TSS
 ;   mov word [kernel_tss + tss.ss0], 8 * gdt_kernel_tss_index
