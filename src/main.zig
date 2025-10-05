@@ -63,7 +63,9 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
     unreachable;
 }
 
-pub export fn kmain() !void {
+pub export fn kmain() void {
+    errdefer |err| std.debug.panic("err in main: {}", .{err});
+
     // TODO: make sure a20 line is enabled; this _should_ happen after serial communication, but we need to make sure.
 
     // Verify the boot was successful.

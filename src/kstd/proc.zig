@@ -97,7 +97,7 @@ pub fn startKProc(proc_main: *const fn () anyerror!void) !void {
         // Allocate a new kernel stack such that registers will be popped in the following order:
         const esp0 = blk_esp0: {
             // HACK: this leaks.
-            const stack_buf = try kstd.mem.kheap_allocator.alloc(u8, kstd.mem.stack.stack_bytes.len);
+            const stack_buf = try kstd.mem.kheap_allocator.alloc(u8, kstd.mem.stack.stack_size);
 
             const esp0 = build_proc_stack_esp(
                 stack_buf,

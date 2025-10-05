@@ -51,12 +51,7 @@ fn addInstall(b: *std.Build) KernelCompile {
 
     const build_asm_lib, const asm_lib_obj = blk: {
         const build_loader = std.Build.Step.Run.create(b, "Build asm lib");
-        build_loader.addArgs(&.{
-            "nasm",
-            "-f",
-            "elf32",
-            "-o",
-        });
+        build_loader.addArgs(&.{ "nasm", "-f", "elf32", "-o" });
         const loader_obj = build_loader.addOutputFileArg("asm_fns.o");
         build_loader.addFileArg(b.path("src/asm/asm.s"));
 

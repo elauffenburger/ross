@@ -1,7 +1,10 @@
+BITS 32
+
 extern gdt
+extern gdt_len
+extern gdt_kernel_code_index
+extern gdt_kernel_tss_index
 extern gdtr
-extern kernel_tss
-extern kernel_tss_index
 
 extern curr_proc
 extern curr_proc_time_slice_ms
@@ -11,26 +14,90 @@ extern on_irq0
 
 extern kmain
 
-KiB eq 1024
+KiB   equ 1024
 
 MULTIBOOT2_MAGIC equ 0x36d76289
 
-STACK_SIZE      equ (16 * KiB)
-PAGE_ENTRY_SIZE equ (4 * KiB)
+STACK_SIZE      equ 16 * KiB
+PAGE_ENTRY_SIZE equ 4 * KiB
 
-section .stack
-global stack_bottom
-stack_bottom:
-  resb STACK_SIZE
-global stack_bottom
-stack_top:
+struc gdt_desc
+  .limit: resw 0
+  .addr: resd 0
+endstruc
+
+struc tss
+  .link: resw 0
+  ._r1: resw 0
+
+  .esp0: resd 0
+
+  .ss0: resw 0
+  ._r2: resw 0
+
+  .esp1: resd 0
+
+  .ss1: resw 0
+  ._r3: resw 0
+
+  .esp2: resd 0
+
+  .ss2: resw 0
+  ._r4: resw 0
+
+  .cr3: resd 0
+  .eip: resd 0
+  .eflags: resd 0
+  .eax: resd 0
+  .ecx: resd 0
+  .edx: resd 0
+  .ebx: resd 0
+  .esp: resd 0
+  .ebp: resd 0
+  .esi: resd 0
+  .edi: resd 0
+
+  .es: resw 0
+  ._r5: resw 0
+
+  .cs: resw 0
+  ._r6: resw 0
+
+  .ss: resw 0
+  ._r7: resw 0
+
+  .ds: resw 0
+  ._r8: resw 0
+
+  .fs: resw 0
+  ._r9: resw 0
+
+  .gs: resw 0
+  ._r10: resw 0
+
+  .ldtr: resw 0
+  ._r11: resw 0
+
+  ._r12: resw 0
+
+  .iopb: resw 104
+
+  .ssp: resd 0
+endstruc
 
 section .bss
-align (4 * KiB)
-page_dir:
-  resb PAGE_ENTRY_SIZE
-page_table_1:
-  resb PAGE_ENTRY_SIZE
+  align 4 * 1024
+
+  page_dir:
+    resb PAGE_ENTRY_SIZE
+  page_table_1:
+    resb PAGE_ENTRY_SIZE
+
+  global stack_bottom
+  stack_bottom:
+    resb STACK_SIZE
+  global stack_top
+  stack_top:
 
 section .data
   global multiboot2_info_addr
@@ -38,6 +105,14 @@ section .data
 
   global stack_size
   stack_size dd STACK_SIZE
+
+  gdtr:
+    istruc gdt_desc
+    iend
+
+  kernel_tss:
+    istruc tss
+    iend
 
 section .text
 
@@ -52,8 +127,8 @@ section .text
 ;    so we just jump to a label but with the Kernel Code segment offset set (which will be 8 * offset_num).
 ; 5. Set our DS and SS registers
 ; 6. Done!
-%macro load_gdt 0:
-  .align 4
+%macro load_gdt 0
+  align 4
 
   ; clear interrupts
   cli
@@ -64,20 +139,21 @@ section .text
 
   ; turn on Protected Mode (...though it should already be on!)
   mov eax, cr0
-  or eax, $1
+  or eax, 1
   mov cr0, eax
 
   ; load the gdt!
-  lgdt gdtr
+  lgdt [gdtr]
 
-  ; set CS to segment 1 (8 * 1) by far jumping to a local label
-  ljmp .after_lgdtr, $8
+  ; set CS to the kernel_code segment offset (8 * index) by far jumping to a local label
+  ; and specifying the offset.
+  jmp .after_lgdtr:(8 * gdt_kernel_code_index)
 
 .after_lgdtr:
-  .align 4
-  
+  align 4
+
   ; set data segment registers to 16d (segment 2)
-  mov ax, $16
+  mov ax, 16
   mov ds, ax
   mov es, ax
   mov fs, ax
@@ -100,11 +176,14 @@ _kentry:
   mov [multiboot2_info_addr], ebx
 
   ; load the GDT
+  mov dword [gdtr + gdt_desc.addr], gdt
+  mov word [gdtr + gdt_desc.limit], gdt_len
   load_gdt
 
   ; load the kernel TSS as the active TSS
-  %define kernel_tss_offset() 8 * kernel_tss_index
-  load_tss kernel_tss_offset
+  mov word [kernel_tss + tss.ss0], 8 * gdt_kernel_tss_index
+  mov dword [kernel_tss + tss.esp0], stack_top
+  load_tss kernel_tss
 
   ; jump to_kmain
   jmp kmain
