@@ -15,22 +15,19 @@ fn kernelSize() u32 {
     return @as(u32, @intFromPtr(&__kernel_size));
 }
 
-var shared_proc_vm = ProcessVirtualMemory{};
-
 pub fn init(pic_proof: pic.InitProof, proc_proof: kstd.proc.InitProof) !void {
     try pic_proof.prove();
     try proc_proof.prove();
 
     const kernel_proc = kstd.proc.kernelProc();
 
+    kstd.log.dbgvf("kernel size: {?}\n", .{kernelSize()});
+
     // Identity-map the kernel into the kernel_proc.
     try mapPages(kernel_proc.vm, 0, .{ .addr = 0 }, kernelSize());
 
     // HACK: manually map in the frame buffer (but the number of bytes is totally arbitrary; there's something really weird here but i don't know what's going on with the byte limits).
     try mapPages(kernel_proc.vm, 0xfd00_0000, .{ .addr = 0xfd00_0000 }, 0x00c0_0000);
-
-    // Map the kernel into the shared process virtual memory.
-    try mapPages(&shared_proc_vm, 0, user_proc_kernel_start_virt_addr, 0xffffffff - user_proc_kernel_start_virt_addr.addr);
 
     // Enable paging!
     enablePaging(kernel_proc.cr3);

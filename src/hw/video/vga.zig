@@ -12,7 +12,7 @@ pub const TextModeFrameBufferTarget = @import("vga/TextModeFrameBufferTarget.zig
 pub var frame_buffer: *FrameBuffer = undefined;
 
 pub fn init(allocator: std.mem.Allocator, mb2_frame_buffer: *multiboot2.boot_info.FrameBufferInfo) !void {
-    kstd.log.dbgf("{}\n", .{mb2_frame_buffer.addr});
+    kstd.log.dbgf("frame buffer addr: {x}\n", .{mb2_frame_buffer.addr});
 
     // Create new frame buffer.
     frame_buffer = try FrameBuffer.create(allocator, mb2_frame_buffer);

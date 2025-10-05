@@ -73,7 +73,7 @@ pub fn init() !InitProof {
     return proof;
 }
 
-pub fn kernelProc() *const Process {
+pub inline fn kernelProc() *const Process {
     return kernel_proc;
 }
 
