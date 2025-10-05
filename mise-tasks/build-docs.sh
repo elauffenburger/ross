@@ -17,9 +17,9 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-ARGS=(run --rm -it -v "$SCRIPT_DIR/..":/app -w /app)
+ARGS=(run --rm -t -v "$SCRIPT_DIR/..":/app -w /app)
 if [[ "$INTERACTIVE" == 1 ]]; then
-  ARGS+=(--entrypoint /bin/sh squidfunk/mkdocs-material)
+  ARGS+=(-i --entrypoint /bin/sh squidfunk/mkdocs-material)
 else
   ARGS+=(squidfunk/mkdocs-material build)
 fi
