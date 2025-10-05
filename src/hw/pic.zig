@@ -39,7 +39,7 @@ pub fn init(idt_proof: idt.InitProof) !InitProof {
     io.outb(pic2.cmd(), InitControlWord1.init | InitControlWord1.icw4);
     io.wait();
 
-    // ICW2: Set vector table offsets.
+    // ICW2: Set vector table offsets so there are no conflicts with between cpu interrupts and hardware interrupts.
     io.outb(pic1.data(), irq_offset);
     io.wait();
     io.outb(pic2.data(), irq_offset + 8);

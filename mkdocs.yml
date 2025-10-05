@@ -1,0 +1,6 @@
+site_name: Ross
+site_url: https://elauffenburger.github.com/ross
+docs_dir: docs-src
+site_dir: docs
+theme:
+  name: material

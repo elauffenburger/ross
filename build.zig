@@ -7,8 +7,10 @@ pub fn build(b: *std.Build) !void {
 
 fn addInstall(b: *std.Build) KernelCompile {
     const kernel = b.addExecutable(.{
+        // NOTE: this should only matter if we're compiling an x64 kernel (in which case, check out https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build).
+        // .code_model = .kernel,
+
         .name = "ross",
-        .code_model = .kernel,
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = b.standardTargetOptions(.{

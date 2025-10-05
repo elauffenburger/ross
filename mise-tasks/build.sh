@@ -131,10 +131,12 @@ main() {
     echo 'running...'
 
     QEMU_ARGS=(
-      -cpu 'core2duo,-lm'
-      -vga std
-      -m 4096
+      -cpu 'max'
       -accel 'tcg,thread=single'
+      -object 'memory-backend-file,id=pc.ram,size=4096M,mem-path=/tmp/qemu-memory,prealloc=on,share=on'
+      -machine memory-backend=pc.ram
+      -m 4096M
+      -vga std
       -cdrom "$OUT_DIR/os.iso"
       -no-reboot
       -d 'cpu_reset,int,guest_errors,page,in_asm,pcall'
