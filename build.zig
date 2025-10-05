@@ -61,6 +61,7 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
         nasm.setCwd(asm_dir);
         nasm.addArgs(&.{
             "nasm",
+            "-O0",
             "-g",
             "-f",
             "elf32",
