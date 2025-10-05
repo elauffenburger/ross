@@ -19,32 +19,24 @@ SECTIONS {
     KEEP(*(.multiboot));
   }
 
-  .gdt : {
-    KEEP(*(.gdt));
-  }
+  . += 0x80000000;
 
-  /* . += 0xC0000000; */
-
-  /* .text ALIGN(4K) : AT (ADDR (.text) - 0xC0000000) { */
-  .text ALIGN(4K) : {
+  .text ALIGN(4K) : AT (ADDR (.text) - 0x80000000) {
     *(.text);
     *(.text.*);
   }
 
-  /* .rodata ALIGN(4K) : AT (ADDR (.rodata) - 0xC0000000) { */
-  .rodata ALIGN(4K) : {
+  .rodata ALIGN(4K) : AT (ADDR (.rodata) - 0x80000000) {
     *(.rodata); 
     *(.rodata.*); 
   }
 
-  /* .data ALIGN(4K) : AT (ADDR (.data) - 0xC0000000) {  */
-  .data ALIGN(4K) : { 
+  .data ALIGN(4K) : AT (ADDR (.data) - 0x80000000) { 
     *(.data); 
     *(.data.*); 
   }
 
-  /* .bss ALIGN (4K) : AT (ADDR (.bss) - 0xC0000000) { */
-  .bss ALIGN (4K) : {
+  .bss ALIGN (4K) : AT (ADDR (.bss) - 0x80000000) {
     *(.bss);
     *(.bss.*);
     *(.stack);

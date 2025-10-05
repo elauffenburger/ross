@@ -41,7 +41,6 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
             .link_libc = false,
             .link_libcpp = false,
             .dwarf_format = .@"32",
-            .pic = true,
 
             // Disable red zone to prevent stack-clobbering nonsense in IRQ handlers.
             .red_zone = false,
@@ -49,7 +48,8 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
     });
     kernel.entry = .{ .symbol_name = "_kentry" };
     kernel.setLinkerScript(b.path("src/asm/link.ld"));
-    kernel.link_gc_sections = false;
+
+    // kernel.setVerboseLink(true);
 
     // Compile and link asm libs.
     const asm_dir = b.path("src/asm/");
@@ -61,9 +61,9 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
         nasm.setCwd(asm_dir);
         nasm.addArgs(&.{
             "nasm",
+            "-g",
             "-f",
             "elf32",
-            "-g",
             "-w+all",
         });
 

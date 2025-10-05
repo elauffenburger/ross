@@ -11,7 +11,7 @@ pub const GdtSegment = enum(u4) {
     userTss = 6,
 };
 
-pub export const gdt: [@typeInfo(GdtSegment).@"enum".fields.len]GdtSegmentDescriptor align(4) linksection(".gdt") = .{
+pub export const gdt: [@typeInfo(GdtSegment).@"enum".fields.len]GdtSegmentDescriptor align(4) = .{
     // Mandatory null entry.
     @bitCast(@as(u64, 0)),
 
@@ -92,9 +92,8 @@ pub export const gdt: [@typeInfo(GdtSegment).@"enum".fields.len]GdtSegmentDescri
         },
     }),
 };
-export const gdt_len: u32 linksection(".gdt") = 7;
-
-export const kernel_tss_index: u32 linksection(".gdt") = @intCast(@intFromEnum(GdtSegment.kernelTss));
+export const gdt_len: u32 = 7;
+export const kernel_tss_index: u32 = @intCast(@intFromEnum(GdtSegment.kernelTss));
 
 // See [the docs](https://wiki.osdev.org/Task_State_Segment) for more details.
 pub const TaskStateSegment = packed struct(u864) {

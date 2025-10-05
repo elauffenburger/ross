@@ -7,7 +7,10 @@ extern gdt
 extern gdt_len
 extern gdt_kernel_code_index
 extern gdt_kernel_tss_index
+extern kernel_tss
 extern gdtr
+
+extern stack_top
 
 extern kmain
 
@@ -29,14 +32,13 @@ section .text
 
     ; load the GDT
     mov dword [gdtr + gdt_desc.addr], gdt
-    mov dword eax, gdt_len
-    mov word [gdtr + gdt_desc.limit], ax
+    mov word [gdtr + gdt_desc.limit], gdt_len
     load_gdt [gdtr], gdt_kernel_tss_index
 
     ; load the kernel TSS as the active TSS
-;   mov word [kernel_tss + tss.ss0], 8 * gdt_kernel_tss_index
-;   mov dword [kernel_tss + tss.esp0], stack_top
-;    load_tss kernel_tss
+    mov word [kernel_tss + tss.ss0], 8 * gdt_kernel_tss_index
+    mov dword [kernel_tss + tss.esp0], stack_top
+    load_tss kernel_tss
 
     ; jump to_kmain
     jmp kmain
