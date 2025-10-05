@@ -133,9 +133,9 @@ main() {
     QEMU_ARGS=(
       -cpu 'max'
       -accel 'tcg,thread=single'
-      -object 'memory-backend-file,id=pc.ram,size=4096M,mem-path=/tmp/qemu-memory,prealloc=on,share=on'
+      -object 'memory-backend-file,id=pc.ram,size=512M,mem-path=/tmp/qemu-memory,prealloc=on,share=on'
       -machine memory-backend=pc.ram
-      -m 4096M
+      -m 512M
       -vga std
       -cdrom "$OUT_DIR/os.iso"
       -no-reboot

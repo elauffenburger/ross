@@ -92,7 +92,7 @@ pub export const gdt: [@typeInfo(GdtSegment).@"enum".fields.len]GdtSegmentDescri
         },
     }),
 };
-export const gdt_len linksection(".gdt") = gdt.len;
+export const gdt_len: u8 linksection(".gdt") = 7;
 
 export const kernel_tss_index: u32 linksection(".gdt") = @intCast(@intFromEnum(GdtSegment.kernelTss));
 

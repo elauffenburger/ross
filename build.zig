@@ -5,7 +5,7 @@ pub fn build(b: *std.Build) !void {
     addTests(b, kernelc);
 }
 
-fn addInstall(b: *std.Build) KernelCompile {
+fn addInstall(b: *std.Build) *std.Build.Step.Compile {
     const kernel = b.addExecutable(.{
         // NOTE: this should only matter if we're compiling an x64 kernel (in which case, check out https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build).
         // .code_model = .kernel,
@@ -49,32 +49,43 @@ fn addInstall(b: *std.Build) KernelCompile {
     kernel.setLinkerScript(b.path("src/asm/link.ld"));
     kernel.link_gc_sections = false;
 
-    const build_asm_lib, const asm_lib_obj = blk: {
-        const build_loader = std.Build.Step.Run.create(b, "Build asm lib");
-        build_loader.addArgs(&.{ "nasm", "-f", "elf32", "-o" });
-        const loader_obj = build_loader.addOutputFileArg("asm_fns.o");
-        build_loader.addFileArg(b.path("src/asm/asm.s"));
+    // Compile and link asm libs.
+    const asm_dir = b.path("src/asm/");
+    inline for ([_][]const u8{ "main.s", "gdt.s", "multitask.s", "stack.s", "vmem.s" }) |asm_src| {
+        // Create nasm run step.
+        const nasm = std.Build.Step.Run.create(b, std.fmt.comptimePrint("Build asm lib ({s})", .{asm_src}));
+        kernel.step.dependOn(&nasm.step);
 
-        break :blk .{ build_loader, loader_obj };
-    };
-    kernel.step.dependOn(&build_asm_lib.step);
-    kernel.root_module.addObjectFile(asm_lib_obj);
+        nasm.setCwd(asm_dir);
+        nasm.addArgs(&.{
+            "nasm",
+            "-f",
+            "elf32",
+            "-g",
+            "-w+all",
+        });
+
+        // Add output arg.
+        nasm.addArg("-o");
+        const nasm_out = nasm.addOutputFileArg(std.fmt.comptimePrint("asm-{s}.o", .{asm_src}));
+
+        // Add input arg.
+        nasm.addFileArg(asm_dir.path(b, asm_src));
+
+        // Add object file to kernel build.
+        kernel.root_module.addObjectFile(nasm_out);
+    }
 
     b.installArtifact(kernel);
 
-    return .{ .kernel = kernel, .asm_lib_obj = asm_lib_obj };
+    return kernel;
 }
 
-const KernelCompile = struct {
-    kernel: *std.Build.Step.Compile,
-    asm_lib_obj: std.Build.LazyPath,
-};
-
-fn addTests(b: *std.Build, kernelc: KernelCompile) void {
+fn addTests(b: *std.Build, kernelc: *std.Build.Step.Compile) void {
     const exe_unit_tests = b.addTest(.{
-        .root_module = kernelc.kernel.root_module,
+        .root_module = kernelc.root_module,
     });
-    exe_unit_tests.linker_script = kernelc.kernel.linker_script;
+    exe_unit_tests.linker_script = kernelc.linker_script;
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
