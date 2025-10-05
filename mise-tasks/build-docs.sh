@@ -3,25 +3,12 @@ set -eu -o pipefail
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 
-INTERACTIVE=0
-while [[ "$#" -gt 0 ]]; do
-  case "$1" in
-  -i)
-    INTERACTIVE=1
-    ;;
+docker run --rm -t \
+  --entrypoint /bin/sh \
+  -v "$SCRIPT_DIR/..":/app \
+  -w /app \
+  squidfunk/mkdocs-material -c '
+pip install mkdocs-terminal
 
-  *)
-    echo "unknown flag $1" >&2
-    exit 1
-    ;;
-  esac
-done
-
-ARGS=(run --rm -t -v "$SCRIPT_DIR/..":/app -w /app)
-if [[ "$INTERACTIVE" == 1 ]]; then
-  ARGS+=(-i --entrypoint /bin/sh squidfunk/mkdocs-material)
-else
-  ARGS+=(squidfunk/mkdocs-material build)
-fi
-
-docker "${ARGS[@]}"
+mkdocs build
+'
