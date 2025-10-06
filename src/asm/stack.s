@@ -1,6 +1,6 @@
 BITS 32
 
-%include "macros.s"
+%include "macros.inc"
 
 STACK_SIZE equ 16 * KiB
 

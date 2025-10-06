@@ -1,6 +1,6 @@
 BITS 32
 
-%include "macros.s"
+%include "macros.inc"
 
 PAGE_ENTRY_SIZE equ 4 * KiB
 
@@ -30,7 +30,7 @@ section .mulitboot.text
 
   .loop:
     ; If we're not at least at __kernel_start yet, go to the next page.
-    cmpl esi, __kernel_start
+    cmp esi, __kernel_start
     jl .next_page
 
     ; If we've finished mapping the kernel; jump to done.
@@ -92,25 +92,17 @@ section .mulitboot.text
     or ecx, (CR0_PE | CR0_PG)
     mov cr0, ecx
 
-    ; jump to higher half by jumping to the absolute address of a label in .text (which has a virt addr).
-    lea ecx, .done
-    jmp ecx
+    ; we're done!
+    ret
 
 section .text:
-  paging_done:
-    ; Paging is now go!
-
-    ; Now, we just need to unmap page_dir[0] (since we no longer need it)
-    ; and reload the page dir.
+  paging_unset_identity_mapping:
+    ; unmap page_dir[0] 
     mov page_dir + 0, 0
+
+    ; reload the page dir
     mov ecx, cr3
     mov cr3, ecx
-
-    ; rewrite the return address (which will be the original physical addr) 
-    ; so it points to the equivalent virtual address
-    pop eax
-    add eax, HIGHER_HALF
-    push eax
 
     ret
 

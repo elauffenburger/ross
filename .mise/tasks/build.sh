@@ -54,6 +54,8 @@ build_kernel() {
   ZIG_ARGS=(
     --summary all
     --color on
+
+    -freference-trace=100
   )
   if [[ "$VERBOSE" == 1 ]]; then
     # --verbose-link               Enable compiler debug output for linking

@@ -1,11 +1,11 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
-    const kernelc = addInstall(b);
+    const kernelc = try addInstall(b);
     addTests(b, kernelc);
 }
 
-fn addInstall(b: *std.Build) *std.Build.Step.Compile {
+fn addInstall(b: *std.Build) !*std.Build.Step.Compile {
     const kernel = b.addExecutable(.{
         // NOTE: this should only matter if we're compiling an x64 kernel (in which case, check out https://gitlab.com/x86-psABIs/x86-64-ABI/-/jobs/artifacts/master/raw/x86-64-ABI/abi.pdf?job=build).
         // .code_model = .kernel,
@@ -49,34 +49,46 @@ fn addInstall(b: *std.Build) *std.Build.Step.Compile {
     kernel.entry = .{ .symbol_name = "_kentry" };
     kernel.setLinkerScript(b.path("src/asm/link.ld"));
 
-    // kernel.setVerboseLink(true);
+    // Assemble and link asm libs.
+    {
+        const asm_dir_path = b.path("src/asm");
 
-    // Compile and link asm libs.
-    const asm_dir = b.path("src/asm/");
-    inline for ([_][]const u8{ "main.s", "gdt.s", "multitask.s", "stack.s", "vmem.s" }) |asm_src| {
-        // Create nasm run step.
-        const nasm = std.Build.Step.Run.create(b, std.fmt.comptimePrint("Build asm lib ({s})", .{asm_src}));
-        kernel.step.dependOn(&nasm.step);
+        var asm_dir = try std.fs.openDirAbsolute(try b.build_root.join(b.allocator, &[_][]const u8{ "src", "asm" }), .{ .iterate = true });
+        defer asm_dir.close();
 
-        nasm.setCwd(asm_dir);
-        nasm.addArgs(&.{
-            "nasm",
-            "-O0",
-            "-g",
-            "-f",
-            "elf32",
-            "-w+all",
-        });
+        var asm_dir_walker = try asm_dir.walk(b.allocator);
+        defer asm_dir_walker.deinit();
 
-        // Add output arg.
-        nasm.addArg("-o");
-        const nasm_out = nasm.addOutputFileArg(std.fmt.comptimePrint("asm-{s}.o", .{asm_src}));
+        while (try asm_dir_walker.next()) |file| {
+            const file_name = file.basename;
+            if (!std.mem.endsWith(u8, file_name, ".s")) {
+                continue;
+            }
 
-        // Add input arg.
-        nasm.addFileArg(asm_dir.path(b, asm_src));
+            // Create nasm run step.
+            const nasm = std.Build.Step.Run.create(b, try std.fmt.allocPrint(b.allocator, "Build asm lib ({any})", .{file_name}));
+            kernel.step.dependOn(&nasm.step);
 
-        // Add object file to kernel build.
-        kernel.root_module.addObjectFile(nasm_out);
+            nasm.setCwd(b.path("src/asm"));
+            nasm.addArgs(&.{
+                "nasm",
+                "-O0",
+                "-g",
+                "-f",
+                "elf32",
+                "-w+all",
+            });
+
+            // Add output arg.
+            nasm.addArg("-o");
+            const nasm_out = nasm.addOutputFileArg(try std.fmt.allocPrint(b.allocator, "asm-{s}.o", .{file_name}));
+
+            // Add input arg.
+            nasm.addFileArg(asm_dir_path.path(b, file.path));
+
+            // Add object file to kernel build.
+            kernel.root_module.addObjectFile(nasm_out);
+        }
     }
 
     b.installArtifact(kernel);

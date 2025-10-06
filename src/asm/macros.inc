@@ -1,2 +1,4 @@
 KiB equ 1024
 MiB equ 1024 * KiB
+
+HIGHER_HALF equ 0xc0000000
