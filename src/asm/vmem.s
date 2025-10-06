@@ -1,5 +1,3 @@
-BITS 32
-
 %include "macros.inc"
 
 extern __kernel_start
@@ -8,7 +6,7 @@ extern __kernel_end
 PAGE_ENTRY_SIZE equ 4 * KiB
 
 section .bss
-  align 4 * 1024
+  align 4 * KiB
 
   global page_dir
   page_dir:
@@ -18,7 +16,7 @@ section .bss
   page_table_0:
     resb PAGE_ENTRY_SIZE
 
-section .mulitboot.text
+section .multiboot.text
   global paging_init
   paging_init:
     ; page_table_entry_phys_ptr = page_table_0_addr_virt - HIGHER_HALF

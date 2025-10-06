@@ -1,5 +1,3 @@
-BITS 32
-
 %include "macros.inc"
 
 extern curr_proc

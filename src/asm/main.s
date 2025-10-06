@@ -1,11 +1,11 @@
-BITS 32
-
 %include "macros.inc"
 
 extern kmain
 
 extern paging_init
 extern paging_unset_identity_mapping
+
+extern stack_top
 
 MULTIBOOT2_MAGIC equ 0x36d76289
 
@@ -28,8 +28,8 @@ section .multiboot.text
 
     ; jump to higher half by jumping to the absolute address of a 
     ; label in .text (which has a virt addr)
-    lea ecx, after_paging_init
-    jmp ecx
+    ;lea ecx, after_paging_init
+    ;jmp ecx
 
   ; HACK: how should we surface this?
   .fail:
@@ -43,6 +43,9 @@ section .text
     ; Now that we're in the higher half, we can undo the 
     ; identity-mapped lower half page dir entries.
     call paging_unset_identity_mapping
+
+    ; set up stack
+    mov esp, stack_top
 
     ; jump to kmain
     jmp kmain
