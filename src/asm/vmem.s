@@ -34,7 +34,7 @@ section .mulitboot.text
     jl .next_page
 
     ; If we've finished mapping the kernel; jump to done.
-    cmpl esi, (__kernel_end - HIGHER_HALF)
+    cmp esi, (__kernel_end - HIGHER_HALF)
     jge .page_one_done
 
     ; Otherwise, map the page into the page table!
