@@ -8,8 +8,8 @@ const proc = @import("kstd/proc.zig");
 const proc_kbd = @import("procs/kbd.zig");
 const proc_term = @import("procs/term.zig");
 
-// Write multiboot2 header to .multiboot section.
-pub export var multiboot2_header align(4) linksection(".multiboot.data") = blk: {
+// Write multiboot2 header to .multiboot.header section.
+pub export var multiboot2_header align(4) linksection(".multiboot.header") = blk: {
     const InfoRequest = multiboot2.tag.InformationRequestTag(&.{
         multiboot2.boot_info.FrameBufferInfo.Type,
         multiboot2.boot_info.VBEInfo.Type,

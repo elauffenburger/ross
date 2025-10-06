@@ -1,3 +1,5 @@
+ENTRY(_kentry)
+
 SECTIONS {
   /*  
     * NOTE: we do a couple interesting things in the loader script:
@@ -14,6 +16,10 @@ SECTIONS {
   . = 1M;
 
   __kernel_start = .;
+
+  .multiboot.header : {
+    KEEP(*(.multiboot.header));
+  }
 
   .multiboot.data : {
     KEEP(*(.multiboot.data));

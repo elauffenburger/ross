@@ -16,8 +16,6 @@ section .multiboot.data
 section .multiboot.text
   global _kentry
   _kentry:
-    hlt
-
     ; make sure eax has the multiboot2 magic number
     cmp eax, MULTIBOOT2_MAGIC
     jne .fail
