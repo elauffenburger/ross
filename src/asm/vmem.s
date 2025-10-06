@@ -2,6 +2,9 @@ BITS 32
 
 %include "macros.inc"
 
+extern __kernel_start
+extern __kernel_end
+
 PAGE_ENTRY_SIZE equ 4 * KiB
 
 section .bss
@@ -16,6 +19,7 @@ section .bss
     resb PAGE_ENTRY_SIZE
 
 section .mulitboot.text
+  global paging_init
   paging_init:
     ; page_table_entry_phys_ptr = page_table_0_addr_virt - HIGHER_HALF
     mov edi, (page_table_0 - HIGHER_HALF)
@@ -56,7 +60,7 @@ section .mulitboot.text
 
   .page_one_done:
 	  ; map VGA text buf as (PRESENT | RW) to the last page in page table 1 (giving it address 0xc03ff000).
-    mov [page_table_0 - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
+    mov dword [page_table_0 - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
 
     ; Here be dragons! 
     ;
@@ -80,8 +84,8 @@ section .mulitboot.text
 
     ; page_dir[0]   = phys_addr(addr_of_index(page_table, 0)) | flags_to_int(PRESENT | RW)
     ; page_dir[768] = ...
-    mov (page_directory - HIGHER_HALF + 0),   (page_table_0 - HIGHER_HALF + (PDE_PRESENT | RW))
-    mov (page_directory - HIGHER_HALF + 768), (page_table_0 - HIGHER_HALF + (PDE_PRESENT | RW))
+    mov dword [page_dir - HIGHER_HALF + 0],   (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
+    mov dword [page_dir - HIGHER_HALF + 768], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
 
     ; set page_dir as the active page directory via cr3
     mov ecx, page_dir - HIGHER_HALF
@@ -96,9 +100,10 @@ section .mulitboot.text
     ret
 
 section .text:
+  global paging_unset_identity_mapping
   paging_unset_identity_mapping:
     ; unmap page_dir[0] 
-    mov page_dir + 0, 0
+    mov dword [page_dir + 0], 0
 
     ; reload the page dir
     mov ecx, cr3

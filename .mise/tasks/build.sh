@@ -3,7 +3,8 @@
 set -eu -o pipefail
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
-OUT_DIR="$SCRIPT_DIR/../out"
+ROOT_DIR="$SCRIPT_DIR/../../"
+OUT_DIR="$ROOT_DIR/out"
 
 usage() {
   cat <<EOF
@@ -49,7 +50,7 @@ while [[ "$#" -gt 0 ]]; do
 done
 
 build_kernel() {
-  pushd "$SCRIPT_DIR/.." >/dev/null
+  pushd "$ROOT_DIR" >/dev/null
 
   ZIG_ARGS=(
     --summary all
@@ -77,16 +78,16 @@ build_kernel() {
 }
 
 build_iso() {
-  local limine_dir="$SCRIPT_DIR/../vendor/limine"
+  local limine_dir="$ROOT_DIR/vendor/limine"
 
   pushd "$OUT_DIR" 2>/dev/null
 
   # Copy our boot dir over.
   mkdir -p iso/boot
-  cp -r -v "$SCRIPT_DIR/../boot"/* iso/boot/
+  cp -r -v "$ROOT_DIR/boot"/* iso/boot/
 
   # Copy ross binary over.
-  cp -v "$SCRIPT_DIR/../zig-out/bin/ross" iso/boot/multiboot2.elf
+  cp -v "$ROOT_DIR/zig-out/bin/ross" iso/boot/multiboot2.elf
 
   # Copy limine files over.
   mkdir -p iso/boot/limine
