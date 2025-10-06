@@ -3,8 +3,8 @@ const std = @import("std");
 pub var kheap_allocator = @import("mem/KernelHeapAllocator.zig").allocator;
 pub const stack = @import("mem/stack.zig");
 
-// Reserve a 50MiB heap in .bss section.
-const heap_size: usize = 50 * 1024 * 1024;
+// Reserve a 25MiB heap in .bss section.
+const heap_size: usize = 25 * 1024 * 1024;
 var kheap: [heap_size]u8 linksection(".bss.kernel_heap") = undefined;
 
 // SAFETY: set in init

@@ -9,13 +9,15 @@ extern paging_unset_identity_mapping
 
 MULTIBOOT2_MAGIC equ 0x36d76289
 
-section .data
+section .multiboot.data
   global multiboot2_info_addr
   multiboot2_info_addr dd 0
 
 section .multiboot.text
   global _kentry
   _kentry:
+    hlt
+
     ; make sure eax has the multiboot2 magic number
     cmp eax, MULTIBOOT2_MAGIC
     jne .fail
