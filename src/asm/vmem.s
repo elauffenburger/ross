@@ -3,6 +3,8 @@
 extern __kernel_start
 extern __kernel_end
 
+extern after_paging_init
+
 PAGE_ENTRY_SIZE equ 4 * KiB
 
 section .bss

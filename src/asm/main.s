@@ -24,11 +24,12 @@ section .multiboot.text
     mov [multiboot2_info_addr], ebx
 
     ; set up paging
-    call paging_init
+    jmp paging_init
 
+  after_paging_init:
     ; jump to higher half by jumping to the absolute address of a 
     ; label in .text (which has a virt addr)
-    ;lea ecx, after_paging_init
+    ;lea ecx, kentry_higher_half
     ;jmp ecx
 
   ; HACK: how should we surface this?
@@ -37,7 +38,7 @@ section .multiboot.text
     jmp .fail
 
 section .text
-  after_paging_init:
+  kentry_higher_half:
     ; Paging is now go and we're in the higher half!
 
     ; Now that we're in the higher half, we can undo the 
