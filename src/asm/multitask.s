@@ -7,7 +7,7 @@ extern on_irq0
 
 section .text
   ; irq0_handler() void
-  global irq0_handler
+  global irq0_handler:function
   irq0_handler:
     ; save registers
     pusha
@@ -75,7 +75,7 @@ section .text
 
   ; TODO: remove -- this is for cooperative multitasking, which we're dropping.
   ; switch_proc() void
-  global switch_proc
+  global switch_proc:function
   switch_proc:
     ; save registers
     push ebx

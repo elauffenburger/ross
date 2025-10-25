@@ -6,21 +6,24 @@ extern __kernel_end
 extern after_paging_init
 
 PAGE_ENTRY_SIZE equ 4 * KiB
+NUM_PAGE_TABLES equ 769
 
 section .bss
   align 4 * KiB
 
-  global page_dir
+  global page_dir:data
   page_dir:
-    resb PAGE_ENTRY_SIZE
+    resb PAGE_ENTRY_SIZE * NUM_PAGE_TABLES
 
-  global page_table_0
+  global page_table_0:data
   page_table_0:
     resb PAGE_ENTRY_SIZE
 
 section .multiboot.text
-  global paging_init
+  global paging_init:function
   paging_init:
+    ; HINT: search logs for: movl $0x3ff, %ecx
+
     ; page_table_entry_phys_ptr = page_table_0_addr_virt - HIGHER_HALF
     mov edi, (page_table_0 - HIGHER_HALF)
     ; phys_addr_to_map
@@ -28,7 +31,7 @@ section .multiboot.text
 
     ; num_pages_to_map
     ;
-    ; NOTE: we're only mapping at most 1023 pages; 
+    ; NOTE: we're only mapping at most 1023 pages;
     ; we'll manually map memory-mapped IO (like VGA) into the last page.
     mov ecx, 1023
 
@@ -37,14 +40,14 @@ section .multiboot.text
     cmp esi, __kernel_start
     jl .next_page
 
-    ; If we've finished mapping the kernel; jump to done.
+    ; If we've finished mapping the first dir entry, jump to done.
     cmp esi, (__kernel_end - HIGHER_HALF)
-    jge .page_one_done
+    jge .dir_entry_one_done
 
     ; Otherwise, map the page into the page table!
-    
-    ; page_entry = phys_addr_to_map | (PRESENT | RW)
-    mov edx, esi  
+
+    ; page_table_entry = phys_addr_to_map | (PRESENT | RW)
+    mov edx, esi
     or edx, (PTE_PRESENT | PTE_RW)
 
     ; *page_table_entry_phys_ptr = page_entry
@@ -58,13 +61,13 @@ section .multiboot.text
 
     loop .loop
 
-  .page_one_done:
+  .dir_entry_one_done:
 	  ; map VGA text buf as (PRESENT | RW) to the last page in page table 1 (giving it address 0xc03ff000).
     mov dword [page_table_0 - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
 
-    ; Here be dragons! 
+    ; Here be dragons!
     ;
-    ; Once we turn on protected mode, we need to be in a valid address or else things are going 
+    ; Once we turn on protected mode, we need to be in a valid address or else things are going
     ; to get _weird_ (we'd immediately page fault because we're no longer in a mapped address).
     ;
     ; To avoid this, we need to identity map the kernel such that the following dir entries are the same:
@@ -97,12 +100,12 @@ section .multiboot.text
     mov cr0, ecx
 
     ; we're done!
-    ret
+    jmp after_paging_init
 
 section .text:
-  global paging_unset_identity_mapping
+  global paging_unset_identity_mapping:function
   paging_unset_identity_mapping:
-    ; unmap page_dir[0] 
+    ; unmap page_dir[0]
     mov dword [page_dir + 0], 0
 
     ; reload the page dir
