@@ -36,9 +36,9 @@ section .multiboot.text
     mov ecx, 1023
 
   .loop:
-    ; If we're not at least at __kernel_start yet, go to the next page.
-    cmp esi, __kernel_start
-    jl .next_page
+    ; ; If we're not at least at __kernel_start yet, go to the next page.
+    ; cmp esi, __kernel_start
+    ; jl .next_page
 
     ; If we've finished mapping the first dir entry, jump to done.
     cmp esi, (__kernel_end - HIGHER_HALF)
@@ -51,7 +51,7 @@ section .multiboot.text
     or edx, (PTE_PRESENT | PTE_RW)
 
     ; *page_table_entry_phys_ptr = page_entry
-    mov [edi], edx
+    mov dword [edi], edx
 
   .next_page:
     ; phys_addr_to_map += 4096
@@ -87,9 +87,10 @@ section .multiboot.text
 
     ; page_dir[0]   = phys_addr(addr_of_index(page_table, 0)) | flags_to_int(PRESENT | RW)
     ; page_dir[768] = ...
-    mov dword [page_dir - HIGHER_HALF + 0],   (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
-    mov dword [page_dir - HIGHER_HALF + 768], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
+    mov dword [page_dir - HIGHER_HALF + 0   * 4], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
+    mov dword [page_dir - HIGHER_HALF + 768 * 4], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
 
+  .set_page_dir:
     ; set page_dir as the active page directory via cr3
     mov ecx, page_dir - HIGHER_HALF
     mov cr3, ecx

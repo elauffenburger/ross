@@ -74,6 +74,8 @@ fn addInstall(b: *std.Build) !*std.Build.Step.Compile {
                 "nasm",
                 "-O0",
                 "-g",
+                "-F",
+                "dwarf",
                 "-f",
                 "elf32",
                 "-w+all",

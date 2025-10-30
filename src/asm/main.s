@@ -26,7 +26,7 @@ section .multiboot.text
     ; set up paging
     jmp paging_init
 
-  ; HACK: how should we surface this?
+  ; TODO: how should we surface this?
   .fail:
     hlt
     jmp .fail
