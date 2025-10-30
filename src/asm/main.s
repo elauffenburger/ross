@@ -1,20 +1,18 @@
 %include "macros.inc"
 
+global multiboot2_info_addr:data
+global _kentry:function
+
 extern kmain
-
 extern paging_init
-extern paging_unset_identity_mapping
-
 extern stack_top
 
 MULTIBOOT2_MAGIC equ 0x36d76289
 
 section .multiboot.data
-  global multiboot2_info_addr:data
   multiboot2_info_addr dd 0
 
 section .multiboot.text
-  global _kentry:function
   _kentry:
     ; make sure eax has the multiboot2 magic number
     cmp eax, MULTIBOOT2_MAGIC
@@ -24,6 +22,9 @@ section .multiboot.text
     mov [multiboot2_info_addr], ebx
 
     ; set up paging
+    ; 
+    ; NOTE: since we don't have a stack yet, we'll pass the return address in ebx.
+    mov ebx, kentry_higher_half
     jmp paging_init
 
   ; TODO: how should we surface this?
@@ -31,20 +32,9 @@ section .multiboot.text
     hlt
     jmp .fail
 
-  global after_paging_init:function
-  after_paging_init:
-    ; jump to higher half by jumping to the absolute address of a
-    ; label in .text (which has a virt addr)
-    lea ecx, kentry_higher_half
-    jmp ecx
-
 section .text
   kentry_higher_half:
-    ; Paging is now go and we're in the higher half!
-
-    ; Now that we're in the higher half, we can undo the
-    ; identity-mapped lower half page dir entries.
-    call paging_unset_identity_mapping
+    ; Paging is go and we're in the higher half!
 
     ; set up stack
     mov esp, stack_top

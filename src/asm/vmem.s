@@ -1,26 +1,44 @@
 %include "macros.inc"
 
+global page_dir:data
+global page_table_0:data
+global paging_init:function
+
 extern __kernel_start
 extern __kernel_end
 
-extern after_paging_init
-
 PAGE_ENTRY_SIZE equ 4 * KiB
-NUM_PAGE_TABLES equ 769
+NUM_PAGE_TABLES equ 768
+
+VGA_TEXT_BUF_ADDR  equ 0x000b8000
+VGA_FRAME_BUF_ADDR equ 0x000a0000
+
+PTE_PRESENT equ 1 << 0
+PTE_RW      equ 1 << 1
+
+PDE_PRESENT equ 1 << 0
+PDE_RW      equ 1 << 1
+
+; Protected Mode Enable
+CR0_PE equ 1 << 0
+; Write protect
+CR0_WP equ 1 << 16
+; Paging
+CR0_PG equ 1 << 31
 
 section .bss
   align 4 * KiB
 
-  global page_dir:data
   page_dir:
     resb PAGE_ENTRY_SIZE * NUM_PAGE_TABLES
 
-  global page_table_0:data
   page_table_0:
     resb PAGE_ENTRY_SIZE
 
 section .multiboot.text
-  global paging_init:function
+  ; paging_init(return_addr: u32)
+  ;
+  ; NOTE: we're passing return_addr in ebx, so make sure not to clobber that register!
   paging_init:
     ; HINT: search logs for: movl $0x3ff, %ecx
 
@@ -100,33 +118,23 @@ section .multiboot.text
     or ecx, (CR0_PE | CR0_PG)
     mov cr0, ecx
 
-    ; we're done!
-    jmp after_paging_init
+    ; We're done init-ing the page dir, so we're now free to jump to the higher half of memory;
+    ; we can do that by just targeting a function in the .text section (which has been linked above xc0000000).
+    ;
+    ; Since we have to jump to _some_ function in the higher half and we'll eventually need to remove the
+    ; identity mapping of the first page, we might as well make that our first stop in .text!
+    jmp paging_init_unset_identity_mapping
 
 section .text:
-  global paging_unset_identity_mapping:function
-  paging_unset_identity_mapping:
+  ; NOTE: this is expected to be called from paging_init! 
+  ; You _cannot_ it from any other function.
+  paging_init_unset_identity_mapping:
     ; unmap page_dir[0]
-    mov dword [page_dir + 0], 0
+    mov dword [page_dir], 0
 
     ; reload the page dir
     mov ecx, cr3
     mov cr3, ecx
 
-    ret
-
-VGA_TEXT_BUF_ADDR  equ 0x000b8000
-VGA_FRAME_BUF_ADDR equ 0x000a0000
-
-PTE_PRESENT equ 1 << 0
-PTE_RW      equ 1 << 1
-
-PDE_PRESENT equ 1 << 0
-PDE_RW      equ 1 << 1
-
-; Protected Mode Enable
-CR0_PE equ 1 << 0
-; Write protect
-CR0_WP equ 1 << 16
-; Paging
-CR0_PG equ 1 << 31
+    ; jump to the return address passed to paging_init in ebx.
+    jmp ebx
