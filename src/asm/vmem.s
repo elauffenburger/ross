@@ -157,7 +157,8 @@ section .text:
   ; NOTE: this is expected to be called from paging_init!
   paging_init_unset_identity_mapping:
     ; unmap page_dir[0]
-    mov dword [page_dir], 0
+    ; HACK: we _should_ be able to do this, but we read multiboot data in the kernel, so we need to maintain the mapping for now; is that a bad thing though?
+    ;mov dword [page_dir], 0
 
     ; reload the page dir
     mov ecx, cr3

@@ -40,13 +40,7 @@ pub export var multiboot2_header align(4) linksection(".multiboot.header") = blk
     break :blk multiboot2.header.headerBytes(&converted_tags);
 };
 
-// NOTE: this is the _physical_ address of the multiboot2 header; we need the _virtual_ one,
-// which should just be its relative address in the higher half.
 extern var multiboot2_info_addr: u32;
-
-inline fn multiboot2_info_addr_virt() u32 {
-    return multiboot2_info_addr + 0xc0000000;
-}
 
 pub const panic = std.debug.FullPanic(panicHandler);
 
@@ -72,10 +66,8 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 pub export fn kmain() void {
     errdefer |err| std.debug.panic("err in main: {}", .{err});
 
-    // TODO: make sure a20 line is enabled; this _should_ happen after serial communication, but we need to make sure.
-
     // Verify the boot was successful.
-    const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr_virt());
+    const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
 
     // Init kernel memory management.
     kstd.mem.init();
