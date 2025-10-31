@@ -76,19 +76,21 @@ pub export fn kmain() void {
 
     // Verify the boot was successful.
     const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
+    _ = boot_info; // autofix
 
     kstd.log.dbg("boot headers parsed");
 
     // Init kernel memory management.
     kstd.mem.init();
     const kallocator = kstd.mem.kheap_allocator;
+    _ = kallocator;
 
     kstd.log.dbg("heap initialized");
 
     // Init VGA.
-    try vga.init(kallocator, boot_info.frame_buffer.?);
+    //try vga.init(kallocator, boot_info.frame_buffer.?);
 
-    kstd.log.dbg("vga initialized");
+    //kstd.log.dbg("vga initialized");
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");

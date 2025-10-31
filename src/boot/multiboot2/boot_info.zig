@@ -105,14 +105,13 @@ pub fn parse(info_addr: usize) BootInfo {
 
     const start = info_addr;
     const end = start + @as(usize, @intCast(info_start.total_size));
-    _ = end; // autofix
 
     var result: BootInfo = .{};
 
+    var maybe_cmd_line: ?[]u8 = null;
+
     var head: u32 = @intFromPtr(info_start) + 8;
-    // HACK: disabling safety check to see what happens.
-    // while (head < end) {
-    while (true) {
+    while (head < end) {
         const header: *TagHeader = @ptrFromInt(head);
         const block_type = header.type;
         switch (block_type) {
@@ -120,11 +119,9 @@ pub fn parse(info_addr: usize) BootInfo {
                 result.cmd_line = @ptrFromInt(head);
 
                 var buf = [_]u8{0} ** 256;
-
-                const cmd_line = std.fmt.bufPrint(&buf, "{s}\n", .{result.cmd_line.?.str()}) catch blk: {
+                maybe_cmd_line = std.fmt.bufPrint(&buf, "{s}\n", .{result.cmd_line.?.str()}) catch blk: {
                     break :blk &.{};
                 };
-                _ = cmd_line; // autofix
             },
             FrameBufferInfo.Type => {
                 result.frame_buffer = @ptrFromInt(head);
@@ -145,6 +142,28 @@ pub fn parse(info_addr: usize) BootInfo {
 
         if (!std.mem.isAligned(head, 8)) {
             head = std.mem.alignForward(u32, head, 8);
+        }
+
+        // Parse the cmd_line (if any).
+        if (maybe_cmd_line) |cmd_line| {
+            // HACK: this deserves a full parser eventually.
+            var cmd_line_kvps = std.mem.splitSequence(u8, cmd_line, " ");
+            while (cmd_line_kvps.next()) |kvp| {
+                var kvp_iter = std.mem.splitSequence(u8, kvp, "=");
+
+                const maybe_key = kvp_iter.next();
+                const maybe_val = kvp_iter.next();
+                if (maybe_key == null or maybe_val == null) {
+                    break;
+                }
+
+                const key = maybe_key.?;
+                const val = maybe_val.?;
+
+                if (std.mem.eql(u8, key, "frame_buffer") and result.frame_buffer != null) {
+                    result.frame_buffer.?.framebuffer_type = if (std.mem.eql(u8, val, "direct")) .direct else if (std.mem.eql(u8, val, "ega")) .ega else .ega;
+                }
+            }
         }
     }
 
