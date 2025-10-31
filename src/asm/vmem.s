@@ -1,14 +1,20 @@
 %include "macros.inc"
 
 global page_dir:data
-global page_table_0:data
 global paging_init:function
 
 extern __kernel_start
 extern __kernel_end
+extern __kernel_size
 
 PAGE_ENTRY_SIZE equ 4 * KiB
-NUM_PAGE_TABLES equ 768
+
+NUM_PAGE_TABLES        equ 4 * GiB / PAGE_ENTRY_SIZE
+
+; HACK: this should be computed from __kernel_size and used at runtime
+NUM_PAGE_TABLES_KERNEL equ 4000
+
+HIGHER_HALF_PAGE_DIR_INDEX equ 768
 
 VGA_TEXT_BUF_ADDR  equ 0x000b8000
 VGA_FRAME_BUF_ADDR equ 0x000a0000
@@ -29,11 +35,13 @@ CR0_PG equ 1 << 31
 section .bss
   align 4 * KiB
 
+  ; Reserve space for the page directory.
   page_dir:
     resb PAGE_ENTRY_SIZE * NUM_PAGE_TABLES
 
-  page_table_0:
-    resb PAGE_ENTRY_SIZE
+  ; Reserve space for all our page tables.
+  page_tables:
+    times NUM_PAGE_TABLES resb PAGE_ENTRY_SIZE
 
 section .multiboot.text
   ; paging_init(return_addr: u32)
@@ -42,8 +50,8 @@ section .multiboot.text
   paging_init:
     ; HINT: search logs for: movl $0x3ff, %ecx
 
-    ; page_table_entry_phys_ptr = page_table_0_addr_virt - HIGHER_HALF
-    mov edi, (page_table_0 - HIGHER_HALF)
+    ; page_table_entry_phys_ptr = virt_addr(page_tables[0]) - HIGHER_HALF
+    mov edi, (page_tables - HIGHER_HALF)
     ; phys_addr_to_map
     mov esi, 0
 
@@ -54,9 +62,9 @@ section .multiboot.text
     mov ecx, 1023
 
   .loop:
-    ; ; If we're not at least at __kernel_start yet, go to the next page.
-    ; cmp esi, __kernel_start
-    ; jl .next_page
+    ; If we're not at least at __kernel_start yet, go to the next page.
+    cmp esi, __kernel_start
+    jl .next_page
 
     ; If we've finished mapping the first dir entry, jump to done.
     cmp esi, (__kernel_end - HIGHER_HALF)
@@ -81,7 +89,7 @@ section .multiboot.text
 
   .dir_entry_one_done:
 	  ; map VGA text buf as (PRESENT | RW) to the last page in page table 1 (giving it address 0xc03ff000).
-    mov dword [page_table_0 - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
+    mov dword [page_tables - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
 
     ; Here be dragons!
     ;
@@ -103,10 +111,17 @@ section .multiboot.text
     ; Once we turn on protected mode, we'll still be in a valid (paged-in) address in page table 0,
     ; after which we can jump to the higher half and drop page table 0 (so it can be used for userspace).
 
-    ; page_dir[0]   = phys_addr(addr_of_index(page_table, 0)) | flags_to_int(PRESENT | RW)
-    ; page_dir[768] = ...
-    mov dword [page_dir - HIGHER_HALF + 0   * 4], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
-    mov dword [page_dir - HIGHER_HALF + 768 * 4], (page_table_0 - HIGHER_HALF + (PDE_PRESENT | PDE_RW))
+    ; NOTE: we're just mapping in pages for the kernel here; once we start allocating memory outside of the kernel space, we're
+    ; have to page new entries in.
+  %assign i 0
+  %rep NUM_PAGE_TABLES_KERNEL
+    %define page_dir_entry (page_tables - HIGHER_HALF + (i * 4)) + (PDE_PRESENT | PDE_RW)
+
+    mov dword [page_dir - HIGHER_HALF + (0   + i) * 4], page_dir_entry
+    mov dword [page_dir - HIGHER_HALF + (768 + i) * 4], page_dir_entry
+
+    %assign i i+1
+  %endrep
 
   .set_page_dir:
     ; set page_dir as the active page directory via cr3
@@ -126,7 +141,7 @@ section .multiboot.text
     jmp paging_init_unset_identity_mapping
 
 section .text:
-  ; NOTE: this is expected to be called from paging_init! 
+  ; NOTE: this is expected to be called from paging_init!
   ; You _cannot_ it from any other function.
   paging_init_unset_identity_mapping:
     ; unmap page_dir[0]

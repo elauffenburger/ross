@@ -40,7 +40,7 @@ section .text
     mov esp, stack_top
 
     ; jump to kmain
-    jmp kmain
+    ;jmp kmain
 
     ; if we somehow exit kmain, loop forever
   .loop:
