@@ -77,6 +77,9 @@ section .multiboot.text
   .make_page_dir:
     ; NOTE: we're just mapping in pages for the kernel here; once we start allocating memory outside of the kernel space, we're
     ; have to page new entries in.
+    
+	  ; map VGA text buf as (PRESENT | RW) to the last page in page_tables[0] (giving it address 0xc03ff000).
+    mov dword [page_tables - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
 
     ; Here be dragons!
     ;
@@ -97,32 +100,42 @@ section .multiboot.text
     ;
     ; Once we turn on protected mode, we'll still be in a valid (paged-in) address in page table 0,
     ; after which we can jump to the higher half and drop page table 0 (so it can be used for userspace).
-  .add_first_page_table_to_page_dir:
-	  ; map VGA text buf as (PRESENT | RW) to the last page in page_tables[0] (giving it address 0xc03ff000).
-    mov dword [page_tables - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
-
-    ; identity-map page_tables[0] _and_ mirror it to page_tables[768]
     mov dword [page_dir - HIGHER_HALF + (0   * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
-    mov dword [page_dir - HIGHER_HALF + (768 * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
 
     ; Now, map the rest of the pages dir entries in.
     ; i = 0
-    mov ebx, 1
+    mov ebx, 0
   .add_page_dir_entry:
-    ; page_dir_entry = (page_tables - HIGHER_HALF + (i * 4)) + (PDE_PRESENT | PDE_RW)
+    ; dir_entry = (page_tables - HIGHER_HALF + (4KiB * i * 4)) + (PDE_PRESENT | PDE_RW)
+    ;                                           ^      ^   ^
+    ;                                           |      |   |
+    ;                                           |      |   each entry is a u32
+    ;                                           |      |
+    ;                                           |      dir_entry index
+    ;                                           |
+    ;                                           entries per table
     mov eax, ebx
-    mov ecx, 4
+    mov ecx, 4 * KiB * 4
     mul ecx
-    add eax, page_tables - HIGHER_HALF
-    add eax, PDE_PRESENT | PDE_RW
-    mov ecx, eax
+    add eax, page_tables - HIGHER_HALF + (PDE_PRESENT | PDE_RW)
+    mov esi, eax
 
-    ; mov [page_dir - HIGHER_HALF + (HIGHER_HALF_PAGE_DIR_INDEX + i) * 4], page_dir_entry
+    ; mov dword [page_dir - HIGHER_HALF + (768 + i) * 4], dir_entry
+    ;                                       ^    ^    ^
+    ;                                       |    |    |
+    ;                                       |    |    each entry is a u32
+    ;                                       |    |
+    ;                                       |    dir_entry_index
+    ;                                       |
+    ;                                       first higher half dir entry
     mov eax, ebx
     add eax, HIGHER_HALF_PAGE_DIR_INDEX
-    mov edx, 4
-    mul edx
-    mov dword [page_dir - HIGHER_HALF + edx], ecx
+    mov ecx, 4
+    mul ecx
+    add eax, page_dir - HIGHER_HALF
+    mov dword [eax], esi
+
+    mov dword [page_dir - HIGHER_HALF + (768 * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
 
     ; i += 1 
     add ebx, 1

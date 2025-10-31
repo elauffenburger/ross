@@ -40,10 +40,12 @@ fn addInstall(b: *std.Build) !*std.Build.Step.Compile {
             .optimize = b.standardOptimizeOption(.{}),
             .link_libc = false,
             .link_libcpp = false,
+            .strip = false,
 
             // Disable red zone to prevent stack-clobbering nonsense in IRQ handlers.
             .red_zone = false,
         }),
+        .strip = false,
     });
     kernel.entry = .{ .symbol_name = "_kentry" };
     kernel.setLinkerScript(b.path("src/asm/link.ld"));
