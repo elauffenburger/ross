@@ -2,6 +2,7 @@
 
 global multiboot2_info_addr:data
 global _kentry:function
+global _kentry_higher_half:function
 
 extern kmain
 extern paging_init
@@ -22,9 +23,6 @@ section .multiboot.text
     mov [multiboot2_info_addr], ebx
 
     ; set up paging
-    ; 
-    ; NOTE: since we don't have a stack yet, we'll pass the return address in ebx.
-    mov ebx, kentry_higher_half
     jmp paging_init
 
   ; TODO: how should we surface this?
@@ -33,14 +31,11 @@ section .multiboot.text
     jmp .fail
 
 section .text
-  kentry_higher_half:
-    ; Paging is go and we're in the higher half!
-
-    ; set up stack
+  _kentry_higher_half:
+    ; set up stack and jump to kmain.
     mov esp, stack_top
-
-    ; jump to kmain
-    ;jmp kmain
+    mov ebp, stack_top
+    jmp kmain
 
     ; if we somehow exit kmain, loop forever
   .loop:

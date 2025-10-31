@@ -6,13 +6,12 @@ global paging_init:function
 extern __kernel_start
 extern __kernel_end
 extern __kernel_size
+extern _kentry_higher_half
 
-PAGE_ENTRY_SIZE equ 4 * KiB
+TABLE_ENTRY_SIZE        equ 4 * KiB
+NUM_ENTRIES_PER_TABLE  equ 1024
 
-NUM_PAGE_TABLES        equ 4 * GiB / PAGE_ENTRY_SIZE
-
-; HACK: this should be computed from __kernel_size and used at runtime
-NUM_PAGE_TABLES_KERNEL equ 4000
+NUM_PAGE_TABLES        equ 4 * GiB / TABLE_ENTRY_SIZE
 
 HIGHER_HALF_PAGE_DIR_INDEX equ 768
 
@@ -37,59 +36,47 @@ section .bss
 
   ; Reserve space for the page directory.
   page_dir:
-    resb PAGE_ENTRY_SIZE * NUM_PAGE_TABLES
+    resb TABLE_ENTRY_SIZE * NUM_PAGE_TABLES
 
   ; Reserve space for all our page tables.
+  ;
+  ; This will be a contiguous block of entries, meaning:
+  ;   - page_tables[0] is (table: 0, entry: 0)
+  ;   - page_tables[4095] is (table: 0, entry: 4095)
+  ;   - page_tables[4096] is (table: 1, entry: 0)
   page_tables:
-    times NUM_PAGE_TABLES resb PAGE_ENTRY_SIZE
+    times NUM_PAGE_TABLES resb TABLE_ENTRY_SIZE
 
 section .multiboot.text
-  ; paging_init(return_addr: u32)
-  ;
-  ; NOTE: we're passing return_addr in ebx, so make sure not to clobber that register!
   paging_init:
-    ; HINT: search logs for: movl $0x3ff, %ecx
+    ; page_table_entry: *u32 = phys_addr(page_tables)
+    mov edi, page_tables - HIGHER_HALF
 
-    ; page_table_entry_phys_ptr = virt_addr(page_tables[0]) - HIGHER_HALF
-    mov edi, (page_tables - HIGHER_HALF)
-    ; phys_addr_to_map
+    ; phys_addr = 0
     mov esi, 0
-
-    ; num_pages_to_map
-    ;
-    ; NOTE: we're only mapping at most 1023 pages;
-    ; we'll manually map memory-mapped IO (like VGA) into the last page.
-    mov ecx, 1023
-
-  .loop:
-    ; If we're not at least at __kernel_start yet, go to the next page.
-    cmp esi, __kernel_start
-    jl .next_page
-
-    ; If we've finished mapping the first dir entry, jump to done.
+  .map_page_table_entries:
+    ; Check if we've finished mapping the kernel.
     cmp esi, (__kernel_end - HIGHER_HALF)
-    jge .dir_entry_one_done
+    jge .make_page_dir
 
-    ; Otherwise, map the page into the page table!
-
-    ; page_table_entry = phys_addr_to_map | (PRESENT | RW)
+    ; entry_val: u32 = phys_addr_to_map | (PRESENT | RW)
     mov edx, esi
     or edx, (PTE_PRESENT | PTE_RW)
 
-    ; *page_table_entry_phys_ptr = page_entry
+    ; page_table_entry.* = entry_val
     mov dword [edi], edx
 
-  .next_page:
-    ; phys_addr_to_map += 4096
-    ; page_table_entry_phys_ptr += 4
+    ; phys_addr += 4096
+    ; page_table_entry += 4
     add esi, 4096
     add edi, 4
 
-    loop .loop
+    ; map the next entry!
+    jmp .map_page_table_entries
 
-  .dir_entry_one_done:
-	  ; map VGA text buf as (PRESENT | RW) to the last page in page table 1 (giving it address 0xc03ff000).
-    mov dword [page_tables - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
+  .make_page_dir:
+    ; NOTE: we're just mapping in pages for the kernel here; once we start allocating memory outside of the kernel space, we're
+    ; have to page new entries in.
 
     ; Here be dragons!
     ;
@@ -110,18 +97,44 @@ section .multiboot.text
     ;
     ; Once we turn on protected mode, we'll still be in a valid (paged-in) address in page table 0,
     ; after which we can jump to the higher half and drop page table 0 (so it can be used for userspace).
+  .add_first_page_table_to_page_dir:
+	  ; map VGA text buf as (PRESENT | RW) to the last page in page_tables[0] (giving it address 0xc03ff000).
+    mov dword [page_tables - HIGHER_HALF + 4 * 1023], (VGA_TEXT_BUF_ADDR | (PTE_PRESENT | PTE_RW))
 
-    ; NOTE: we're just mapping in pages for the kernel here; once we start allocating memory outside of the kernel space, we're
-    ; have to page new entries in.
-  %assign i 0
-  %rep NUM_PAGE_TABLES_KERNEL
-    %define page_dir_entry (page_tables - HIGHER_HALF + (i * 4)) + (PDE_PRESENT | PDE_RW)
+    ; identity-map page_tables[0] _and_ mirror it to page_tables[768]
+    mov dword [page_dir - HIGHER_HALF + (0   * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
+    mov dword [page_dir - HIGHER_HALF + (768 * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
 
-    mov dword [page_dir - HIGHER_HALF + (0   + i) * 4], page_dir_entry
-    mov dword [page_dir - HIGHER_HALF + (768 + i) * 4], page_dir_entry
+    ; Now, map the rest of the pages dir entries in.
+    ; i = 0
+    mov ebx, 1
+  .add_page_dir_entry:
+    ; page_dir_entry = (page_tables - HIGHER_HALF + (i * 4)) + (PDE_PRESENT | PDE_RW)
+    mov eax, ebx
+    mov ecx, 4
+    mul ecx
+    add eax, page_tables - HIGHER_HALF
+    add eax, PDE_PRESENT | PDE_RW
+    mov ecx, eax
 
-    %assign i i+1
-  %endrep
+    ; mov [page_dir - HIGHER_HALF + (HIGHER_HALF_PAGE_DIR_INDEX + i) * 4], page_dir_entry
+    mov eax, ebx
+    add eax, HIGHER_HALF_PAGE_DIR_INDEX
+    mov edx, 4
+    mul edx
+    mov dword [page_dir - HIGHER_HALF + edx], ecx
+
+    ; i += 1 
+    add ebx, 1
+
+    ; num_page_tables_kernel = __kernel_size / 4MiB
+    mov eax, __kernel_size
+    mov ecx, 4 * MiB
+    div ecx
+
+    ; if (i >= num_page_tables_kernel) break
+    cmp ebx, eax
+    jl .add_page_dir_entry
 
   .set_page_dir:
     ; set page_dir as the active page directory via cr3
@@ -142,7 +155,6 @@ section .multiboot.text
 
 section .text:
   ; NOTE: this is expected to be called from paging_init!
-  ; You _cannot_ it from any other function.
   paging_init_unset_identity_mapping:
     ; unmap page_dir[0]
     mov dword [page_dir], 0
@@ -151,5 +163,5 @@ section .text:
     mov ecx, cr3
     mov cr3, ecx
 
-    ; jump to the return address passed to paging_init in ebx.
-    jmp ebx
+    ; jump back to _kentry_higher_half
+    jmp _kentry_higher_half
