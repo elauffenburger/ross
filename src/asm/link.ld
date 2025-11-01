@@ -49,7 +49,6 @@ SECTIONS {
   .bss ALIGN (4K) : AT (ADDR (.bss) - 0xc0000000) {
     *(.bss);
     *(.bss.*);
-    *(.stack);
   }
 
   __kernel_end = .;

@@ -66,31 +66,21 @@ fn panicHandler(msg: []const u8, first_trace_addr: ?usize) noreturn {
 pub export fn kmain() void {
     errdefer |err| std.debug.panic("err in main: {}", .{err});
 
+    // Verify the boot was successful.
+    const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
+
+    // Init kernel memory management.
+    kstd.mem.init();
+    const kallocator = kstd.mem.kheap_allocator;
+
     // Init serial first so we can debug to screen.
     const serial_proof = try hw.io.serial.init();
 
     // Init kernel logging.
     try kstd.log.init(serial_proof);
 
-    kstd.log.dbg("serial initialized");
-
-    // Verify the boot was successful.
-    const boot_info = multiboot2.boot_info.parse(multiboot2_info_addr);
-    _ = boot_info; // autofix
-
-    kstd.log.dbg("boot headers parsed");
-
-    // Init kernel memory management.
-    kstd.mem.init();
-    const kallocator = kstd.mem.kheap_allocator;
-    _ = kallocator;
-
-    kstd.log.dbg("heap initialized");
-
     // Init VGA.
-    //try vga.init(kallocator, boot_info.frame_buffer.?);
-
-    //kstd.log.dbg("vga initialized");
+    try vga.init(kallocator, boot_info.frame_buffer.?);
 
     // Disable interrupts while we init components that configure interrupts.
     asm volatile ("cli");

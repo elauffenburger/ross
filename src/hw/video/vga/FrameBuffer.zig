@@ -181,7 +181,6 @@ pub inline fn textGrid(self: Self) struct { width: u32, height: u32 } {
 fn scroll(self: *Self) void {
     self.target.scroll(self.target.context);
 
-    // HACK: testing this out!
     self.text.pos.x = 0;
     self.text.pos.y = self.textGrid().height - 1;
 }
