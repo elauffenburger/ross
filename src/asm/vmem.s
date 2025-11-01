@@ -3,15 +3,14 @@
 global page_dir:data
 global paging_init:function
 
-extern __kernel_start
 extern __kernel_end
 extern __kernel_size
 extern _kentry_higher_half
 
-TABLE_ENTRY_SIZE        equ 4 * KiB
+TABLE_ENTRY_SIZE       equ 4 * KiB
 NUM_ENTRIES_PER_TABLE  equ 1024
 
-NUM_PAGE_TABLES        equ 4 * GiB / TABLE_ENTRY_SIZE
+NUM_PAGE_TABLES equ 4 * GiB / TABLE_ENTRY_SIZE
 
 HIGHER_HALF_PAGE_DIR_INDEX equ 768
 
@@ -100,42 +99,26 @@ section .multiboot.text
     ;
     ; Once we turn on protected mode, we'll still be in a valid (paged-in) address in page table 0,
     ; after which we can jump to the higher half and drop page table 0 (so it can be used for userspace).
-    mov dword [page_dir - HIGHER_HALF + (0   * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
+    mov dword [page_dir - HIGHER_HALF], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
 
     ; Now, map the rest of the pages dir entries in.
     ; i = 0
     mov ebx, 0
   .add_page_dir_entry:
-    ; dir_entry = (page_tables - HIGHER_HALF + (4KiB * i * 4)) + (PDE_PRESENT | PDE_RW)
-    ;                                           ^      ^   ^
-    ;                                           |      |   |
-    ;                                           |      |   each entry is a u32
-    ;                                           |      |
-    ;                                           |      dir_entry index
-    ;                                           |
-    ;                                           entries per table
+    ; dir_entry = (page_tables - HIGHER_HALF + (TABLE_ENTRY_SIZE * i)) + (PDE_PRESENT | PDE_RW)
     mov eax, ebx
-    mov ecx, 4 * KiB * 4
+    mov ecx, TABLE_ENTRY_SIZE
     mul ecx
     add eax, page_tables - HIGHER_HALF + (PDE_PRESENT | PDE_RW)
     mov esi, eax
 
-    ; mov dword [page_dir - HIGHER_HALF + (768 + i) * 4], dir_entry
-    ;                                       ^    ^    ^
-    ;                                       |    |    |
-    ;                                       |    |    each entry is a u32
-    ;                                       |    |
-    ;                                       |    dir_entry_index
-    ;                                       |
-    ;                                       first higher half dir entry
+    ; mov dword [page_dir - HIGHER_HALF + (HIGHER_HALF_PAGE_DIR_INDEX + i) * 4], dir_entry
     mov eax, ebx
     add eax, HIGHER_HALF_PAGE_DIR_INDEX
     mov ecx, 4
     mul ecx
     add eax, page_dir - HIGHER_HALF
     mov dword [eax], esi
-
-    mov dword [page_dir - HIGHER_HALF + (768 * 4)], (page_tables - HIGHER_HALF) + (PDE_PRESENT | PDE_RW)
 
     ; i += 1 
     add ebx, 1
